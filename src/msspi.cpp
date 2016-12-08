@@ -353,8 +353,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
             if( io < 0 )
                 return io;
 
-            if( io == 0 && h->state != MSSPI_SHUTDOWN )
-                return msspi_shutdown( h );
+            if( io == 0 )
+                return h->state != MSSPI_OK ? 0 : msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
@@ -573,8 +573,8 @@ int msspi_accept( MSSPI_HANDLE h )
             if( io < 0 )
                 return io;
 
-            if( io == 0 && h->state != MSSPI_SHUTDOWN )
-                return msspi_shutdown( h );
+            if( io == 0 )
+                return h->state != MSSPI_OK ? 0 : msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
@@ -736,8 +736,8 @@ int msspi_connect( MSSPI_HANDLE h )
             if( io < 0 )
                 return io;
 
-            if( io == 0 && h->state != MSSPI_SHUTDOWN )
-                return msspi_shutdown( h );
+            if( io == 0 )
+                return h->state != MSSPI_OK ? 0 : msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
