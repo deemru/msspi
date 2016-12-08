@@ -54,6 +54,7 @@ int msspi_shutdown( MSSPI_HANDLE h );
 
 typedef enum
 {
+    MSSPI_OK = 0,
     MSSPI_NOTHING,
     MSSPI_READING,
     MSSPI_WRITING,

@@ -130,7 +130,8 @@ struct MSSPI
         is_client = 0;
         is_connected = 0;
         is_peerauth = 0;
-        state = MSSPI_NOTHING;
+        state = MSSPI_OK;
+        rwstate = MSSPI_NOTHING;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
         cred = NULL;
@@ -162,6 +163,7 @@ struct MSSPI
     char is_connected;
     char is_peerauth;
     MSSPI_STATE state;
+    MSSPI_STATE rwstate;
     std::string host;
 
     CtxtHandle hCtx;
@@ -331,8 +333,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         return decrypted;
     }
 
-    if( h->state == MSSPI_NOTHING && h->in_len == 0 )
-        h->state = MSSPI_READING;
+    if( h->rwstate == MSSPI_NOTHING && h->in_len == 0 )
+        h->rwstate = MSSPI_READING;
 
     for( ;; )
     {
@@ -344,19 +346,19 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         int decrypted = 0;
         int extra = 0;
 
-        if( h->state == MSSPI_READING )
+        if( h->rwstate == MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
                 return io;
 
-            if( io == 0 )
+            if( io == 0 && h->state != MSSPI_SHUTDOWN )
                 return msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
-            h->state = MSSPI_NOTHING;
+            h->rwstate = MSSPI_NOTHING;
         }
 
         Buffers[0].pvBuffer = h->in_buf;
@@ -375,7 +377,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->state = MSSPI_READING;
+            h->rwstate = MSSPI_READING;
             continue;
         }
 
@@ -427,7 +429,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
-            h->state = MSSPI_X509_LOOKUP;
+            h->rwstate = MSSPI_X509_LOOKUP;
             h->is_connected = false;
 
             i = msspi_connect( h );
@@ -523,7 +525,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
 MSSPI_STATE msspi_state( MSSPI_HANDLE h )
 {
-    return h->state;
+    return h->state ? h->state : h->rwstate;
 }
 
 int msspi_pending( MSSPI_HANDLE h )
@@ -553,8 +555,8 @@ int msspi_shutdown( MSSPI_HANDLE h )
         return 0;
     }
 
-    int ret = h->is_client ? msspi_connect( h ) : msspi_accept( h );
     h->state = MSSPI_SHUTDOWN;
+    int ret = h->is_client ? msspi_connect( h ) : msspi_accept( h );
     return ret;
 }
 
@@ -564,19 +566,19 @@ int msspi_accept( MSSPI_HANDLE h )
     {
         SECURITY_STATUS scRet;
 
-        if( h->state == MSSPI_READING )
+        if( h->rwstate == MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
                 return io;
 
-            if( io == 0 )
+            if( io == 0 && h->state != MSSPI_SHUTDOWN )
                 return msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
-            h->state = MSSPI_NOTHING;
+            h->rwstate = MSSPI_NOTHING;
         }
 
         {
@@ -657,14 +659,14 @@ int msspi_accept( MSSPI_HANDLE h )
                     memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
                     h->out_len = OutBuffers[0].cbBuffer;
 
-                    h->state = MSSPI_WRITING;
+                    h->rwstate = MSSPI_WRITING;
 
                     sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
                 }
             }
         }
 
-        if( h->state == MSSPI_WRITING )
+        if( h->rwstate == MSSPI_WRITING )
         {
             if( h->write_cb( h->cb_arg, h->out_buf, h->out_len ) != h->out_len )
             {
@@ -674,12 +676,12 @@ int msspi_accept( MSSPI_HANDLE h )
 
             h->out_len = 0;
 
-            h->state = MSSPI_NOTHING;
+            h->rwstate = MSSPI_NOTHING;
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->state = MSSPI_READING;
+            h->rwstate = MSSPI_READING;
             continue;
         }
 
@@ -704,7 +706,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( scRet == SEC_I_INCOMPLETE_CREDENTIALS )
         {
-            h->state = MSSPI_X509_LOOKUP;
+            h->rwstate = MSSPI_X509_LOOKUP;
             continue;
         }
 
@@ -727,19 +729,19 @@ int msspi_connect( MSSPI_HANDLE h )
     {
         SECURITY_STATUS scRet;
 
-        if( h->state == MSSPI_READING )
+        if( h->rwstate == MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
                 return io;
 
-            if( io == 0 )
+            if( io == 0 && h->state != MSSPI_SHUTDOWN )
                 return msspi_shutdown( h );
 
             h->in_len = h->in_len + io;
 
-            h->state = MSSPI_NOTHING;
+            h->rwstate = MSSPI_NOTHING;
         }
 
         {
@@ -823,14 +825,14 @@ int msspi_connect( MSSPI_HANDLE h )
                     memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
                     h->out_len = OutBuffers[0].cbBuffer;
 
-                    h->state = MSSPI_WRITING;
+                    h->rwstate = MSSPI_WRITING;
 
                     sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
                 }
             }
         }
 
-        if( h->state == MSSPI_WRITING )
+        if( h->rwstate == MSSPI_WRITING )
         {
             if( h->write_cb( h->cb_arg, h->out_buf, h->out_len ) != h->out_len )
             {
@@ -840,12 +842,12 @@ int msspi_connect( MSSPI_HANDLE h )
 
             h->out_len = 0;
 
-            h->state = MSSPI_NOTHING;
+            h->rwstate = MSSPI_NOTHING;
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->state = MSSPI_READING;
+            h->rwstate = MSSPI_READING;
             continue;
         }
 
@@ -870,7 +872,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( scRet == SEC_I_INCOMPLETE_CREDENTIALS )
         {
-            h->state = MSSPI_X509_LOOKUP;
+            h->rwstate = MSSPI_X509_LOOKUP;
             continue;
         }
 
