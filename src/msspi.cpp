@@ -130,6 +130,7 @@ struct MSSPI
         is_client = 0;
         is_connected = 0;
         is_peerauth = 0;
+        is_cipherinfo = 0;
         state = MSSPI_OK;
         rwstate = MSSPI_NOTHING;
         hCtx.dwLower = 0;
@@ -162,9 +163,11 @@ struct MSSPI
     char is_client;
     char is_connected;
     char is_peerauth;
+    char is_cipherinfo;
     MSSPI_STATE state;
     MSSPI_STATE rwstate;
     std::string host;
+    SecPkgContext_CipherInfo cipherinfo;
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
@@ -632,7 +635,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
                 h->in_len ? &InBuffer : NULL,
-                dwSSPIFlags,
+                dwSSPIFlags | ( h->is_peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ),
                 SECURITY_NATIVE_DREP,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
                 &OutBuffer,
@@ -1046,14 +1049,48 @@ void msspi_close( MSSPI_HANDLE h )
     delete h;
 }
 
-char msspi_get_cipherinfo( MSSPI_HANDLE h, PSecPkgContext_CipherInfo cipherInfo )
+PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
 {
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)cipherInfo );
+    if( h->is_cipherinfo )
+        return &h->cipherinfo;
+
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo );
 
     if( scRet != SEC_E_OK )
-        return 0;
+        return NULL;
 
-    return 1;
+    return &h->cipherinfo;
+}
+
+const char * msspi_get_version( MSSPI_HANDLE h )
+{
+    const char * tlsproto = "Unknown";
+
+    if( h->is_cipherinfo || msspi_get_cipherinfo( h ) )
+    {
+        switch( h->cipherinfo.dwProtocol )
+        {
+        case 0x00000301:
+        case SP_PROT_TLS1_SERVER:
+        case SP_PROT_TLS1_CLIENT:
+            tlsproto = "TLSv1";
+            break;
+        case 0x00000302:
+        case SP_PROT_TLS1_1_SERVER:
+        case SP_PROT_TLS1_1_CLIENT:
+            tlsproto = "TLSv1.1";
+            break;
+        case 0x00000303:
+        case SP_PROT_TLS1_2_SERVER:
+        case SP_PROT_TLS1_2_CLIENT:
+            tlsproto = "TLSv1.2";
+            break;
+        default:
+            break;
+        }
+    }
+
+    return tlsproto;
 }
 
 char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count )
@@ -1129,12 +1166,12 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count )
 unsigned msspi_verify( MSSPI_HANDLE h )
 {
     DWORD dwVerify = MSSPI_VERIFY_ERROR;
-    PCCERT_CONTEXT ServerCert = NULL;
-    PCCERT_CHAIN_CONTEXT ServerChain = NULL;
+    PCCERT_CONTEXT PeerCert = NULL;
+    PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
     for( ;; )
     {
-        if( SEC_E_OK != sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&ServerCert ) )
+        if( SEC_E_OK != sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert ) )
             break;
 
         CERT_CHAIN_PARA ChainPara;
@@ -1143,13 +1180,13 @@ unsigned msspi_verify( MSSPI_HANDLE h )
 
         if( !CertGetCertificateChain(
             NULL,
-            ServerCert,
+            PeerCert,
             NULL,
             NULL,
             &ChainPara,
             CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_REVOCATION_CHECK_CHAIN,
             NULL,
-            &ServerChain ) )
+            &PeerChain ) )
             break;
 
         CERT_CHAIN_POLICY_PARA PolicyPara;
@@ -1162,7 +1199,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
 
         if( !CertVerifyCertificateChainPolicy(
             CERT_CHAIN_POLICY_BASE,
-            ServerChain,
+            PeerChain,
             &PolicyPara,
             &PolicyStatus ) )
             break;
@@ -1175,11 +1212,11 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         break;
     }
 
-    if( ServerCert )
-        CertFreeCertificateContext( ServerCert );
+    if( PeerCert )
+        CertFreeCertificateContext( PeerCert );
 
-    if( ServerChain )
-        CertFreeCertificateChain( ServerChain );
+    if( PeerChain )
+        CertFreeCertificateChain( PeerChain );
 
     return (unsigned)dwVerify;
 }

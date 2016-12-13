@@ -67,7 +67,8 @@ MSSPI_STATE;
 MSSPI_STATE msspi_state( MSSPI_HANDLE h );
 int msspi_pending( MSSPI_HANDLE h );
 
-char msspi_get_cipherinfo( MSSPI_HANDLE h, PSecPkgContext_CipherInfo cipherInfo );
+PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
+const char * msspi_get_version( MSSPI_HANDLE h );
 char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count );
 void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 
