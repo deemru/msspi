@@ -83,6 +83,7 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 #define CERT_E_WRONG_USAGE              0x800B0110L // InvalidPurpose
 #define CERT_E_EXPIRED                  0x800B0101L // CertificateExpired
 #define CERT_E_INVALID_NAME             0x800B0114L // HostNameMismatch
+#define CERT_E_CN_NO_MATCH              0x800B010FL // HostNameMismatch
 #define CERT_E_INVALID_POLICY           0x800B0113L // InvalidPurpose
 #define TRUST_E_BASIC_CONSTRAINTS       0x80096019L // UnspecifiedError
 #define CERT_E_CRITICAL                 0x800B0105L // UnspecifiedError
@@ -92,6 +93,7 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 #endif
 
 unsigned msspi_verify( MSSPI_HANDLE h );
+unsigned msspi_verifypeer( MSSPI_HANDLE h, const char * store );
 
 void msspi_close( MSSPI_HANDLE h );
 

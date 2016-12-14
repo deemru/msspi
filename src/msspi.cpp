@@ -265,17 +265,6 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
         {
             SchannelCred.cCreds = 1;
             SchannelCred.paCred = &cert;
-
-            {
-                DWORD dw = 0;
-                if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
-                {
-                    hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM, 0, 0, CERT_SYSTEM_STORE_CURRENT_USER, L"MY" );
-
-                    if( hStore )
-                        cert = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, cert, 0 );
-                }
-            }
         }
 
         Status = sspi->AcquireCredentialsHandleA(
@@ -963,20 +952,15 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
     HCERTSTORE hStore = 0;
-    PCCERT_CONTEXT cert = NULL;
+    PCCERT_CONTEXT certfound = NULL;
+    PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
 
     if( len )
-    {
-        cert = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, len );
+        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, len );
 
-        if( h->cert )
-            CertFreeCertificateContext( h->cert );
-
-        h->cert = cert;
-
-        return cert ? 1 : 0;
-    }
+    if( len && !certprobe )
+        return 0;
 
     DWORD dwStoreFlags[2] = {
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
@@ -990,6 +974,14 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
         if( !hStore )
             continue;
 
+        if( certprobe )
+        {
+            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
+
+            if( certfound )
+                break;
+        }
+        else
         {
             BYTE bb[64/*MAX_OID_LEN*/];
             int bblen = sizeof( bb );
@@ -1007,41 +999,44 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
                     id._UN HashId.pbData = bb;
                     id._UN HashId.cbData = bblen;
 
-                    cert = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
 
-                    if( cert )
+                    if( certfound )
                         break;
 
                     id.dwIdChoice = CERT_ID_KEY_IDENTIFIER;
                     id._UN KeyId.pbData = bb;
                     id._UN KeyId.cbData = bblen;
 
-                    cert = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
 
-                    if( cert )
+                    if( certfound )
                         break;
                 }
             }
 
-            cert = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, clientCert, NULL );
+            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, clientCert, NULL );
 
-            if( cert )
+            if( certfound )
                 break;
-
-            CertCloseStore( hStore, 0 );
-            hStore = 0;
         }
+
+        CertCloseStore( hStore, 0 );
+        hStore = 0;
     }
 
     if( hStore )
         CertCloseStore( hStore, 0 );
 
+    if( certprobe )
+        CertFreeCertificateContext( certprobe );
+
     if( h->cert )
         CertFreeCertificateContext( h->cert );
 
-    h->cert = cert;
+    h->cert = certfound;
         
-    return cert ? 1 : 0;
+    return certfound ? 1 : 0;
 }
 
 void msspi_close( MSSPI_HANDLE h )
@@ -1095,18 +1090,18 @@ const char * msspi_get_version( MSSPI_HANDLE h )
 
 char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count )
 {
-    int max = *count;
+    int max = bufs ? *count : INT_MAX;
     int i;
 
-    PCCERT_CONTEXT ServerCert = NULL;
+    PCCERT_CONTEXT PeerCert = NULL;
     PCCERT_CONTEXT RunnerCert;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&ServerCert );
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
 
     if( scRet != SEC_E_OK )
         return 0;
 
-    RunnerCert = ServerCert;
+    RunnerCert = PeerCert;
 
     bool is_OK = false;
 
@@ -1115,15 +1110,16 @@ char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count 
         PCCERT_CONTEXT IssuerCert = NULL;
         DWORD dwVerificationFlags = 0;
 
+        if( bufs )
         {
             lens[i] = RunnerCert->cbCertEncoded;
             bufs[i] = new char[RunnerCert->cbCertEncoded];
             memcpy( bufs[i], RunnerCert->pbCertEncoded, RunnerCert->cbCertEncoded );
         }
 
-        IssuerCert = CertGetIssuerCertificateFromStore( ServerCert->hCertStore, RunnerCert, NULL, &dwVerificationFlags );
+        IssuerCert = CertGetIssuerCertificateFromStore( PeerCert->hCertStore, RunnerCert, NULL, &dwVerificationFlags );
 
-        if( RunnerCert != ServerCert )
+        if( RunnerCert != PeerCert )
             CertFreeCertificateContext( RunnerCert );
 
         RunnerCert = IssuerCert;
@@ -1134,16 +1130,17 @@ char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count 
 
     max = i;
 
-    if( RunnerCert && RunnerCert != ServerCert )
+    if( RunnerCert && RunnerCert != PeerCert )
         CertFreeCertificateContext( RunnerCert );
 
-    if( ServerCert )
-        CertFreeCertificateContext( ServerCert );
+    if( PeerCert )
+        CertFreeCertificateContext( PeerCert );
 
     if( !is_OK )
     {
-        for( i = 0; i < max; i++ )
-            delete[] (char *)bufs[i];
+        if( bufs )
+            for( i = 0; i < max; i++ )
+                delete[] (char *)bufs[i];
 
         return 0;
     }
@@ -1189,16 +1186,28 @@ unsigned msspi_verify( MSSPI_HANDLE h )
             &PeerChain ) )
             break;
 
+        std::wstring whost;
+        HTTPSPolicyCallbackData polHttps;
+        memset( &polHttps, 0, sizeof( HTTPSPolicyCallbackData ) );
+        polHttps.cbStruct = sizeof( HTTPSPolicyCallbackData );
+        polHttps.dwAuthType = h->is_client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT;
+        if( h->is_client )
+        {
+            whost.assign( h->host.begin(), h->host.end() );
+            polHttps.pwszServerName = (WCHAR *)whost.data();
+        }
+
         CERT_CHAIN_POLICY_PARA PolicyPara;
         memset( &PolicyPara, 0, sizeof( PolicyPara ) );
         PolicyPara.cbSize = sizeof( PolicyPara );
+        PolicyPara.pvExtraPolicyPara = &polHttps;
 
         CERT_CHAIN_POLICY_STATUS PolicyStatus;
         memset( &PolicyStatus, 0, sizeof( PolicyStatus ) );
         PolicyStatus.cbSize = sizeof( PolicyStatus );
 
         if( !CertVerifyCertificateChainPolicy(
-            CERT_CHAIN_POLICY_BASE,
+            CERT_CHAIN_POLICY_SSL,
             PeerChain,
             &PolicyPara,
             &PolicyStatus ) )
@@ -1219,4 +1228,46 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         CertFreeCertificateChain( PeerChain );
 
     return (unsigned)dwVerify;
+}
+
+unsigned msspi_verifypeer( MSSPI_HANDLE h, const char * store )
+{
+    HCERTSTORE hStore = 0;
+    PCCERT_CONTEXT certfound = NULL;
+    PCCERT_CONTEXT certprobe = NULL;
+    unsigned int i;
+
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe );
+
+    if( scRet != SEC_E_OK )
+        return 0;
+
+    DWORD dwStoreFlags[2] = {
+        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
+        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_LOCAL_MACHINE,
+    };
+
+    for( i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
+    {
+        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], store );
+
+        if( !hStore )
+            continue;
+
+        certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
+
+        CertCloseStore( hStore, 0 );
+        hStore = 0;
+
+        if( certfound )
+            break;
+    }
+
+    if( certprobe )
+        CertFreeCertificateContext( certprobe );
+
+    if( certfound )
+        CertFreeCertificateContext( certfound );
+
+    return certfound ? 1 : 0;
 }
