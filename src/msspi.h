@@ -55,7 +55,7 @@ int msspi_shutdown( MSSPI_HANDLE h );
 typedef enum
 {
     MSSPI_OK = 0,
-    MSSPI_NOTHING,
+    MSSPI_NOTHING = 0,
     MSSPI_READING,
     MSSPI_WRITING,
     MSSPI_X509_LOOKUP,
@@ -93,7 +93,7 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 #endif
 
 unsigned msspi_verify( MSSPI_HANDLE h );
-unsigned msspi_verifypeer( MSSPI_HANDLE h, const char * store );
+char msspi_verifypeer( MSSPI_HANDLE h, const char * store );
 
 void msspi_close( MSSPI_HANDLE h );
 
