@@ -746,6 +746,18 @@ int msspi_accept( MSSPI_HANDLE h )
             continue;
         }
 
+        // shutdown OK
+        if( h->is_shutingdown )
+        {
+            if( scRet == SEC_E_OK ||
+                scRet == SEC_I_CONTEXT_EXPIRED ||
+                scRet == 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            {
+                h->state = MSSPI_SHUTDOWN;
+                return 0;
+            }
+        }
+
         // handshake OK
         if( scRet == SEC_E_OK )
         {
@@ -933,7 +945,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
             }
-        }            
+        }
 
         // handshake OK
         if( scRet == SEC_E_OK )
