@@ -9,5 +9,3 @@ build_script:
     cd build_windows
 
     make
-artifacts:
-deploy:
