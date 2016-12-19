@@ -385,14 +385,14 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( scRet != SEC_E_OK &&
             scRet != SEC_I_RENEGOTIATE &&
             scRet != SEC_I_CONTEXT_EXPIRED &&
-            scRet != 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet != (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
         {
             h->state = MSSPI_ERROR;
             return 0;
         }
 
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
-            scRet == 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
         {
             return msspi_shutdown( h );
         }
@@ -510,14 +510,14 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
         if( scRet != SEC_E_OK &&
             scRet != SEC_I_CONTEXT_EXPIRED &&
-            scRet != 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet != (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
         {
             h->state = MSSPI_ERROR;
             return 0;
         }
 
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
-            scRet == 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
         {
             return msspi_shutdown( h );
         }
@@ -751,7 +751,7 @@ int msspi_accept( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+                scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
             {
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
@@ -940,7 +940,7 @@ int msspi_connect( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == 0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+                scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
             {
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
@@ -1191,7 +1191,7 @@ const char * msspi_get_version( MSSPI_HANDLE h )
 
 char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count )
 {
-    int max = bufs ? *count : INT_MAX;
+    int max = bufs ? *count : 0;
     int i;
 
     PCCERT_CONTEXT PeerCert = NULL;
@@ -1206,7 +1206,7 @@ char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count 
 
     bool is_OK = false;
 
-    for( i = 0; i < max && RunnerCert; i++ )
+    for( i = 0; RunnerCert && ( bufs ? i < max : true ); i++ )
     {
         PCCERT_CONTEXT IssuerCert = NULL;
         DWORD dwVerificationFlags = 0;
