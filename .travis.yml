@@ -1,0 +1,14 @@
+language: cpp
+script:
+    - cd build_linux
+    - ln -s /usr/bin/gcc-4.9 gcc
+    - ln -s /usr/bin/g++-4.9 g++
+    - export PATH=.:$PATH
+    - make
+addons:
+    apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - gcc-4.9
+        - g++-4.9

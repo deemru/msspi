@@ -1,6 +1,6 @@
-// micro sspi
+// microsspi
 
-#ifdef WIN32
+#ifdef _WIN32
 #   pragma warning( disable:4820 )
 #   pragma warning( disable:4710 )
 #   pragma warning( disable:4668 )
@@ -24,7 +24,7 @@ extern "C" {
 #include <stdio.h>
 #include <string.h>
 #define SECURITY_WIN32
-#ifdef WIN32
+#ifdef _WIN32
 #include <schannel.h>
 #include <sspi.h>
 #else
@@ -43,7 +43,7 @@ unsigned GetTickCount()
 
     return ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 );
 }
-#endif // WIN32
+#endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
@@ -53,10 +53,13 @@ unsigned GetTickCount()
 
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
 #define SSPI_BUFFER_SIZE 65536
-#ifdef WIN32
+#ifdef _WIN32
 #define SECURITY_DLL_NAME "Security.dll"
 #else
-#define SECURITY_DLL_NAME "/opt/cprocsp/lib/amd64/libssp.so"
+#ifndef SECURITY_DLL_NAME_LINUX
+#define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
+#endif
+#define SECURITY_DLL_NAME SECURITY_DLL_NAME_LINUX
 #endif
 
 #include "msspi.h"

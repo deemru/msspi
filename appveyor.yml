@@ -1,0 +1,13 @@
+version: msspi-{build}
+pull_requests:
+  do_not_increment_build_number: true
+skip_tags: true
+clone_depth: 1
+clone_folder: c:\github\deemru\msspi\
+build_script:
+- cmd: >-
+    cd build_windows
+
+    make
+artifacts:
+deploy:
