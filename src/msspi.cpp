@@ -457,37 +457,38 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
             return i;
     }
 
-    if( h->rwstate != MSSPI_WRITING )
+    if( !h->out_msg_max )
+    {
+        SECURITY_STATUS           scRet;
+        SecPkgContext_StreamSizes Sizes;
+
+        scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes );
+
+        if( scRet != SEC_E_OK )
+        {
+            h->state = MSSPI_ERROR;
+            return 0;
+        }
+
+        if( Sizes.cbHeader + Sizes.cbMaximumMessage + Sizes.cbTrailer > SSPI_BUFFER_SIZE )
+        {
+            h->state = MSSPI_ERROR;
+            return 0;
+        }
+
+        h->out_hdr_len = Sizes.cbHeader;
+        h->out_msg_max = Sizes.cbMaximumMessage;
+        h->out_trl_max = Sizes.cbTrailer;
+    }
+
+    if( len > (int)h->out_msg_max )
+        len = (int)h->out_msg_max;
+
+    if( !h->out_len )
     {
         SECURITY_STATUS           scRet;
         SecBufferDesc             Message;
         SecBuffer                 Buffers[4];
-
-        if( !h->out_msg_max )
-        {
-            SecPkgContext_StreamSizes Sizes;
-
-            scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes );
-
-            if( scRet != SEC_E_OK )
-            {
-                h->state = MSSPI_ERROR;
-                return 0;
-            }
-
-            if( Sizes.cbHeader + Sizes.cbMaximumMessage + Sizes.cbTrailer > SSPI_BUFFER_SIZE )
-            {
-                h->state = MSSPI_ERROR;
-                return 0;
-            }
-
-            h->out_hdr_len = Sizes.cbHeader;
-            h->out_msg_max = Sizes.cbMaximumMessage;
-            h->out_trl_max = Sizes.cbTrailer;
-        }
-
-        if( len > (int)h->out_msg_max )
-            len = (int)h->out_msg_max;
 
         Buffers[0].pvBuffer = h->out_buf;
         Buffers[0].cbBuffer = h->out_hdr_len;
@@ -526,15 +527,25 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         }
 
         h->out_len = (int)h->out_hdr_len + len + (int)Buffers[2].cbBuffer;
-        h->rwstate = MSSPI_WRITING;
     }
 
-    if( h->rwstate == MSSPI_WRITING )
+    while( h->out_len )
     {
         int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
 
+        if( io == h->out_len )
+        {
+            h->out_len = 0;
+            if( h->rwstate == MSSPI_WRITING )
+                h->rwstate = MSSPI_NOTHING;
+            break;
+        }
+
         if( io < 0 )
+        {
+            h->rwstate = MSSPI_WRITING;
             return io;
+        }
 
         if( io == 0 )
         {
@@ -542,18 +553,17 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
             return 0;
         }
 
-        if( io != h->out_len )
+        if( io > h->out_len )
         {
             h->state = MSSPI_ERROR;
             return 0;
         }
 
-        h->out_len = 0;
-        h->rwstate = MSSPI_NOTHING;
-        return len;
+        h->out_len -= io;
+        memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
     }
 
-    return 0;
+    return len;
 }
 
 MSSPI_STATE msspi_state( MSSPI_HANDLE h )
@@ -634,7 +644,7 @@ int msspi_accept( MSSPI_HANDLE h )
             h->rwstate = MSSPI_NOTHING;
         }
 
-        if( h->rwstate != MSSPI_WRITING )
+        if( !h->out_len )
         {
             SecBufferDesc   InBuffer;
             SecBuffer       InBuffers[2];
@@ -713,19 +723,28 @@ int msspi_accept( MSSPI_HANDLE h )
                     memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
                     h->out_len = (int)OutBuffers[0].cbBuffer;
 
-                    h->rwstate = MSSPI_WRITING;
-
                     sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
                 }
             }
         }
 
-        if( h->rwstate == MSSPI_WRITING )
+        while( h->out_len )
         {
             int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
 
+            if( io == h->out_len )
+            {
+                h->out_len = 0;
+                if( h->rwstate == MSSPI_WRITING )
+                    h->rwstate = MSSPI_NOTHING;
+                break;
+            }
+
             if( io < 0 )
+            {
+                h->rwstate = MSSPI_WRITING;
                 return io;
+            }
 
             if( io == 0 )
             {
@@ -733,14 +752,14 @@ int msspi_accept( MSSPI_HANDLE h )
                 return 0;
             }
 
-            if( io != h->out_len )
+            if( io > h->out_len )
             {
                 h->state = MSSPI_ERROR;
                 return 0;
             }
 
-            h->out_len = 0;
-            h->rwstate = MSSPI_NOTHING;
+            h->out_len -= io;
+            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
@@ -820,7 +839,7 @@ int msspi_connect( MSSPI_HANDLE h )
             h->rwstate = MSSPI_NOTHING;
         }
 
-        if( h->rwstate != MSSPI_WRITING )
+        if( !h->out_len )
         {
             SecBufferDesc   InBuffer;
             SecBuffer       InBuffers[2];
@@ -902,19 +921,28 @@ int msspi_connect( MSSPI_HANDLE h )
                     memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
                     h->out_len = (int)OutBuffers[0].cbBuffer;
 
-                    h->rwstate = MSSPI_WRITING;
-
                     sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
                 }
             }
         }
 
-        if( h->rwstate == MSSPI_WRITING )
+        while( h->out_len )
         {
             int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
 
+            if( io == h->out_len )
+            {
+                h->out_len = 0;
+                if( h->rwstate == MSSPI_WRITING )
+                    h->rwstate = MSSPI_NOTHING;
+                break;
+            }
+
             if( io < 0 )
+            {
+                h->rwstate = MSSPI_WRITING;
                 return io;
+            }
 
             if( io == 0 )
             {
@@ -922,14 +950,14 @@ int msspi_connect( MSSPI_HANDLE h )
                 return 0;
             }
 
-            if( io != h->out_len )
+            if( io > h->out_len )
             {
                 h->state = MSSPI_ERROR;
                 return 0;
             }
 
-            h->out_len = 0;
-            h->rwstate = MSSPI_NOTHING;
+            h->out_len -= io;
+            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
