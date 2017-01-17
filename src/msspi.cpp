@@ -248,7 +248,6 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
     else if( !is_free )
     {
         CredHandle      hCred;
-        HCERTSTORE      hStore = 0;
         SECURITY_STATUS Status;
         TimeStamp       tsExpiry;
         SCHANNEL_CRED   SchannelCred;
@@ -286,13 +285,6 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
             NULL,
             &hCred,
             &tsExpiry );
-
-        if( hStore )
-        {
-            if( cert )
-                CertFreeCertificateContext( cert );
-            CertCloseStore( hStore, CERT_CLOSE_STORE_CHECK_FLAG );
-        }
 
         if( Status == SEC_E_OK )
         {
@@ -1080,6 +1072,54 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 #define _UN f_name.
 #endif // _WIN32
 #endif // _UN
+
+char msspi_set_mycert_silent( MSSPI_HANDLE h )
+{
+    PCRYPT_KEY_PROV_INFO provinfo = NULL;
+    HCRYPTPROV hProv = 0;
+    char isok = 0;
+
+    for( ;; )
+    {
+        DWORD dw;
+
+        if( !h->cert )
+            break;
+
+        if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
+            break;
+
+        provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+
+        if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
+            break;
+
+        if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType,
+            ( provinfo->dwFlags & ~CERT_SET_KEY_CONTEXT_PROP_ID ) | CRYPT_SILENT ) )
+            break;
+
+        {
+            CERT_KEY_CONTEXT keyctx;
+            keyctx.cbSize = sizeof( keyctx );
+            keyctx.hCryptProv = hProv;
+            keyctx.dwKeySpec = provinfo->dwKeySpec;
+
+            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_CONTEXT_PROP_ID, 0, &keyctx ) )
+                break;
+        }
+
+        isok = 1;
+        break;
+    }
+
+    if( provinfo )
+        delete[]( char * )provinfo;
+
+    if( !isok && hProv )
+        CryptReleaseContext( hProv, 0 );
+
+    return isok;
+}
 
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
