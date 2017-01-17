@@ -614,6 +614,9 @@ int msspi_shutdown( MSSPI_HANDLE h )
 
 int msspi_accept( MSSPI_HANDLE h )
 {
+    if( h->state == MSSPI_ERROR )
+        return 0;
+
     for( ;; )
     {
         SECURITY_STATUS scRet = SEC_I_CONTINUE_NEEDED;
@@ -807,6 +810,9 @@ int msspi_accept( MSSPI_HANDLE h )
 
 int msspi_connect( MSSPI_HANDLE h )
 {
+    if( h->state == MSSPI_ERROR )
+        return 0;
+
     h->is_client = 1;
 
     for( ;; )
