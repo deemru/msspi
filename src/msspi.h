@@ -5,13 +5,13 @@
 #define SECPKGCONTEXT_CIPHERINFO_V1 1
 #define SZ_ALG_MAX_SIZE 64
 
-#ifndef DWORD
+#ifndef WIN32
 typedef unsigned int DWORD;
+#else
+typedef unsigned long DWORD;
 #endif
 
-#ifndef WCHAR
 typedef wchar_t WCHAR;
-#endif
 
 typedef struct _SecPkgContext_CipherInfo
 {
