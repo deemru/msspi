@@ -2,11 +2,14 @@
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1
 
-#define SZ_ALG_MAX_SIZE 64
 #define SECPKGCONTEXT_CIPHERINFO_V1 1
+#define SZ_ALG_MAX_SIZE 64
 
-#ifndef WIN32
+#ifndef DWORD
 typedef unsigned int DWORD;
+#endif
+
+#ifndef WCHAR
 typedef wchar_t WCHAR;
 #endif
 
