@@ -426,7 +426,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
-            h->rwstate = MSSPI_X509_LOOKUP;
+            // h->rwstate = MSSPI_X509_LOOKUP; // check detection at connect
             h->is_connected = false;
 
             i = msspi_connect( h );
@@ -794,12 +794,6 @@ int msspi_accept( MSSPI_HANDLE h )
             return 0;
         }
 
-        if( scRet == SEC_I_INCOMPLETE_CREDENTIALS )
-        {
-            h->rwstate = MSSPI_X509_LOOKUP;
-            continue;
-        }
-
         if( FAILED( scRet ) )
             break;
     }
@@ -813,7 +807,8 @@ int msspi_connect( MSSPI_HANDLE h )
     if( h->state == MSSPI_ERROR )
         return 0;
 
-    h->is_client = 1;
+    if( h->is_client == 0 )
+        h->is_client = 1;
 
     for( ;; )
     {
