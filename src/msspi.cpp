@@ -21,6 +21,12 @@ extern "C" {
 }
 #endif
 
+#define MSSPIEHTRY try {
+#define MSSPIEHCATCH } catch( ... ) {
+#define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state = MSSPI_ERROR; return ret; }
+#define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
+#define MSSPIEHCATCH_0 MSSPIEHCATCH; }
+
 #include <stdio.h>
 #include <string.h>
 #define SECURITY_WIN32
@@ -70,7 +76,7 @@ static std::recursive_mutex mtx;
 struct MSSPI_CredCache;
 typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB credentials_db;
-static char credentials_api( MSSPI_HANDLE s, PCCERT_CONTEXT user_cert, bool is_free );
+static char credentials_api( MSSPI_HANDLE h, bool is_free );
 
 // sspi
 static PSecurityFunctionTableA sspi = NULL;
@@ -153,12 +159,13 @@ struct MSSPI
         cb_arg = arg;
         read_cb = read;
         write_cb = write;
+        cert_cb = NULL;
     }
 
     ~MSSPI()
     {
         if( cred )
-            credentials_api( this, cert, true );
+            credentials_api( this, true );
 
         if( hCtx.dwLower || hCtx.dwUpper )
             sspi->DeleteSecurityContext( &hCtx );
@@ -195,10 +202,12 @@ struct MSSPI
     void * cb_arg;
     msspi_read_cb read_cb;
     msspi_write_cb write_cb;
+    msspi_cert_cb cert_cb;
 };
 
-static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
+static char credentials_api( MSSPI_HANDLE h, bool is_free )
 {
+    PCCERT_CONTEXT cert = h->cert;
     std::string cred_record( h->host.size() ? h->host : "*" );
 
     if( cert && cert->pCertInfo && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData )
@@ -302,6 +311,8 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
 
 int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 {
+    MSSPIEHTRY;
+
     if( !h->is_connected )
     {
         int i = h->is_client ? msspi_connect( h ) : msspi_accept( h );
@@ -426,21 +437,18 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
-            // h->rwstate = MSSPI_X509_LOOKUP; // check detection at connect
             h->is_connected = false;
-
-            i = msspi_connect( h );
-
-            if( i != 1 )
-                return i;
-
-            continue;
+            return msspi_read( h, buf, len );
         }
     }
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 {
+    MSSPIEHTRY;
+
     if( !h->is_connected )
     {
         int i = h->is_client ? msspi_connect( h ) : msspi_accept( h );
@@ -556,20 +564,32 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
     }
 
     return len;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 MSSPI_STATE msspi_state( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     return h->state ? h->state : h->rwstate;
+
+    MSSPIEHCATCH_RET( MSSPI_ERROR );
 }
 
 int msspi_pending( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     return h->in_len;
+
+    MSSPIEHCATCH_RET( 0 );
 }
 
 int msspi_shutdown( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     char is_ret = h->state != MSSPI_OK;
 
     h->is_connected = 0;
@@ -610,10 +630,14 @@ int msspi_shutdown( MSSPI_HANDLE h )
     }
 
     return 0;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 int msspi_accept( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     if( h->state == MSSPI_ERROR )
         return 0;
 
@@ -657,7 +681,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, h->cert, false ) )
+                if( !credentials_api( h, false ) )
                 {
                     h->state = MSSPI_ERROR;
                     return 0;
@@ -800,10 +824,14 @@ int msspi_accept( MSSPI_HANDLE h )
 
     h->state = MSSPI_ERROR;
     return 0;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 int msspi_connect( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     if( h->state == MSSPI_ERROR )
         return 0;
 
@@ -813,6 +841,22 @@ int msspi_connect( MSSPI_HANDLE h )
     for( ;; )
     {
         SECURITY_STATUS scRet = SEC_I_CONTINUE_NEEDED;
+
+        if( h->rwstate == MSSPI_X509_LOOKUP )
+        {
+            if( h->cred )
+                credentials_api( h, true );
+
+            if( h->cert_cb )
+            {
+                int io = h->cert_cb( h->cb_arg );
+                
+                if( io != 1 )
+                    return io;
+
+                h->rwstate = MSSPI_NOTHING;
+            }
+        }
 
         if( h->rwstate == MSSPI_READING )
         {
@@ -850,7 +894,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, h->cert, false ) )
+                if( !credentials_api( h, false ) )
                 {
                     h->state = MSSPI_ERROR;
                     return 0;
@@ -1002,10 +1046,14 @@ int msspi_connect( MSSPI_HANDLE h )
 
     h->state = MSSPI_ERROR;
     return 0;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb write_cb )
 {
+    MSSPIEHTRY;
+
     if( !msspi_sspi_init() )
         return NULL;
 
@@ -1013,12 +1061,18 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
         return NULL;
 
     return new MSSPI( cb_arg, read_cb, write_cb );
+
+    MSSPIEHCATCH_RET( NULL );
 }
 
 char msspi_set_hostname( MSSPI_HANDLE h, const char * hostName )
 {
+    MSSPIEHTRY;
+
     h->host = hostName;
     return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 #define C2B_IS_SKIP( c ) ( c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ':' )
@@ -1063,7 +1117,20 @@ static int str2bin( const char * str, char * bin )
 
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 {
+    MSSPIEHTRY;
+
     h->is_peerauth = is_peerauth;
+
+    MSSPIEHCATCH_0;
+}
+
+void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert )
+{
+    MSSPIEHTRY;
+
+    h->cert_cb = cert;
+
+    MSSPIEHCATCH_0;
 }
 
 #ifndef _UN
@@ -1076,6 +1143,8 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 
 char msspi_set_mycert_silent( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
     HCRYPTPROV hProv = 0;
     char isok = 0;
@@ -1120,10 +1189,14 @@ char msspi_set_mycert_silent( MSSPI_HANDLE h )
         CryptReleaseContext( hProv, 0 );
 
     return isok;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
+    MSSPIEHTRY;
+
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
     PCCERT_CONTEXT certprobe = NULL;
@@ -1210,15 +1283,23 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
     h->cert = certfound;
 
     return certfound ? 1 : 0;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 void msspi_close( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     delete h;
+
+    MSSPIEHCATCH_0;
 }
 
 PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     if( h->is_cipherinfo )
         return &h->cipherinfo;
 
@@ -1228,11 +1309,15 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
         return NULL;
 
     return &h->cipherinfo;
+
+    MSSPIEHCATCH_HERRRET( NULL );
 }
 
 const char * msspi_get_version( MSSPI_HANDLE h )
 {
     const char * tlsproto = "Unknown";
+
+    MSSPIEHTRY;
 
     if( h->is_cipherinfo || msspi_get_cipherinfo( h ) )
     {
@@ -1259,10 +1344,14 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     }
 
     return tlsproto;
+
+    MSSPIEHCATCH_HERRRET( tlsproto );
 }
 
 char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count )
 {
+    MSSPIEHTRY;
+
     int max = bufs ? *count : 0;
     int i;
 
@@ -1320,10 +1409,14 @@ char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count 
 
     *count = max;
     return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count )
 {
+    MSSPIEHTRY;
+
     int i;
 
     if( !h )
@@ -1331,10 +1424,14 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count )
 
     for( i = 0; i < count; i++ )
         delete[]( char * )bufs[i];
+
+    MSSPIEHCATCH_0;
 }
 
 unsigned msspi_verify( MSSPI_HANDLE h )
 {
+    MSSPIEHTRY;
+
     DWORD dwVerify = MSSPI_VERIFY_ERROR;
     PCCERT_CONTEXT PeerCert = NULL;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
@@ -1401,10 +1498,14 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         CertFreeCertificateChain( PeerChain );
 
     return (unsigned)dwVerify;
+
+    MSSPIEHCATCH_HERRRET( MSSPI_VERIFY_ERROR );
 }
 
 char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
 {
+    MSSPIEHTRY;
+
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
     PCCERT_CONTEXT certprobe = NULL;
@@ -1443,4 +1544,6 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
         CertFreeCertificateContext( certfound );
 
     return certfound ? 1 : 0;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
