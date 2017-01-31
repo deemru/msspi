@@ -927,7 +927,7 @@ int msspi_connect( MSSPI_HANDLE h )
             scRet = sspi->InitializeSecurityContextA(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
-                h->hostname.length() ? h->hostname.data() : NULL,
+                h->hostname.length() ? (char *)h->hostname.data() : NULL,
                 dwSSPIFlags,
                 0,
                 SECURITY_NATIVE_DREP,
