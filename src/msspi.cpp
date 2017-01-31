@@ -182,7 +182,7 @@ struct MSSPI
     char reserved[3];
     MSSPI_STATE state;
     MSSPI_STATE rwstate;
-    std::string host;
+    std::string hostname;
     SecPkgContext_CipherInfo cipherinfo;
 
     CtxtHandle hCtx;
@@ -208,7 +208,7 @@ struct MSSPI
 static char credentials_api( MSSPI_HANDLE h, bool is_free )
 {
     PCCERT_CONTEXT cert = h->cert;
-    std::string cred_record( h->host.size() ? h->host : "*" );
+    std::string cred_record( h->hostname.size() ? h->hostname : "*" );
 
     if( cert && cert->pCertInfo && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData )
         cred_record.append( (char *)cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData, cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData );
@@ -850,7 +850,7 @@ int msspi_connect( MSSPI_HANDLE h )
             if( h->cert_cb )
             {
                 int io = h->cert_cb( h->cb_arg );
-                
+
                 if( io != 1 )
                     return io;
 
@@ -927,7 +927,7 @@ int msspi_connect( MSSPI_HANDLE h )
             scRet = sspi->InitializeSecurityContextA(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
-                h->host.length() ? &h->host[0] : NULL,
+                h->hostname.length() ? h->hostname.data() : NULL,
                 dwSSPIFlags,
                 0,
                 SECURITY_NATIVE_DREP,
@@ -1065,11 +1065,13 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
     MSSPIEHCATCH_RET( NULL );
 }
 
-char msspi_set_hostname( MSSPI_HANDLE h, const char * hostName )
+char msspi_set_hostname( MSSPI_HANDLE h, const char * hostname )
 {
     MSSPIEHTRY;
 
-    h->host = hostName;
+    if( hostname )
+        h->hostname = hostname;
+
     return 1;
 
     MSSPIEHCATCH_HERRRET( 0 );
@@ -1308,6 +1310,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     if( scRet != SEC_E_OK )
         return NULL;
 
+    h->is_cipherinfo = 1;
     return &h->cipherinfo;
 
     MSSPIEHCATCH_HERRRET( NULL );
@@ -1323,23 +1326,23 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     {
         switch( h->cipherinfo.dwProtocol )
         {
-        case 0x00000301:
-        case SP_PROT_TLS1_SERVER:
-        case SP_PROT_TLS1_CLIENT:
-            tlsproto = "TLSv1";
-            break;
-        case 0x00000302:
-        case SP_PROT_TLS1_1_SERVER:
-        case SP_PROT_TLS1_1_CLIENT:
-            tlsproto = "TLSv1.1";
-            break;
-        case 0x00000303:
-        case SP_PROT_TLS1_2_SERVER:
-        case SP_PROT_TLS1_2_CLIENT:
-            tlsproto = "TLSv1.2";
-            break;
-        default:
-            break;
+            case 0x00000301:
+            case SP_PROT_TLS1_SERVER:
+            case SP_PROT_TLS1_CLIENT:
+                tlsproto = "TLSv1";
+                break;
+            case 0x00000302:
+            case SP_PROT_TLS1_1_SERVER:
+            case SP_PROT_TLS1_1_CLIENT:
+                tlsproto = "TLSv1.1";
+                break;
+            case 0x00000303:
+            case SP_PROT_TLS1_2_SERVER:
+            case SP_PROT_TLS1_2_CLIENT:
+                tlsproto = "TLSv1.2";
+                break;
+            default:
+                break;
         }
     }
 
@@ -1463,7 +1466,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         polHttps.dwAuthType = (DWORD)( h->is_client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
         if( h->is_client )
         {
-            whost.assign( h->host.begin(), h->host.end() );
+            whost.assign( h->hostname.begin(), h->hostname.end() );
             polHttps.pwszServerName = (WCHAR *)whost.data();
         }
 
