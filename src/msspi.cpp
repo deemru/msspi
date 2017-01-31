@@ -437,7 +437,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
-            h->is_connected = false;
+            h->is_connected = 0;
+            h->is_cipherinfo = 0;
             return msspi_read( h, buf, len );
         }
     }
