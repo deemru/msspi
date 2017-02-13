@@ -21,11 +21,19 @@ extern "C" {
 }
 #endif
 
+#ifdef QT_NO_EXCEPTIONS
+#define MSSPIEHTRY
+#define MSSPIEHCATCH
+#define MSSPIEHCATCH_HERRRET( ret )
+#define MSSPIEHCATCH_RET( ret )
+#define MSSPIEHCATCH_0 MSSPIEHCATCH
+#else // QT_NO_EXCEPTIONS
 #define MSSPIEHTRY try {
 #define MSSPIEHCATCH } catch( ... ) {
 #define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state = MSSPI_ERROR; return ret; }
 #define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
+#endif // QT_NO_EXCEPTIONS
 
 #include <stdio.h>
 #include <string.h>
