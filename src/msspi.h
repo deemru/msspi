@@ -85,7 +85,8 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 #define CRYPT_E_REVOKED                 0x80092010L // CertificateRevoked
 #define CERT_E_UNTRUSTEDROOT            0x800B0109L // CertificateUntrusted
 #define CERT_E_UNTRUSTEDTESTROOT        0x800B010DL // CertificateUntrusted
-#define CERT_E_CHAINING                 0x800B010AL // UnableToGetIssuerCertificate
+#define CERT_E_CHAINING                 0x800B010AL // UnableToVerifyFirstCertificate
+#define CERT_E_REVOCATION_FAILURE       0x800B010EL // UnableToVerifyFirstCertificate
 #define CERT_E_WRONG_USAGE              0x800B0110L // InvalidPurpose
 #define CERT_E_EXPIRED                  0x800B0101L // CertificateExpired
 #define CERT_E_INVALID_NAME             0x800B0114L // HostNameMismatch
@@ -94,8 +95,8 @@ void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count );
 #define TRUST_E_BASIC_CONSTRAINTS       0x80096019L // UnspecifiedError
 #define CERT_E_CRITICAL                 0x800B0105L // UnspecifiedError
 #define CERT_E_VALIDITYPERIODNESTING    0x800B0102L // CertificateNotYetValid
-#define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L // UnableToGetIssuerCertificate
-#define CRYPT_E_REVOCATION_OFFLINE      0x80092013L // UnableToGetIssuerCertificate
+#define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L // UnableToVerifyFirstCertificate
+#define CRYPT_E_REVOCATION_OFFLINE      0x80092013L // UnableToVerifyFirstCertificate
 #endif
 
 unsigned msspi_verify( MSSPI_HANDLE h );
