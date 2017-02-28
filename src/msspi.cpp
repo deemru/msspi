@@ -1452,14 +1452,14 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     if( !count && !bufs )
         return 1;
 
-    if( *count < h->peercerts.size() )
+    if( !bufs )
     {
-        if( bufs )
-            return 0;
-
         *count = h->peercerts.size();
         return 1;
     }
+
+    if( *count < h->peercerts.size() )
+        return 0;
 
     *count = h->peercerts.size();
 
