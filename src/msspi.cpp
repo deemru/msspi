@@ -152,6 +152,7 @@ struct MSSPI
         is_peerauth = 0;
         is_cipherinfo = 0;
         is_shutingdown = 0;
+        is_renegotiate = 0;
         state = MSSPI_OK;
         rwstate = MSSPI_NOTHING;
         hCtx.dwLower = 0;
@@ -187,11 +188,13 @@ struct MSSPI
     char is_peerauth;
     char is_cipherinfo;
     char is_shutingdown;
-    char reserved[3];
+    char is_renegotiate;
+    char reserved[2];
     MSSPI_STATE state;
     MSSPI_STATE rwstate;
     std::string hostname;
     SecPkgContext_CipherInfo cipherinfo;
+    std::vector<std::string> peercerts;
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
@@ -229,11 +232,8 @@ static char credentials_api( MSSPI_HANDLE h, bool is_free )
 
     if( cert )
     {
-        if( !cert->pCertInfo || !cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData || !cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData )
-            return 0;
-
         cred_record = h->hostname.size() ? h->hostname : "*";
-        cred_record.append( (char *)cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData, cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData );
+        cred_record.append( (char *)cert->pbCertEncoded, cert->cbCertEncoded );
     }
 
     std::unique_lock<std::recursive_mutex> lck( mtx );
@@ -462,7 +462,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( scRet == SEC_I_RENEGOTIATE )
         {
             h->is_connected = 0;
-            h->is_cipherinfo = 0;
+            h->is_renegotiate = 1;
             return msspi_read( h, buf, len );
         }
     }
@@ -853,6 +853,37 @@ int msspi_accept( MSSPI_HANDLE h )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
+static char is_new_session_unmodified( MSSPI_HANDLE h )
+{
+    std::string old_session;
+    std::string new_session;
+
+    // if a user does not check params - modifications are not important
+    if( !h->is_cipherinfo && !h->peercerts.size() )
+        return 1;
+
+    old_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
+    for( size_t i = 0; i < h->peercerts.size(); i++ )
+        old_session.append( h->peercerts[i] );
+
+    h->is_cipherinfo = 0;
+    if( !msspi_get_cipherinfo( h ) )
+        return 0;
+
+    h->peercerts.clear();
+    if( !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+        return 0;
+
+    new_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
+    for( size_t i = 0; i < h->peercerts.size(); i++ )
+        new_session.append( h->peercerts[i] );
+
+    if( new_session != old_session )
+        return 0;
+
+    return 1;
+}
+
 int msspi_connect( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
@@ -1043,6 +1074,13 @@ int msspi_connect( MSSPI_HANDLE h )
         // handshake OK
         if( scRet == SEC_E_OK )
         {
+            // shutdown if params are changed in renegotiation
+            if( h->is_renegotiate && !is_new_session_unmodified( h ) )
+            {
+                h->state = MSSPI_SHUTDOWN;
+                return 0;
+            }
+
             h->is_connected = 1;
             return 1;
         }
@@ -1376,84 +1414,64 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     MSSPIEHCATCH_HERRRET( tlsproto );
 }
 
-char msspi_get_peercerts( MSSPI_HANDLE h, void ** bufs, int * lens, int * count )
+char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
 {
     MSSPIEHTRY;
 
-    int max = bufs ? *count : 0;
-    int i;
-
-    PCCERT_CONTEXT PeerCert = NULL;
-    PCCERT_CONTEXT RunnerCert;
-
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
-
-    if( scRet != SEC_E_OK )
-        return 0;
-
-    RunnerCert = PeerCert;
-
-    bool is_OK = false;
-
-    for( i = 0; RunnerCert && ( bufs ? i < max : true ); i++ )
+    if( !h->peercerts.size() )
     {
-        PCCERT_CONTEXT IssuerCert = NULL;
-        DWORD dwVerificationFlags = 0;
+        PCCERT_CONTEXT PeerCert = NULL;
+        PCCERT_CONTEXT RunnerCert;
 
-        if( bufs )
+        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
+
+        if( scRet != SEC_E_OK )
+            return 0;
+
+        for( RunnerCert = PeerCert; RunnerCert; )
         {
-            lens[i] = (int)RunnerCert->cbCertEncoded;
-            bufs[i] = new char[RunnerCert->cbCertEncoded];
-            memcpy( bufs[i], RunnerCert->pbCertEncoded, RunnerCert->cbCertEncoded );
+            PCCERT_CONTEXT IssuerCert = NULL;
+            DWORD dwVerificationFlags = 0;
+
+            h->peercerts.push_back( std::string( (char *)RunnerCert->pbCertEncoded, RunnerCert->cbCertEncoded ) );
+
+            IssuerCert = CertGetIssuerCertificateFromStore( PeerCert->hCertStore, RunnerCert, NULL, &dwVerificationFlags );
+
+            if( RunnerCert != PeerCert )
+                CertFreeCertificateContext( RunnerCert );
+
+            RunnerCert = IssuerCert;
         }
 
-        IssuerCert = CertGetIssuerCertificateFromStore( PeerCert->hCertStore, RunnerCert, NULL, &dwVerificationFlags );
-
-        if( RunnerCert != PeerCert )
-            CertFreeCertificateContext( RunnerCert );
-
-        RunnerCert = IssuerCert;
-
-        if( IssuerCert == NULL )
-            is_OK = true;
+        CertFreeCertificateContext( PeerCert );
     }
 
-    max = i;
+    if( !h->peercerts.size() )
+        return 0;
 
-    if( RunnerCert && RunnerCert != PeerCert )
-        CertFreeCertificateContext( RunnerCert );
+    if( !count && !bufs )
+        return 1;
 
-    if( PeerCert )
-        CertFreeCertificateContext( PeerCert );
-
-    if( !is_OK )
+    if( *count < h->peercerts.size() )
     {
         if( bufs )
-            for( i = 0; i < max; i++ )
-                delete[]( char * )bufs[i];
+            return 0;
 
-        return 0;
+        *count = h->peercerts.size();
+        return 1;
     }
 
-    *count = max;
+    *count = h->peercerts.size();
+
+    for( size_t i = 0; i < h->peercerts.size(); i++ )
+    {
+        bufs[i] = h->peercerts[i].data();
+        lens[i] = h->peercerts[i].size();
+    }
+
     return 1;
 
     MSSPIEHCATCH_HERRRET( 0 );
-}
-
-void msspi_get_peercerts_free( MSSPI_HANDLE h, void ** bufs, int count )
-{
-    MSSPIEHTRY;
-
-    int i;
-
-    if( !h )
-        return;
-
-    for( i = 0; i < count; i++ )
-        delete[]( char * )bufs[i];
-
-    MSSPIEHCATCH_0;
 }
 
 unsigned msspi_verify( MSSPI_HANDLE h )
