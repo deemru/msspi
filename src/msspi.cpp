@@ -123,7 +123,7 @@ struct MSSPI_CredCache
     {
         hCred = h;
         dwLastActive = GetTickCount();
-        dwRefs = 0;
+        dwRefs = 1;
     }
 
     ~MSSPI_CredCache()
@@ -216,16 +216,31 @@ struct MSSPI
 static char credentials_api( MSSPI_HANDLE h, bool is_free )
 {
     PCCERT_CONTEXT cert = h->cert;
-    std::string cred_record( h->hostname.size() ? h->hostname : "*" );
 
-    if( cert && cert->pCertInfo && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData && cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData )
+    // release creds without certs
+    if( is_free && !cert )
+    {
+        delete h->cred;
+        h->cred = NULL;
+        return 1;
+    }
+
+    std::string cred_record;
+
+    if( cert )
+    {
+        if( !cert->pCertInfo || !cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData || !cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData )
+            return 0;
+
+        cred_record = h->hostname.size() ? h->hostname : "*";
         cred_record.append( (char *)cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.pbData, cert->pCertInfo->SubjectPublicKeyInfo.PublicKey.cbData );
+    }
 
     std::unique_lock<std::recursive_mutex> lck( mtx );
 
     CREDENTIALS_DB::iterator it;
 
-    // 1. free > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
+    // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
     for( it = credentials_db.begin(); it != credentials_db.end(); )
     {
         if( it->second->dwRefs || it->second->isActive() )
@@ -239,9 +254,11 @@ static char credentials_api( MSSPI_HANDLE h, bool is_free )
         }
     }
 
-    // 2. ping found
-    it = credentials_db.find( cred_record );
+    // credentials_db for records with certs only
+    if( cert )
+        it = credentials_db.find( cred_record );
 
+    // dereference or ping found
     if( it != credentials_db.end() )
     {
         if( is_free )
@@ -253,15 +270,13 @@ static char credentials_api( MSSPI_HANDLE h, bool is_free )
         else
         {
             it->second->Ping();
-
             it->second->dwRefs++;
             h->cred = it->second;
-
             return 1;
         }
     }
 
-    // 3. new record
+    // new record
     else if( !is_free )
     {
         CredHandle      hCred;
@@ -305,10 +320,11 @@ static char credentials_api( MSSPI_HANDLE h, bool is_free )
 
         if( Status == SEC_E_OK )
         {
-            it = credentials_db.insert( it, CREDENTIALS_DB::value_type( cred_record, new MSSPI_CredCache( hCred ) ) );
+            h->cred = new MSSPI_CredCache( hCred );
 
-            it->second->dwRefs++;
-            h->cred = it->second;
+            // credentials_db for records with certs only
+            if( cert )
+                credentials_db.insert( it, CREDENTIALS_DB::value_type( cred_record, h->cred ) );
 
             return 1;
         }
@@ -440,7 +456,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         h->in_len = extra;
 
-        if( scRet == SEC_E_OK )
+        if( scRet == SEC_E_OK && decrypted )
             return decrypted;
 
         if( scRet == SEC_I_RENEGOTIATE )
