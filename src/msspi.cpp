@@ -900,9 +900,6 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( h->rwstate == MSSPI_X509_LOOKUP )
         {
-            if( h->cred )
-                credentials_api( h, true );
-
             if( h->cert_cb )
             {
                 int io = h->cert_cb( h->cb_arg );
@@ -911,6 +908,9 @@ int msspi_connect( MSSPI_HANDLE h )
                     return io;
 
                 h->rwstate = MSSPI_NOTHING;
+
+                if( h->cred )
+                    credentials_api( h, true );
             }
         }
 
