@@ -84,7 +84,7 @@ static std::recursive_mutex mtx;
 struct MSSPI_CredCache;
 typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB credentials_db;
-static char credentials_api( MSSPI_HANDLE h, bool is_free );
+static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free );
 
 // sspi
 static PSecurityFunctionTableA sspi = NULL;
@@ -174,7 +174,7 @@ struct MSSPI
     ~MSSPI()
     {
         if( cred )
-            credentials_api( this, true );
+            credentials_api( this, cert, true );
 
         if( hCtx.dwLower || hCtx.dwUpper )
             sspi->DeleteSecurityContext( &hCtx );
@@ -216,10 +216,8 @@ struct MSSPI
     msspi_cert_cb cert_cb;
 };
 
-static char credentials_api( MSSPI_HANDLE h, bool is_free )
+static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
 {
-    PCCERT_CONTEXT cert = h->cert;
-
     // release creds without certs
     if( is_free && !cert )
     {
@@ -706,7 +704,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, false ) )
+                if( !credentials_api( h, h->cert, false ) )
                 {
                     h->state = MSSPI_ERROR;
                     return 0;
@@ -909,8 +907,8 @@ int msspi_connect( MSSPI_HANDLE h )
 
                 h->rwstate = MSSPI_NOTHING;
 
-                if( h->cred )
-                    credentials_api( h, true );
+                if( h->cred && h->cert )
+                    credentials_api( h, NULL, true );
             }
         }
 
@@ -950,7 +948,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, false ) )
+                if( !credentials_api( h, h->cert, false ) )
                 {
                     h->state = MSSPI_ERROR;
                     return 0;
@@ -1466,7 +1464,7 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     for( size_t i = 0; i < h->peercerts.size(); i++ )
     {
         bufs[i] = h->peercerts[i].data();
-        lens[i] = h->peercerts[i].size();
+        lens[i] = (int)h->peercerts[i].size();
     }
 
     return 1;
