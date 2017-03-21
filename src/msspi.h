@@ -77,25 +77,27 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
 const char * msspi_get_version( MSSPI_HANDLE h );
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 
-#define MSSPI_VERIFY_OK                 0x00000000L // NoError
-#define MSSPI_VERIFY_ERROR              0x00000001L // UnspecifiedError
+#define MSSPI_VERIFY_OK                 0x00000000L
+#define MSSPI_VERIFY_ERROR              0x00000001L
 #ifndef TRUST_E_CERT_SIGNATURE
-#define TRUST_E_CERT_SIGNATURE          0x80096004L // CertificateSignatureFailed
-#define CRYPT_E_REVOKED                 0x80092010L // CertificateRevoked
-#define CERT_E_UNTRUSTEDROOT            0x800B0109L // CertificateUntrusted
-#define CERT_E_UNTRUSTEDTESTROOT        0x800B010DL // CertificateUntrusted
-#define CERT_E_CHAINING                 0x800B010AL // UnableToVerifyFirstCertificate
-#define CERT_E_REVOCATION_FAILURE       0x800B010EL // UnableToVerifyFirstCertificate
-#define CERT_E_WRONG_USAGE              0x800B0110L // InvalidPurpose
-#define CERT_E_EXPIRED                  0x800B0101L // CertificateExpired
-#define CERT_E_INVALID_NAME             0x800B0114L // HostNameMismatch
-#define CERT_E_CN_NO_MATCH              0x800B010FL // HostNameMismatch
-#define CERT_E_INVALID_POLICY           0x800B0113L // InvalidPurpose
-#define TRUST_E_BASIC_CONSTRAINTS       0x80096019L // UnspecifiedError
-#define CERT_E_CRITICAL                 0x800B0105L // UnspecifiedError
-#define CERT_E_VALIDITYPERIODNESTING    0x800B0102L // CertificateNotYetValid
-#define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L // UnableToVerifyFirstCertificate
-#define CRYPT_E_REVOCATION_OFFLINE      0x80092013L // UnableToVerifyFirstCertificate
+#define TRUST_E_CERT_SIGNATURE          0x80096004L
+#define CRYPT_E_REVOKED                 0x80092010L
+#define CERT_E_UNTRUSTEDROOT            0x800B0109L
+#define CERT_E_UNTRUSTEDTESTROOT        0x800B010DL
+#define CERT_E_CHAINING                 0x800B010AL
+#define CERT_E_REVOCATION_FAILURE       0x800B010EL
+#define CERT_E_WRONG_USAGE              0x800B0110L
+#define CERT_E_EXPIRED                  0x800B0101L
+#define CERT_E_INVALID_NAME             0x800B0114L
+#define CERT_E_CN_NO_MATCH              0x800B010FL
+#define CERT_E_INVALID_POLICY           0x800B0113L
+#define TRUST_E_BASIC_CONSTRAINTS       0x80096019L
+#define CERT_E_CRITICAL                 0x800B0105L
+#define CERT_E_VALIDITYPERIODNESTING    0x800B0102L
+#define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L
+#define CRYPT_E_REVOCATION_OFFLINE      0x80092013L
+#define CERT_E_ROLE                     0x800B0103L
+
 #endif
 
 unsigned msspi_verify( MSSPI_HANDLE h );

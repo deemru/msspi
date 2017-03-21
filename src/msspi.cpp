@@ -49,13 +49,13 @@ extern "C" {
 #include <dlfcn.h>
 #include <sys/time.h>
 
-unsigned GetTickCount()
+static DWORD GetTickCount()
 {
     struct timeval tv;
     if( gettimeofday( &tv, NULL ) != 0 )
         return 0;
 
-    return ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 );
+    return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
 }
 #endif // _WIN32
 
@@ -143,6 +143,12 @@ struct MSSPI_CredCache
     }
 };
 
+#ifdef _WIN32
+typedef unsigned long bufsize_t;
+#else
+typedef unsigned int bufsize_t;
+#endif
+
 struct MSSPI
 {
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
@@ -202,9 +208,9 @@ struct MSSPI
 
     int in_len;
     int dec_len;
-    unsigned long out_hdr_len;
-    unsigned long out_msg_max;
-    unsigned long out_trl_max;
+    bufsize_t out_hdr_len;
+    bufsize_t out_msg_max;
+    bufsize_t out_trl_max;
     int out_len;
     char in_buf[SSPI_BUFFER_SIZE];
     char dec_buf[SSPI_BUFFER_SIZE];
@@ -391,7 +397,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         }
 
         Buffers[0].pvBuffer = h->in_buf;
-        Buffers[0].cbBuffer = (unsigned long)h->in_len;
+        Buffers[0].cbBuffer = (bufsize_t)h->in_len;
         Buffers[0].BufferType = SECBUFFER_DATA;
 
         Buffers[1].BufferType = SECBUFFER_EMPTY;
@@ -499,9 +505,9 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
             return 0;
         }
 
-        h->out_hdr_len = Sizes.cbHeader;
-        h->out_msg_max = Sizes.cbMaximumMessage;
-        h->out_trl_max = Sizes.cbTrailer;
+        h->out_hdr_len = (bufsize_t)Sizes.cbHeader;
+        h->out_msg_max = (bufsize_t)Sizes.cbMaximumMessage;
+        h->out_trl_max = (bufsize_t)Sizes.cbTrailer;
     }
 
     if( len > (int)h->out_msg_max )
@@ -518,7 +524,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         Buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
 
         Buffers[1].pvBuffer = h->out_buf + h->out_hdr_len;
-        Buffers[1].cbBuffer = (unsigned long)len;
+        Buffers[1].cbBuffer = (bufsize_t)len;
         Buffers[1].BufferType = SECBUFFER_DATA;
 
         Buffers[2].pvBuffer = h->out_buf + h->out_hdr_len + len;
@@ -722,7 +728,7 @@ int msspi_accept( MSSPI_HANDLE h )
             if( h->in_len )
             {
                 InBuffers[0].pvBuffer = h->in_buf;
-                InBuffers[0].cbBuffer = (unsigned long)h->in_len;
+                InBuffers[0].cbBuffer = (bufsize_t)h->in_len;
                 InBuffers[0].BufferType = SECBUFFER_TOKEN;
 
                 InBuffers[1].pvBuffer = NULL;
@@ -966,7 +972,7 @@ int msspi_connect( MSSPI_HANDLE h )
             if( h->in_len )
             {
                 InBuffers[0].pvBuffer = h->in_buf;
-                InBuffers[0].cbBuffer = (unsigned long)h->in_len;
+                InBuffers[0].cbBuffer = (bufsize_t)h->in_len;
                 InBuffers[0].BufferType = SECBUFFER_TOKEN;
 
                 InBuffers[1].pvBuffer = NULL;
@@ -1139,7 +1145,7 @@ char msspi_set_hostname( MSSPI_HANDLE h, const char * hostname )
 }
 
 #define C2B_IS_SKIP( c ) ( c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ':' )
-#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? c - '0' : ( ( 'a' <= c && c <= 'f' ) ? c - 'a' + 10 : ( ( 'A' <= c && c <= 'F' ) ? c - 'A' + 10 : -1 ) ) )
+#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (char)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (char)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (char)( c - 'A' + 10 ) : -1 ) ) )
 
 static int str2bin( const char * str, char * bin )
 {
@@ -1161,12 +1167,12 @@ static int str2bin( const char * str, char * bin )
 
         if( !is_filled )
         {
-            bin[n] = v << 4;
+            bin[n] = (char)( v << 4 );
             is_filled = 1;
         }
         else
         {
-            bin[n] += v;
+            bin[n] = (char)( bin[n] + v );
             is_filled = 0;
             n++;
         }
