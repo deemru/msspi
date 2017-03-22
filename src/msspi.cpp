@@ -171,6 +171,7 @@ struct MSSPI
         out_msg_max = 0;
         out_trl_max = 0;
         out_len = 0;
+        out_saved_len = 0;
         cb_arg = arg;
         read_cb = read;
         write_cb = write;
@@ -212,6 +213,7 @@ struct MSSPI
     bufsize_t out_msg_max;
     bufsize_t out_trl_max;
     int out_len;
+    int out_saved_len;
     char in_buf[SSPI_BUFFER_SIZE];
     char dec_buf[SSPI_BUFFER_SIZE];
     char out_buf[SSPI_BUFFER_SIZE];
@@ -450,8 +452,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
             if( !extra && Buffers[i].BufferType == SECBUFFER_EXTRA )
             {
+                memmove( h->in_buf, Buffers[i].pvBuffer, Buffers[i].cbBuffer );
                 extra = (int)Buffers[i].cbBuffer;
-                memmove( h->in_buf, Buffers[i].pvBuffer, (size_t)extra );
             }
 
             if( decrypted && extra )
@@ -510,14 +512,23 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         h->out_trl_max = (bufsize_t)Sizes.cbTrailer;
     }
 
-    if( len > (int)h->out_msg_max )
-        len = (int)h->out_msg_max;
-
-    if( !h->out_len )
+    if( h->out_len )
+    {
+        // len can only grow
+        if( len < h->out_saved_len )
+        {
+            h->state = MSSPI_ERROR;
+            return 0;
+        }
+    }
+    else
     {
         SECURITY_STATUS           scRet;
         SecBufferDesc             Message;
         SecBuffer                 Buffers[4];
+
+        if( len > (int)h->out_msg_max )
+            len = (int)h->out_msg_max;
 
         Buffers[0].pvBuffer = h->out_buf;
         Buffers[0].cbBuffer = h->out_hdr_len;
@@ -555,7 +566,8 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
             return msspi_shutdown( h );
         }
 
-        h->out_len = (int)h->out_hdr_len + len + (int)Buffers[2].cbBuffer;
+        h->out_len = len + (int)( h->out_hdr_len + Buffers[2].cbBuffer );
+        h->out_saved_len = len;
     }
 
     while( h->out_len )
@@ -589,10 +601,12 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         }
 
         h->out_len -= io;
-        memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
+
+        if( h->out_len )
+            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
     }
 
-    return len;
+    return h->out_saved_len;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
@@ -755,7 +769,7 @@ int msspi_accept( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    memmove( h->in_buf, h->in_buf + ( h->in_len - InBuffers[1].cbBuffer ), InBuffers[1].cbBuffer );
+                    memmove( h->in_buf, InBuffers[1].pvBuffer, InBuffers[1].cbBuffer );
                     h->in_len = (int)InBuffers[1].cbBuffer;
                 }
                 else if( !FAILED( scRet ) )
@@ -807,7 +821,9 @@ int msspi_accept( MSSPI_HANDLE h )
             }
 
             h->out_len -= io;
-            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
+
+            if( h->out_len )
+                memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
@@ -1002,7 +1018,7 @@ int msspi_connect( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    memmove( h->in_buf, h->in_buf + ( h->in_len - InBuffers[1].cbBuffer ), InBuffers[1].cbBuffer );
+                    memmove( h->in_buf, InBuffers[1].pvBuffer, InBuffers[1].cbBuffer );
                     h->in_len = (int)InBuffers[1].cbBuffer;
                 }
                 else if( !FAILED( scRet ) )
@@ -1054,7 +1070,9 @@ int msspi_connect( MSSPI_HANDLE h )
             }
 
             h->out_len -= io;
-            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
+
+            if( h->out_len )
+                memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
