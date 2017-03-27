@@ -69,12 +69,14 @@ static DWORD GetTickCount()
 #define SSPI_BUFFER_SIZE 65536
 #ifdef _WIN32
 #define SECURITY_DLL_NAME "Security.dll"
-#else
+#elif defined( __APPLE__ )
+#define SECURITY_DLL_NAME "/opt/cprocsp/lib/libssp.dylib"
+#else // other LINUX
 #ifndef SECURITY_DLL_NAME_LINUX
 #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
-#endif
+#endif // SECURITY_DLL_NAME_LINUX
 #define SECURITY_DLL_NAME SECURITY_DLL_NAME_LINUX
-#endif
+#endif // _WIN32 or __APPLE__ or LINUX
 
 #include "msspi.h"
 
