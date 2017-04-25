@@ -178,6 +178,7 @@ struct MSSPI
         read_cb = read;
         write_cb = write;
         cert_cb = NULL;
+        certstore = "MY";
     }
 
     ~MSSPI()
@@ -208,6 +209,7 @@ struct MSSPI
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
     PCCERT_CONTEXT cert;
+    const char * certstore;
 
     int in_len;
     int dec_len;
@@ -1282,6 +1284,15 @@ char msspi_set_mycert_silent( MSSPI_HANDLE h )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
+void msspi_set_certstore( MSSPI_HANDLE h, const char * certstore )
+{
+    MSSPIEHTRY;
+
+    h->certstore = certstore;
+
+    MSSPIEHCATCH_0;
+}
+
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
     MSSPIEHTRY;
@@ -1304,7 +1315,7 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 
     for( i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
     {
-        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], "MY" );
+        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], h->certstore );
 
         if( !hStore )
             continue;

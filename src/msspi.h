@@ -47,6 +47,7 @@ typedef int ( * msspi_cert_cb )( void * cb_arg );
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb, msspi_write_cb );
 
 char msspi_set_hostname( MSSPI_HANDLE h, const char * hostName );
+void msspi_set_certstore( MSSPI_HANDLE h, const char * store );
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
 char msspi_set_mycert_silent( MSSPI_HANDLE h );
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth );
