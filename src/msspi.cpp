@@ -771,7 +771,7 @@ int msspi_accept( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    memmove( h->in_buf, InBuffers[1].pvBuffer, InBuffers[1].cbBuffer );
+                    memmove( h->in_buf, h->in_buf + ( h->in_len - InBuffers[1].cbBuffer ), InBuffers[1].cbBuffer );
                     h->in_len = (int)InBuffers[1].cbBuffer;
                 }
                 else if( !FAILED( scRet ) )
@@ -1020,7 +1020,7 @@ int msspi_connect( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    memmove( h->in_buf, InBuffers[1].pvBuffer, InBuffers[1].cbBuffer );
+                    memmove( h->in_buf, h->in_buf + ( h->in_len - InBuffers[1].cbBuffer ), InBuffers[1].cbBuffer );
                     h->in_len = (int)InBuffers[1].cbBuffer;
                 }
                 else if( !FAILED( scRet ) )
