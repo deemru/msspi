@@ -205,6 +205,7 @@ struct MSSPI
     std::string hostname;
     SecPkgContext_CipherInfo cipherinfo;
     std::vector<std::string> peercerts;
+    std::vector<std::string> issuerlist;
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
@@ -425,14 +426,14 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( scRet != SEC_E_OK &&
             scRet != SEC_I_RENEGOTIATE &&
             scRet != SEC_I_CONTEXT_EXPIRED &&
-            scRet != (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet != SEC_E_CONTEXT_EXPIRED )
         {
             h->state = MSSPI_ERROR;
             return 0;
         }
 
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
-            scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet == SEC_E_CONTEXT_EXPIRED )
         {
             return msspi_shutdown( h );
         }
@@ -558,14 +559,14 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
         if( scRet != SEC_E_OK &&
             scRet != SEC_I_CONTEXT_EXPIRED &&
-            scRet != (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet != SEC_E_CONTEXT_EXPIRED )
         {
             h->state = MSSPI_ERROR;
             return 0;
         }
 
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
-            scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+            scRet == SEC_E_CONTEXT_EXPIRED )
         {
             return msspi_shutdown( h );
         }
@@ -841,7 +842,7 @@ int msspi_accept( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+                scRet == SEC_E_CONTEXT_EXPIRED )
             {
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
@@ -1090,7 +1091,7 @@ int msspi_connect( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == (SECURITY_STATUS)0x80090317 /*SEC_I_CONTEXT_EXPIRED*/ )
+                scRet == SEC_E_CONTEXT_EXPIRED )
             {
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
@@ -1502,6 +1503,53 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     {
         bufs[i] = h->peercerts[i].data();
         lens[i] = (int)h->peercerts[i].size();
+    }
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
+{
+    MSSPIEHTRY;
+
+    if( !h->issuerlist.size() )
+    {
+        PSecPkgContext_IssuerListInfoEx issuerlist = NULL;
+
+        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist );
+
+        if( scRet != SEC_E_OK )
+            return 0;
+
+        for( DWORD i = 0; i < issuerlist->cIssuers; i++ )
+            h->issuerlist.push_back( std::string( (char *)issuerlist->aIssuers[i].pbData, issuerlist->aIssuers[i].cbData ) );
+
+        sspi->FreeContextBuffer( issuerlist );
+    }
+
+    if( !h->issuerlist.size() )
+        return 0;
+
+    if( !count && !bufs )
+        return 1;
+
+    if( !bufs )
+    {
+        *count = h->issuerlist.size();
+        return 1;
+    }
+
+    if( *count < h->issuerlist.size() )
+        return 0;
+
+    *count = h->issuerlist.size();
+
+    for( size_t i = 0; i < h->issuerlist.size(); i++ )
+    {
+        bufs[i] = h->issuerlist[i].data();
+        lens[i] = (int)h->issuerlist[i].size();
     }
 
     return 1;
