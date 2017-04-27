@@ -1516,17 +1516,18 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
     if( !h->issuerlist.size() )
     {
-        PSecPkgContext_IssuerListInfoEx issuerlist = NULL;
+        SecPkgContext_IssuerListInfoEx issuerlist = { NULL, 0 };
 
         SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist );
 
         if( scRet != SEC_E_OK )
             return 0;
 
-        for( DWORD i = 0; i < issuerlist->cIssuers; i++ )
-            h->issuerlist.push_back( std::string( (char *)issuerlist->aIssuers[i].pbData, issuerlist->aIssuers[i].cbData ) );
+        for( DWORD i = 0; i < issuerlist.cIssuers; i++ )
+            h->issuerlist.push_back( std::string( (char *)issuerlist.aIssuers[i].pbData, issuerlist.aIssuers[i].cbData ) );
 
-        sspi->FreeContextBuffer( issuerlist );
+        if( issuerlist.aIssuers )
+            sspi->FreeContextBuffer( issuerlist.aIssuers );
     }
 
     if( !h->issuerlist.size() )
