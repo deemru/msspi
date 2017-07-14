@@ -1,4 +1,4 @@
-#pragma once // microsspi
+#pragma once
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1
 
@@ -22,7 +22,7 @@ typedef struct _SecPkgContext_CipherInfo
     WCHAR szCipherSuite[SZ_ALG_MAX_SIZE];
     WCHAR szCipher[SZ_ALG_MAX_SIZE];
     DWORD dwCipherLen;
-    DWORD dwCipherBlockLen;    // in bytes
+    DWORD dwCipherBlockLen;
     WCHAR szHash[SZ_ALG_MAX_SIZE];
     DWORD dwHashLen;
     WCHAR szExchange[SZ_ALG_MAX_SIZE];
@@ -32,7 +32,7 @@ typedef struct _SecPkgContext_CipherInfo
     DWORD dwKeyType;
 } SecPkgContext_CipherInfo, *PSecPkgContext_CipherInfo;
 
-#endif // SECPKGCONTEXT_CIPHERINFO_V1
+#endif /* SECPKGCONTEXT_CIPHERINFO_V1 */
 
 #ifdef __cplusplus
 extern "C" {
