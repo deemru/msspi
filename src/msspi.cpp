@@ -1233,12 +1233,11 @@ void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert )
 #endif // _WIN32
 #endif // _UN
 
-char msspi_set_mycert_silent( MSSPI_HANDLE h )
+char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest )
 {
     MSSPIEHTRY;
 
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
-    HCRYPTPROV hProv = 0;
     char isok = 0;
 
     for( ;; )
@@ -1256,17 +1255,78 @@ char msspi_set_mycert_silent( MSSPI_HANDLE h )
         if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
             break;
 
-        if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType,
-            ( provinfo->dwFlags & ~CERT_SET_KEY_CONTEXT_PROP_ID ) | CRYPT_SILENT ) )
-            break;
-
+        if( silent )
         {
-            CERT_KEY_CONTEXT keyctx;
-            keyctx.cbSize = sizeof( keyctx );
-            keyctx.hCryptProv = hProv;
-            keyctx.dwKeySpec = provinfo->dwKeySpec;
+            provinfo->dwFlags |= CRYPT_SILENT;
 
-            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_CONTEXT_PROP_ID, 0, &keyctx ) )
+            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+                break;
+        }
+
+        if( pin )
+        {
+            CRYPT_KEY_PROV_PARAM pinparam;
+
+            pinparam.dwParam = PP_KEYEXCHANGE_PIN;
+            pinparam.dwFlags = 0;
+            pinparam.pbData = (BYTE *)pin;
+            pinparam.cbData = (DWORD)strlen( pin ) + 1;
+
+            provinfo->cProvParam = 1;
+            provinfo->rgProvParam = &pinparam;
+
+            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+                break;
+        }
+
+        if( selftest )
+        {
+            BYTE bbPK[1024/*MAX_PUBKEY_LEN*/];
+            DWORD dwPK = sizeof( bbPK );
+            HCRYPTKEY hUserKey = 0;
+            HCRYPTKEY hTestKey = 0;
+            HCRYPTPROV hProv = 0;
+
+            selftest = 0;
+
+            for( ;; )
+            {
+                delete[]( char * )provinfo;
+                provinfo = NULL;
+
+                if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
+                    break;
+
+                provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+
+                if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
+                    break;
+
+                if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, ( provinfo->dwFlags & ~CERT_SET_KEY_CONTEXT_PROP_ID ) ) )
+                    break;
+
+                if( provinfo->rgProvParam && !CryptSetProvParam( hProv, provinfo->rgProvParam->dwParam, provinfo->rgProvParam->pbData, provinfo->rgProvParam->dwFlags ) )
+                    break;
+
+                if( !CryptGetUserKey( hProv, provinfo->dwKeySpec, &hUserKey ) ||
+                    !CryptExportKey( hUserKey, 0, PUBLICKEYBLOB, 0, bbPK, &dwPK ) ||
+                    !CryptImportKey( hProv, bbPK, dwPK, hUserKey, 0, &hTestKey ) )
+                    break;
+
+                selftest = 1;
+                break;
+            }
+
+            if( hUserKey )
+                CryptDestroyKey( hUserKey );
+
+            if( hTestKey )
+                CryptDestroyKey( hTestKey );
+
+            if( hProv )
+                CryptReleaseContext( hProv, 0 );
+
+            if( !selftest )
                 break;
         }
 
@@ -1276,9 +1336,6 @@ char msspi_set_mycert_silent( MSSPI_HANDLE h )
 
     if( provinfo )
         delete[]( char * )provinfo;
-
-    if( !isok && hProv )
-        CryptReleaseContext( hProv, 0 );
 
     return isok;
 
@@ -1379,11 +1436,56 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
         CertFreeCertificateContext( certprobe );
 
     if( h->cert )
+    {
         CertFreeCertificateContext( h->cert );
+        h->cert = NULL;
+    }
 
-    h->cert = certfound;
+    if( certfound )
+    {
+        bool isok = false;
+        PCCERT_CONTEXT cleancert = NULL;
+        PCRYPT_KEY_PROV_INFO provinfo = NULL;
+        DWORD dw;
 
-    return certfound ? 1 : 0;
+        for( ;; )
+        {
+            cleancert = CertCreateCertificateContext( X509_ASN_ENCODING, certfound->pbCertEncoded, certfound->cbCertEncoded );
+
+            if( !cleancert )
+                break;
+
+            if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
+                break;
+
+            provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+
+            if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
+                break;
+
+            if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+                break;
+
+            isok = true;
+            break;
+        }
+
+        CertFreeCertificateContext( certfound );
+
+        if( provinfo )
+            delete[]( char * )provinfo;
+
+        if( isok )
+        {
+            h->cert = cleancert;
+            return 1;
+        }
+        else if( cleancert )
+            CertFreeCertificateContext( cleancert );
+
+    }
+
+    return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
