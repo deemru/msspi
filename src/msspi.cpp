@@ -1107,6 +1107,14 @@ int msspi_connect( MSSPI_HANDLE h )
                 h->state = MSSPI_SHUTDOWN;
                 return 0;
             }
+            // always cache session parameters
+            else
+            if( !msspi_get_cipherinfo( h ) ||
+                !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+            {
+                h->state = MSSPI_ERROR;
+                return 0;
+            }
 
             h->is_connected = 1;
             return 1;
