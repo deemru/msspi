@@ -629,7 +629,13 @@ int msspi_pending( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    return h->in_len;
+    if( h->dec_len )
+        return h->dec_len;
+
+    if( h->in_len )
+        return h->in_len;
+
+    return 0;
 
     MSSPIEHCATCH_RET( 0 );
 }
