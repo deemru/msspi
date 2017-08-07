@@ -159,7 +159,8 @@ struct MSSPI
         is_connected = 0;
         is_peerauth = 0;
         is_cipherinfo = 0;
-        is_shutingdown = 0;
+        is_r_shutdown = 0;
+        is_w_shutdown = 0;
         is_renegotiate = 0;
         state = MSSPI_OK;
         rwstate = MSSPI_NOTHING;
@@ -197,7 +198,8 @@ struct MSSPI
     char is_connected;
     char is_peerauth;
     char is_cipherinfo;
-    char is_shutingdown;
+    char is_r_shutdown;
+    char is_w_shutdown;
     char is_renegotiate;
     char reserved[2];
     MSSPI_STATE state;
@@ -435,6 +437,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
             scRet == SEC_E_CONTEXT_EXPIRED )
         {
+            h->is_r_shutdown = 1;
             return msspi_shutdown( h );
         }
 
@@ -644,13 +647,21 @@ int msspi_shutdown( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
+    if( h->is_w_shutdown == 2 && h->is_r_shutdown == 1 )
+    {
+        h->state = MSSPI_SHUTDOWN;
+        return 0;
+    }
+
+    if( h->is_w_shutdown == 2 && !h->is_r_shutdown )
+        return msspi_read( h, 0, 0 );
+
     char is_ret = h->state != MSSPI_OK;
 
-    h->is_connected = 0;
     h->in_len = 0;
     h->out_len = 0;
     h->rwstate = MSSPI_NOTHING;
-    h->is_shutingdown = 1;
+    h->is_w_shutdown = 1;
 
     if( is_ret )
     {
@@ -683,6 +694,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
         return h->is_client ? msspi_connect( h ) : msspi_accept( h );
     }
 
+    h->state = MSSPI_ERROR;
     return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
@@ -844,14 +856,14 @@ int msspi_accept( MSSPI_HANDLE h )
         }
 
         // shutdown OK
-        if( h->is_shutingdown )
+        if( h->is_w_shutdown )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
                 scRet == SEC_E_CONTEXT_EXPIRED )
             {
-                h->state = MSSPI_SHUTDOWN;
-                return 0;
+                h->is_w_shutdown = 2;
+                return msspi_shutdown( h );
             }
         }
 
@@ -1093,14 +1105,14 @@ int msspi_connect( MSSPI_HANDLE h )
         }
 
         // shutdown OK
-        if( h->is_shutingdown )
+        if( h->is_w_shutdown )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
                 scRet == SEC_E_CONTEXT_EXPIRED )
             {
-                h->state = MSSPI_SHUTDOWN;
-                return 0;
+                h->is_w_shutdown = 2;
+                return msspi_shutdown( h );
             }
         }
 
