@@ -59,19 +59,19 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len );
 int msspi_write( MSSPI_HANDLE h, const void * buf, int len );
 int msspi_shutdown( MSSPI_HANDLE h );
 
-typedef enum
-{
-    MSSPI_OK = 0,
-    MSSPI_NOTHING = 0,
-    MSSPI_READING,
-    MSSPI_WRITING,
-    MSSPI_X509_LOOKUP,
-    MSSPI_SHUTDOWN,
-    MSSPI_ERROR
-}
-MSSPI_STATE;
+#define MSSPI_OK    ( 0 )
+#define MSSPI_ERROR ( 1 << 31 )
 
-MSSPI_STATE msspi_state( MSSPI_HANDLE h );
+#define MSSPI_NOTHING ( 0 )
+#define MSSPI_READING ( 1 << 1 )
+#define MSSPI_WRITING ( 1 << 2 )
+#define MSSPI_X509_LOOKUP ( 1 << 3 )
+#define MSSPI_SHUTDOWN_PROC ( 1 << 4 )
+#define MSSPI_SENT_SHUTDOWN ( 1 << 5 )
+#define MSSPI_RECEIVED_SHUTDOWN ( 1 << 6 )
+#define MSSPI_SHUTDOWN ( MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN )
+
+int msspi_state( MSSPI_HANDLE h );
 int msspi_pending( MSSPI_HANDLE h );
 
 PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
