@@ -62,14 +62,13 @@ int msspi_shutdown( MSSPI_HANDLE h );
 #define MSSPI_OK    ( 0 )
 #define MSSPI_ERROR ( 1 << 31 )
 
-#define MSSPI_NOTHING ( 0 )
 #define MSSPI_READING ( 1 << 1 )
 #define MSSPI_WRITING ( 1 << 2 )
 #define MSSPI_X509_LOOKUP ( 1 << 3 )
 #define MSSPI_SHUTDOWN_PROC ( 1 << 4 )
 #define MSSPI_SENT_SHUTDOWN ( 1 << 5 )
 #define MSSPI_RECEIVED_SHUTDOWN ( 1 << 6 )
-#define MSSPI_SHUTDOWN ( MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN )
+#define MSSPI_LAST_PROC_WRITE ( 1 << 7 )
 
 int msspi_state( MSSPI_HANDLE h );
 int msspi_pending( MSSPI_HANDLE h );

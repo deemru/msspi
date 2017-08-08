@@ -66,7 +66,7 @@ static DWORD GetTickCount()
 #include <vector>
 
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
-#define SSPI_BUFFER_SIZE 65536
+#define SSPI_BUFFER_SIZE 32896 // 2 * ( 0x4000 + 128 )
 #ifdef _WIN32
 #define SECURITY_DLL_NAME "Security.dll"
 #elif defined( __APPLE__ )
@@ -155,13 +155,12 @@ struct MSSPI
 {
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
     {
-        is_client = 0;
-        is_connected = 0;
-        is_peerauth = 0;
-        is_cipherinfo = 0;
-        is_renegotiate = 0;
+        is.client = 0;
+        is.connected = 0;
+        is.peerauth = 0;
+        is.cipherinfo = 0;
+        is.renegotiate = 0;
         state = MSSPI_OK;
-        rwstate = MSSPI_NOTHING;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
         cred = NULL;
@@ -192,14 +191,16 @@ struct MSSPI
             CertFreeCertificateContext( cert );
     }
 
-    char is_client;
-    char is_connected;
-    char is_peerauth;
-    char is_cipherinfo;
-    char is_renegotiate;
-    char reserved[3];
+    struct
+    {
+        unsigned client : 1;
+        unsigned connected : 1;
+        unsigned peerauth : 1;
+        unsigned cipherinfo : 1;
+        unsigned renegotiate : 1;
+    } is;
+
     int state;
-    int rwstate;
     std::string hostname;
     SecPkgContext_CipherInfo cipherinfo;
     std::vector<std::string> peercerts;
@@ -298,7 +299,7 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
 
         SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
         SchannelCred.grbitEnabledProtocols = 0;
-        if( h->is_client )
+        if( h->is.client )
         {
             usage = SECPKG_CRED_OUTBOUND;
             SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;
@@ -346,9 +347,12 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 {
     MSSPIEHTRY;
 
-    if( !h->is_connected )
+    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+        return 0;
+
+    if( !h->is.connected )
     {
-        int i = h->is_client ? msspi_connect( h ) : msspi_accept( h );
+        int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
 
         if( i != 1 )
             return i;
@@ -371,7 +375,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
     }
 
     if( h->in_len == 0 )
-        h->rwstate |= MSSPI_READING;
+        h->state |= MSSPI_READING;
 
     for( ;; )
     {
@@ -383,22 +387,25 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         int decrypted = 0;
         int extra = 0;
 
-        if( h->rwstate & MSSPI_READING )
+        if( h->state & MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
+            {
+                h->state &= ~MSSPI_LAST_PROC_WRITE;
                 return io;
+            }
 
             if( io == 0 )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
 
             h->in_len = h->in_len + io;
 
-            h->rwstate &= ~MSSPI_READING;
+            h->state &= ~MSSPI_READING;
         }
 
         Buffers[0].pvBuffer = h->in_buf;
@@ -417,7 +424,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->rwstate |= MSSPI_READING;
+            h->state |= MSSPI_READING;
             continue;
         }
 
@@ -472,8 +479,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
-            h->is_connected = 0;
-            h->is_renegotiate = 1;
+            h->is.connected = 0;
+            h->is.renegotiate = 1;
             return msspi_read( h, buf, len );
         }
     }
@@ -485,9 +492,12 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 {
     MSSPIEHTRY;
 
-    if( !h->is_connected )
+    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+        return 0;
+
+    if( !h->is.connected )
     {
-        int i = h->is_client ? msspi_connect( h ) : msspi_accept( h );
+        int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
 
         if( i != 1 )
             return i;
@@ -582,19 +592,19 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         if( io == h->out_len )
         {
             h->out_len = 0;
-            h->rwstate &= ~MSSPI_WRITING;
+            h->state &= ~MSSPI_WRITING;
             break;
         }
 
         if( io < 0 )
         {
-            h->rwstate |= MSSPI_WRITING;
+            h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
             return io;
         }
 
         if( io == 0 )
         {
-            h->state |= MSSPI_SHUTDOWN;
+            h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
             return 0;
         }
 
@@ -617,12 +627,7 @@ int msspi_state( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR )
-        return MSSPI_ERROR;
-    if( ( h->state & MSSPI_SHUTDOWN ) == MSSPI_SHUTDOWN )
-        return MSSPI_SHUTDOWN;
-    
-    return h->rwstate | h->state;
+    return h->state;
 
     MSSPIEHCATCH_RET( MSSPI_ERROR );
 }
@@ -646,8 +651,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR ||
-        ( h->state & MSSPI_SHUTDOWN ) == MSSPI_SHUTDOWN )
+    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
         return 0;
 
     h->in_len = 0;
@@ -676,7 +680,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
             return 0;
         }
 
-        return h->is_client ? msspi_connect( h ) : msspi_accept( h );
+        return h->is.client ? msspi_connect( h ) : msspi_accept( h );
     }
 
     h->state |= MSSPI_ERROR;
@@ -689,30 +693,32 @@ int msspi_accept( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR ||
-        ( h->state & MSSPI_SHUTDOWN ) == MSSPI_SHUTDOWN )
+    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
         return 0;
 
     for( ;; )
     {
         SECURITY_STATUS scRet = SEC_I_CONTINUE_NEEDED;
 
-        if( h->rwstate & MSSPI_READING )
+        if( h->state & MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
+            {
+                h->state &= ~MSSPI_LAST_PROC_WRITE;
                 return io;
+            }
 
             if( io == 0 )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
 
             h->in_len = h->in_len + io;
 
-            h->rwstate &= ~MSSPI_READING;
+            h->state &= ~MSSPI_READING;
         }
 
         if( !h->out_len )
@@ -767,7 +773,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
                 h->in_len ? &InBuffer : NULL,
-                dwSSPIFlags | ( h->is_peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ),
+                dwSSPIFlags | ( h->is.peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ),
                 SECURITY_NATIVE_DREP,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
                 &OutBuffer,
@@ -806,19 +812,19 @@ int msspi_accept( MSSPI_HANDLE h )
             if( io == h->out_len )
             {
                 h->out_len = 0;
-                h->rwstate &= ~MSSPI_WRITING;
+                h->state &= ~MSSPI_WRITING;
                 break;
             }
 
             if( io < 0 )
             {
-                h->rwstate |= MSSPI_WRITING;
+                h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
                 return io;
             }
 
             if( io == 0 )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
 
@@ -834,7 +840,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->rwstate |= MSSPI_READING;
+            h->state |= MSSPI_READING;
             continue;
         }
 
@@ -853,7 +859,7 @@ int msspi_accept( MSSPI_HANDLE h )
         // handshake OK
         if( scRet == SEC_E_OK )
         {
-            h->is_connected = 1;
+            h->is.connected = 1;
             return 1;
         }
 
@@ -885,14 +891,14 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
     std::string new_session;
 
     // if a user does not check params - modifications are not important
-    if( !h->is_cipherinfo && !h->peercerts.size() )
+    if( !h->is.cipherinfo && !h->peercerts.size() )
         return 1;
 
     old_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
     for( size_t i = 0; i < h->peercerts.size(); i++ )
         old_session.append( h->peercerts[i] );
 
-    h->is_cipherinfo = 0;
+    h->is.cipherinfo = 0;
     if( !msspi_get_cipherinfo( h ) )
         return 0;
 
@@ -914,18 +920,17 @@ int msspi_connect( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR ||
-        ( h->state & MSSPI_SHUTDOWN ) == MSSPI_SHUTDOWN )
+    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
         return 0;
 
-    if( h->is_client == 0 )
-        h->is_client = 1;
+    if( h->is.client == 0 )
+        h->is.client = 1;
 
     for( ;; )
     {
         SECURITY_STATUS scRet = SEC_I_CONTINUE_NEEDED;
 
-        if( h->rwstate & MSSPI_X509_LOOKUP )
+        if( h->state & MSSPI_X509_LOOKUP )
         {
             if( h->cert_cb )
             {
@@ -934,29 +939,32 @@ int msspi_connect( MSSPI_HANDLE h )
                 if( io != 1 )
                     return io;
 
-                h->rwstate &= ~MSSPI_X509_LOOKUP;
+                h->state &= ~MSSPI_X509_LOOKUP;
 
                 if( h->cred && h->cert )
                     credentials_api( h, NULL, true );
             }
         }
 
-        if( h->rwstate & MSSPI_READING )
+        if( h->state & MSSPI_READING )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
             if( io < 0 )
+            {
+                h->state &= ~MSSPI_LAST_PROC_WRITE;
                 return io;
+            }
 
             if( io == 0 )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
 
             h->in_len = h->in_len + io;
 
-            h->rwstate &= ~MSSPI_READING;
+            h->state &= ~MSSPI_READING;
         }
 
         if( !h->out_len )
@@ -1053,19 +1061,19 @@ int msspi_connect( MSSPI_HANDLE h )
             if( io == h->out_len )
             {
                 h->out_len = 0;
-                h->rwstate &= ~MSSPI_WRITING;
+                h->state &= ~MSSPI_WRITING;
                 break;
             }
 
             if( io < 0 )
             {
-                h->rwstate |= MSSPI_WRITING;
+                h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
                 return io;
             }
 
             if( io == 0 )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
 
@@ -1081,7 +1089,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
-            h->rwstate |= MSSPI_READING;
+            h->state |= MSSPI_READING;
             continue;
         }
 
@@ -1101,9 +1109,9 @@ int msspi_connect( MSSPI_HANDLE h )
         if( scRet == SEC_E_OK )
         {
             // shutdown if params are changed in renegotiation
-            if( h->is_renegotiate && !is_new_session_unmodified( h ) )
+            if( h->is.renegotiate && !is_new_session_unmodified( h ) )
             {
-                h->state |= MSSPI_SHUTDOWN;
+                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
             // always cache session parameters
@@ -1115,7 +1123,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 return 0;
             }
 
-            h->is_connected = 1;
+            h->is.connected = 1;
             return 1;
         }
 
@@ -1133,7 +1141,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( scRet == SEC_I_INCOMPLETE_CREDENTIALS )
         {
-            h->rwstate |= MSSPI_X509_LOOKUP;
+            h->state |= MSSPI_X509_LOOKUP;
             continue;
         }
 
@@ -1218,7 +1226,7 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 {
     MSSPIEHTRY;
 
-    h->is_peerauth = is_peerauth;
+    h->is.peerauth = (unsigned)is_peerauth;
 
     MSSPIEHCATCH_0;
 }
@@ -1510,7 +1518,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->is_cipherinfo )
+    if( h->is.cipherinfo )
         return &h->cipherinfo;
 
     SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo );
@@ -1518,7 +1526,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     if( scRet != SEC_E_OK )
         return NULL;
 
-    h->is_cipherinfo = 1;
+    h->is.cipherinfo = 1;
     return &h->cipherinfo;
 
     MSSPIEHCATCH_HERRRET( NULL );
@@ -1530,7 +1538,7 @@ const char * msspi_get_version( MSSPI_HANDLE h )
 
     MSSPIEHTRY;
 
-    if( h->is_cipherinfo || msspi_get_cipherinfo( h ) )
+    if( h->is.cipherinfo || msspi_get_cipherinfo( h ) )
     {
         switch( h->cipherinfo.dwProtocol )
         {
@@ -1699,8 +1707,8 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         HTTPSPolicyCallbackData polHttps;
         memset( &polHttps, 0, sizeof( HTTPSPolicyCallbackData ) );
         polHttps.cbStruct = sizeof( HTTPSPolicyCallbackData );
-        polHttps.dwAuthType = (DWORD)( h->is_client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
-        if( h->is_client )
+        polHttps.dwAuthType = (DWORD)( h->is.client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
+        if( h->is.client )
         {
             whost.assign( h->hostname.begin(), h->hostname.end() );
             polHttps.pwszServerName = (WCHAR *)whost.data();
