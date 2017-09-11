@@ -86,7 +86,8 @@ static std::recursive_mutex mtx;
 struct MSSPI_CredCache;
 typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB credentials_db;
-static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free );
+static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
+static void credentials_release( MSSPI_HANDLE h );
 
 // sspi
 static PSecurityFunctionTableA sspi = NULL;
@@ -134,14 +135,14 @@ struct MSSPI_CredCache
             sspi->FreeCredentialsHandle( &hCred );
     }
 
-    void Ping()
+    void Ping( DWORD dwNow )
     {
-        dwLastActive = GetTickCount();
+        dwLastActive = dwNow;
     }
 
-    bool isActive()
+    bool isActive( DWORD dwNow )
     {
-        return GetTickCount() - dwLastActive < SSPI_CREDSCACHE_DEFAULT_TIMEOUT;
+        return dwNow - dwLastActive < SSPI_CREDSCACHE_DEFAULT_TIMEOUT;
     }
 };
 
@@ -182,7 +183,7 @@ struct MSSPI
     ~MSSPI()
     {
         if( cred )
-            credentials_api( this, cert, true );
+            credentials_release( this );
 
         if( hCtx.dwLower || hCtx.dwUpper )
             sspi->DeleteSecurityContext( &hCtx );
@@ -209,7 +210,8 @@ struct MSSPI
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
     PCCERT_CONTEXT cert;
-    const char * certstore;
+    std::string certstore;
+    std::string cred_record;
 
     int in_len;
     int dec_len;
@@ -228,32 +230,62 @@ struct MSSPI
     msspi_cert_cb cert_cb;
 };
 
-static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
+static char credentials_acquire( MSSPI_HANDLE h )
 {
-    // release creds without certs
-    if( is_free && !cert )
+    CredHandle      hCred;
+    TimeStamp       tsExpiry;
+    SCHANNEL_CRED   SchannelCred;
+    unsigned long   usage;
+
+    ZeroMemory( &SchannelCred, sizeof( SchannelCred ) );
+
+    SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
+    SchannelCred.grbitEnabledProtocols = 0;
+    if( h->is.client )
     {
-        delete h->cred;
-        h->cred = NULL;
+        usage = SECPKG_CRED_OUTBOUND;
+        SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;
+        SchannelCred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+    }
+    else
+    {
+        usage = SECPKG_CRED_INBOUND;
+        SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER;
+    }
+
+    if( h->cert )
+    {
+        SchannelCred.cCreds = 1;
+        SchannelCred.paCred = &h->cert;
+    }
+
+    if( SEC_E_OK == sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) )
+    {
+        h->cred = new MSSPI_CredCache( hCred );
         return 1;
     }
 
-    std::string cred_record;
+    return 0;
+}
 
-    if( cert )
-    {
-        cred_record = h->hostname.size() ? h->hostname : "*";
-        cred_record.append( (char *)cert->pbCertEncoded, cert->cbCertEncoded );
-    }
+static void credentials_release( MSSPI_HANDLE h )
+{
+    std::unique_lock<std::recursive_mutex> lck( mtx );
+    h->cred->dwRefs--;
+    h->cred = NULL;
+}
+
+static char credentials_api( MSSPI_HANDLE h, bool just_find )
+{
+    CREDENTIALS_DB::iterator it;
+    DWORD dwNow = GetTickCount();
 
     std::unique_lock<std::recursive_mutex> lck( mtx );
-
-    CREDENTIALS_DB::iterator it;
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
     for( it = credentials_db.begin(); it != credentials_db.end(); )
     {
-        if( it->second->dwRefs || it->second->isActive() )
+        if( it->second->dwRefs || it->second->isActive( dwNow ) )
         {
             it++;
         }
@@ -265,77 +297,26 @@ static char credentials_api( MSSPI_HANDLE h, PCCERT_CONTEXT cert, bool is_free )
     }
 
     // credentials_db for records with certs only
-    if( cert )
-        it = credentials_db.find( cred_record );
+    it = credentials_db.find( h->cred_record );
 
     // dereference or ping found
     if( it != credentials_db.end() )
     {
-        if( is_free )
-        {
-            h->cred = NULL;
-            it->second->dwRefs--;
-            return 1;
-        }
-        else
-        {
-            it->second->Ping();
-            it->second->dwRefs++;
-            h->cred = it->second;
-            return 1;
-        }
+        if( h->cred )
+            h->cred->dwRefs--;
+
+        h->cred = it->second;
+        h->cred->dwRefs++;
+        h->cred->Ping( dwNow );
+        return 1;
     }
 
     // new record
-    else if( !is_free )
+    else if( !just_find )
     {
-        CredHandle      hCred;
-        SECURITY_STATUS Status;
-        TimeStamp       tsExpiry;
-        SCHANNEL_CRED   SchannelCred;
-        unsigned long   usage;
-
-        ZeroMemory( &SchannelCred, sizeof( SchannelCred ) );
-
-        SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-        SchannelCred.grbitEnabledProtocols = 0;
-        if( h->is.client )
+        if( credentials_acquire( h ) )
         {
-            usage = SECPKG_CRED_OUTBOUND;
-            SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;
-            SchannelCred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
-        }
-        else
-        {
-            usage = SECPKG_CRED_INBOUND;
-            SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER;
-        }
-
-        if( cert )
-        {
-            SchannelCred.cCreds = 1;
-            SchannelCred.paCred = &cert;
-        }
-
-        Status = sspi->AcquireCredentialsHandleA(
-            NULL,
-            (char *)UNISP_NAME_A,
-            usage,
-            NULL,
-            &SchannelCred,
-            NULL,
-            NULL,
-            &hCred,
-            &tsExpiry );
-
-        if( Status == SEC_E_OK )
-        {
-            h->cred = new MSSPI_CredCache( hCred );
-
-            // credentials_db for records with certs only
-            if( cert )
-                credentials_db.insert( it, CREDENTIALS_DB::value_type( cred_record, h->cred ) );
-
+            credentials_db.insert( it, CREDENTIALS_DB::value_type( h->cred_record, h->cred ) );
             return 1;
         }
     }
@@ -739,7 +720,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, h->cert, false ) )
+                if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
                     return 0;
@@ -942,7 +923,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 h->state &= ~MSSPI_X509_LOOKUP;
 
                 if( h->cred && h->cert )
-                    credentials_api( h, NULL, true );
+                    credentials_release( h );
             }
         }
 
@@ -985,7 +966,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
             if( !h->cred )
             {
-                if( !credentials_api( h, h->cert, false ) )
+                if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
                     return 0;
@@ -1252,6 +1233,9 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 {
     MSSPIEHTRY;
 
+    if( h->cred )
+        return 1;
+
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
     char isok = 0;
 
@@ -1375,6 +1359,16 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
     PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
 
+    h->cred_record.clear();
+    h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
+    if( len )
+        h->cred_record.append( clientCert, (unsigned)len );
+    else
+        h->cred_record.append( clientCert );
+
+    if( credentials_api( h, true ) )
+        return 1;
+
     if( len )
         certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
 
@@ -1388,7 +1382,7 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 
     for( i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
     {
-        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], h->certstore );
+        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], h->certstore.data() );
 
         if( !hStore )
             continue;
@@ -1708,7 +1702,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         memset( &polHttps, 0, sizeof( HTTPSPolicyCallbackData ) );
         polHttps.cbStruct = sizeof( HTTPSPolicyCallbackData );
         polHttps.dwAuthType = (DWORD)( h->is.client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
-        if( h->is.client )
+        if( h->is.client && h->hostname.length() )
         {
             whost.assign( h->hostname.begin(), h->hostname.end() );
             polHttps.pwszServerName = (WCHAR *)whost.data();
