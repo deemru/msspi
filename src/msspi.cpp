@@ -335,8 +335,6 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     }
 
-    h->cred_record = "*";
-
     std::unique_lock<std::recursive_mutex> lck( mtx );
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
