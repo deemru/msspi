@@ -80,6 +80,52 @@ static DWORD GetTickCount()
 
 #include "msspi.h"
 
+#ifndef SECBUFFER_APPLICATION_PROTOCOLS
+#define SECBUFFER_APPLICATION_PROTOCOLS 18  // Lists of application protocol IDs, one per negotiation extension
+
+typedef enum _SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT
+{
+    SecApplicationProtocolNegotiationExt_None,
+    SecApplicationProtocolNegotiationExt_NPN,
+    SecApplicationProtocolNegotiationExt_ALPN
+} SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT, *PSEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT;
+
+#ifndef ANYSIZE_ARRAY
+#define ANYSIZE_ARRAY 1
+#endif
+
+typedef struct _SEC_APPLICATION_PROTOCOL_LIST {
+    SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT ProtoNegoExt; // Protocol negotiation extension type to use with this list of protocols
+    unsigned short ProtocolListSize;                       // Size in bytes of the protocol ID list
+    unsigned char ProtocolList[ANYSIZE_ARRAY];             // 8-bit length-prefixed application protocol IDs, most preferred first
+} SEC_APPLICATION_PROTOCOL_LIST, *PSEC_APPLICATION_PROTOCOL_LIST;
+
+typedef struct _SEC_APPLICATION_PROTOCOLS {
+    unsigned long ProtocolListsSize;                            // Size in bytes of the protocol ID lists array
+    SEC_APPLICATION_PROTOCOL_LIST ProtocolLists[ANYSIZE_ARRAY]; // Array of protocol ID lists
+} SEC_APPLICATION_PROTOCOLS, *PSEC_APPLICATION_PROTOCOLS;
+
+#define SECPKG_ATTR_APPLICATION_PROTOCOL 35
+
+typedef enum _SEC_APPLICATION_PROTOCOL_NEGOTIATION_STATUS
+{
+    SecApplicationProtocolNegotiationStatus_None,
+    SecApplicationProtocolNegotiationStatus_Success,
+    SecApplicationProtocolNegotiationStatus_SelectedClientOnly
+} SEC_APPLICATION_PROTOCOL_NEGOTIATION_STATUS, *PSEC_APPLICATION_PROTOCOL_NEGOTIATION_STATUS;
+
+#define MAX_PROTOCOL_ID_SIZE 0xff
+
+typedef struct _SecPkgContext_ApplicationProtocol
+{
+    SEC_APPLICATION_PROTOCOL_NEGOTIATION_STATUS ProtoNegoStatus; // Application  protocol negotiation status
+    SEC_APPLICATION_PROTOCOL_NEGOTIATION_EXT ProtoNegoExt;       // Protocol negotiation extension type corresponding to this protocol ID
+    unsigned char ProtocolIdSize;                                // Size in bytes of the application protocol ID
+    unsigned char ProtocolId[MAX_PROTOCOL_ID_SIZE];              // Byte string representing the negotiated application protocol ID
+} SecPkgContext_ApplicationProtocol, *PSecPkgContext_ApplicationProtocol;
+
+#endif /*SECBUFFER_APPLICATION_PROTOCOLS*/
+
 // credentials_api
 #include <mutex>
 static std::recursive_mutex mtx;
@@ -199,10 +245,13 @@ struct MSSPI
         unsigned peerauth : 1;
         unsigned cipherinfo : 1;
         unsigned renegotiate : 1;
+        unsigned alpn : 1;
     } is;
 
     int state;
     std::string hostname;
+    std::string cachestring;
+    std::string alpn;
     SecPkgContext_CipherInfo cipherinfo;
     std::vector<std::string> peercerts;
     std::vector<std::string> issuerlist;
@@ -279,6 +328,14 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
 {
     CREDENTIALS_DB::iterator it;
     DWORD dwNow = GetTickCount();
+
+    if( h->cred_record.length() == 0 )
+    {
+        h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
+        h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
+    }
+
+    h->cred_record = "*";
 
     std::unique_lock<std::recursive_mutex> lck( mtx );
 
@@ -950,12 +1007,13 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( !h->out_len )
         {
-            SecBufferDesc   InBuffer;
+            SecBufferDesc   InBuffer = { 0 };
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
             SecBuffer       OutBuffers[1];
             unsigned long   dwSSPIOutFlags;
             TimeStamp       tsExpiry;
+            std::string     alpn_holder;
 
             static DWORD dwSSPIFlags = ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
@@ -995,6 +1053,26 @@ int msspi_connect( MSSPI_HANDLE h )
                 InBuffer.pBuffers = InBuffers;
                 InBuffer.ulVersion = SECBUFFER_VERSION;
             }
+            else if( !h->hCtx.dwLower && !h->hCtx.dwUpper && h->alpn.length() )
+            {
+                {
+                    alpn_holder.resize( sizeof( SEC_APPLICATION_PROTOCOLS ) + h->alpn.length() );
+
+                    SEC_APPLICATION_PROTOCOLS * sap = (SEC_APPLICATION_PROTOCOLS *)&alpn_holder[0];
+                    sap->ProtocolListsSize = sizeof( SEC_APPLICATION_PROTOCOL_LIST ) + h->alpn.length();
+                    sap->ProtocolLists[0].ProtoNegoExt = SecApplicationProtocolNegotiationExt_ALPN;
+                    sap->ProtocolLists[0].ProtocolListSize = (unsigned short)h->alpn.length();
+                    memcpy( sap->ProtocolLists[0].ProtocolList, h->alpn.data(), h->alpn.length() );
+                }
+
+                InBuffers[0].pvBuffer = &alpn_holder[0];
+                InBuffers[0].cbBuffer = (bufsize_t)alpn_holder.length();
+                InBuffers[0].BufferType = SECBUFFER_APPLICATION_PROTOCOLS;
+
+                InBuffer.cBuffers = 1;
+                InBuffer.pBuffers = InBuffers;
+                InBuffer.ulVersion = SECBUFFER_VERSION;
+            }
 
             scRet = sspi->InitializeSecurityContextA(
                 &h->cred->hCred,
@@ -1003,7 +1081,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 dwSSPIFlags,
                 0,
                 SECURITY_NATIVE_DREP,
-                h->in_len ? &InBuffer : NULL,
+                InBuffer.cBuffers ? &InBuffer : NULL,
                 0,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
                 &OutBuffer,
@@ -1157,6 +1235,30 @@ char msspi_set_hostname( MSSPI_HANDLE h, const char * hostname )
 
     if( hostname )
         h->hostname = hostname;
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_set_cachestring( MSSPI_HANDLE h, const char * cachestring )
+{
+    MSSPIEHTRY;
+
+    if( cachestring )
+        h->cachestring = cachestring;
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, unsigned len )
+{
+    MSSPIEHTRY;
+
+    if( alpn && len )
+        h->alpn.assign( (const char *)alpn, len );
 
     return 1;
 
@@ -1359,8 +1461,8 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
     PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
 
-    h->cred_record.clear();
     h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
+    h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     if( len )
         h->cred_record.append( clientCert, (unsigned)len );
     else
@@ -1522,6 +1624,39 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
 
     h->is.cipherinfo = 1;
     return &h->cipherinfo;
+
+    MSSPIEHCATCH_HERRRET( NULL );
+}
+
+const char * msspi_get_alpn( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY;
+
+    if( h->is.alpn )
+        return h->alpn.length() ? h->alpn.data() : NULL;
+
+    SecPkgContext_ApplicationProtocol alpn;
+
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn );
+
+    if( scRet != SEC_E_OK )
+        return NULL;
+
+    if( alpn.ProtoNegoStatus == SecApplicationProtocolNegotiationStatus_Success &&
+        alpn.ProtoNegoExt == SecApplicationProtocolNegotiationExt_ALPN &&
+        alpn.ProtocolIdSize &&
+        alpn.ProtocolIdSize < h->alpn.length() )
+    {
+        memset( &h->alpn[0], 0, h->alpn.length() );
+        memcpy( &h->alpn[0], alpn.ProtocolId, alpn.ProtocolIdSize );
+    }
+    else
+    {
+        h->alpn.clear();
+    }
+
+    h->is.alpn = 1;
+    return h->alpn.length() ? h->alpn.data() : NULL;
 
     MSSPIEHCATCH_HERRRET( NULL );
 }

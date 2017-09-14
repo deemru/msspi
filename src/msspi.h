@@ -47,6 +47,8 @@ typedef int ( * msspi_cert_cb )( void * cb_arg );
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb, msspi_write_cb );
 
 char msspi_set_hostname( MSSPI_HANDLE h, const char * hostName );
+char msspi_set_cachestring( MSSPI_HANDLE h, const char * cacheString );
+char msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, unsigned len );
 void msspi_set_certstore( MSSPI_HANDLE h, const char * store );
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
 char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest );
@@ -77,6 +79,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
 const char * msspi_get_version( MSSPI_HANDLE h );
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
+const char * msspi_get_alpn( MSSPI_HANDLE h );
 
 #define MSSPI_VERIFY_OK                 0x00000000L
 #define MSSPI_VERIFY_ERROR              0x00000001L
