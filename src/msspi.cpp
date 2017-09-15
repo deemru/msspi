@@ -207,6 +207,7 @@ struct MSSPI
         is.peerauth = 0;
         is.cipherinfo = 0;
         is.renegotiate = 0;
+        is.alpn = 0;
         state = MSSPI_OK;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
@@ -334,6 +335,8 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
         h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     }
+
+    h->cred_record = "*";
 
     std::unique_lock<std::recursive_mutex> lck( mtx );
 
@@ -1631,7 +1634,11 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->is.alpn )
+    {
+        if( h->alpn.length() > 2 )
+            __debugbreak();
         return h->alpn.length() ? h->alpn.data() : NULL;
+    }
 
     SecPkgContext_ApplicationProtocol alpn;
 
@@ -1654,6 +1661,8 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     }
 
     h->is.alpn = 1;
+    if( h->alpn.length() > 2 )
+        __debugbreak();
     return h->alpn.length() ? h->alpn.data() : NULL;
 
     MSSPIEHCATCH_HERRRET( NULL );
