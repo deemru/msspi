@@ -336,8 +336,6 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     }
 
-    h->cred_record = "*";
-
     std::unique_lock<std::recursive_mutex> lck( mtx );
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
@@ -1634,11 +1632,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->is.alpn )
-    {
-        if( h->alpn.length() > 2 )
-            __debugbreak();
         return h->alpn.length() ? h->alpn.data() : NULL;
-    }
 
     SecPkgContext_ApplicationProtocol alpn;
 
@@ -1661,8 +1655,6 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     }
 
     h->is.alpn = 1;
-    if( h->alpn.length() > 2 )
-        __debugbreak();
     return h->alpn.length() ? h->alpn.data() : NULL;
 
     MSSPIEHCATCH_HERRRET( NULL );
