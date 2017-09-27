@@ -36,6 +36,7 @@ extern "C" {
 #endif // QT_NO_EXCEPTIONS
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #define SECURITY_WIN32
 #ifdef _WIN32
