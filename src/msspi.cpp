@@ -211,6 +211,13 @@ typedef struct _SecPkgContext_ApplicationProtocol
 
 #endif /*SECBUFFER_APPLICATION_PROTOCOLS*/
 
+#ifndef PROV_GOST_2001_DH
+#define PROV_GOST_2001_DH 75
+#define PROV_GOST_2012_256 80
+#define PROV_GOST_2012_512 81
+#define CALG_G28147 0x661E
+#endif
+
 // credentials_api
 #include <mutex>
 static std::recursive_mutex mtx;
@@ -1527,9 +1534,22 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 if( provinfo->rgProvParam && !CryptSetProvParam( hProv, provinfo->rgProvParam->dwParam, provinfo->rgProvParam->pbData, provinfo->rgProvParam->dwFlags ) )
                     break;
 
+                if( provinfo->dwProvType != PROV_GOST_2001_DH &&
+                    provinfo->dwProvType != PROV_GOST_2012_256 && 
+                    provinfo->dwProvType != PROV_GOST_2012_512 )
+                {
+                    selftest = 1;
+                    break;
+                }
+
+                DWORD dwAlgid = CALG_G28147;
+
+                // CryptImportKey - checks PIN
                 if( !CryptGetUserKey( hProv, provinfo->dwKeySpec, &hUserKey ) ||
                     !CryptExportKey( hUserKey, 0, PUBLICKEYBLOB, 0, bbPK, &dwPK ) ||
-                    !CryptImportKey( hProv, bbPK, dwPK, hUserKey, 0, &hTestKey ) )
+                    !CryptImportKey( hProv, bbPK, dwPK, hUserKey, 0, &hTestKey ) || // check PIN
+                    !CryptSetKeyParam( hTestKey, KP_ALGID, (BYTE *)&dwAlgid, 0 ) ||
+                    !CryptEncrypt( hTestKey, 0, TRUE, 0, 0, &dwPK, dwPK ) ) // check LICENSE
                     break;
 
                 selftest = 1;
