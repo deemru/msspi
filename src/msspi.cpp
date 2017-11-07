@@ -1178,7 +1178,7 @@ int msspi_connect( MSSPI_HANDLE h )
                     alpn_holder.resize( sizeof( SEC_APPLICATION_PROTOCOLS ) + h->alpn.length() );
 
                     SEC_APPLICATION_PROTOCOLS * sap = (SEC_APPLICATION_PROTOCOLS *)&alpn_holder[0];
-                    sap->ProtocolListsSize = sizeof( SEC_APPLICATION_PROTOCOL_LIST ) + h->alpn.length();
+                    sap->ProtocolListsSize = (unsigned long)( sizeof( SEC_APPLICATION_PROTOCOL_LIST ) + h->alpn.length() );
                     sap->ProtocolLists[0].ProtoNegoExt = SecApplicationProtocolNegotiationExt_ALPN;
                     sap->ProtocolLists[0].ProtocolListSize = (unsigned short)h->alpn.length();
                     memcpy( sap->ProtocolLists[0].ProtocolList, h->alpn.data(), h->alpn.length() );
