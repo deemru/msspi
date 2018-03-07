@@ -72,6 +72,7 @@ static DWORD GetTickCount()
 #define SECURITY_DLL_NAME "Security.dll"
 #elif defined( __APPLE__ )
 #define SECURITY_DLL_NAME "/opt/cprocsp/lib/libssp.dylib"
+#include <TargetConditionals.h>
 #else // other LINUX
 #ifndef SECURITY_DLL_NAME_LINUX
 #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
@@ -235,7 +236,14 @@ static char msspi_sspi_init( void )
     if( sspi )
         return 1;
 
-    INIT_SECURITY_INTERFACE_A pInitSecurityInterface;
+    INIT_SECURITY_INTERFACE_A pInitSecurityInterface;  
+
+#if TARGET_OS_IPHONE
+
+    pInitSecurityInterface = InitSecurityInterfaceA;
+
+#else
+
     HMODULE hSecurity = (HMODULE)LIBLOAD( SECURITY_DLL_NAME );
 
     if( hSecurity == NULL )
@@ -245,6 +253,8 @@ static char msspi_sspi_init( void )
 
     if( pInitSecurityInterface == NULL )
         return 0;
+
+#endif
 
     sspi = pInitSecurityInterface();
 
@@ -409,8 +419,11 @@ static char credentials_acquire( MSSPI_HANDLE h )
         SchannelCred.paCred = &h->cert;
     }
 
+#if TARGET_OS_IPHONE
+    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
+#else
     SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
-
+#endif
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
@@ -801,8 +814,6 @@ int msspi_shutdown( MSSPI_HANDLE h )
     if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
         return 0;
 
-    h->in_len = 0;
-    h->out_len = 0;
     h->state |= MSSPI_SHUTDOWN_PROC;
 
     if( h->hCtx.dwLower || h->hCtx.dwUpper )
@@ -851,7 +862,7 @@ int msspi_accept( MSSPI_HANDLE h )
     {
         SECURITY_STATUS scRet = SEC_I_CONTINUE_NEEDED;
 
-        if( h->state & MSSPI_READING )
+        if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
@@ -905,7 +916,7 @@ int msspi_accept( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len )
+            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[0].pvBuffer = h->in_buf;
                 InBuffers[0].cbBuffer = (bufsize_t)h->in_len;
@@ -936,7 +947,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower,
                 h->in_len, dwSSPIFlags | ( h->is.peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ), (uint32_t)scRet );
 
-            if( h->in_len )
+            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
@@ -1000,6 +1011,9 @@ int msspi_accept( MSSPI_HANDLE h )
             h->state |= MSSPI_READING;
             continue;
         }
+
+        if( scRet == SEC_I_CONTINUE_NEEDED )
+            continue;
 
         // shutdown OK
         if( h->state & MSSPI_SHUTDOWN_PROC )
@@ -1103,7 +1117,7 @@ int msspi_connect( MSSPI_HANDLE h )
             }
         }
 
-        if( h->state & MSSPI_READING )
+        if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
 
@@ -1158,7 +1172,7 @@ int msspi_connect( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len )
+            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[0].pvBuffer = h->in_buf;
                 InBuffers[0].cbBuffer = (bufsize_t)h->in_len;
@@ -1212,7 +1226,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower,
                 h->hostname.length() ? (char *)h->hostname.data() : "NULL", dwSSPIFlags, h->in_len, (uint32_t)scRet );
 
-            if( h->in_len )
+            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
@@ -1276,6 +1290,9 @@ int msspi_connect( MSSPI_HANDLE h )
             h->state |= MSSPI_READING;
             continue;
         }
+
+        if( scRet == SEC_I_CONTINUE_NEEDED )
+            continue;
 
         // shutdown OK
         if( h->state & MSSPI_SHUTDOWN_PROC )
@@ -1878,6 +1895,9 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     if( !count && !bufs )
         return 1;
 
+    if( !count )
+        return 0;
+
     if( !bufs )
     {
         *count = h->peercerts.size();
@@ -1930,6 +1950,9 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
     if( !count && !bufs )
         return 1;
+
+    if( !count )
+        return 0;
 
     if( !bufs )
     {
