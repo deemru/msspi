@@ -75,7 +75,17 @@ static DWORD GetTickCount()
 #include <TargetConditionals.h>
 #else // other LINUX
 #ifndef SECURITY_DLL_NAME_LINUX
+#if defined( __mips__ ) // archs
+    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/mipsel/libssp.so"
+    #else // byte order
+        #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/mips/libssp.so"
+    #endif // byte order
+#elif defined( __i386__ ) // archs
+    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/ia32/libssp.so"
+#else // archs
 #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
+#endif // archs
 #endif // SECURITY_DLL_NAME_LINUX
 #define SECURITY_DLL_NAME SECURITY_DLL_NAME_LINUX
 #endif // _WIN32 or __APPLE__ or LINUX
