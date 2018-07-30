@@ -1461,7 +1461,7 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 {
     MSSPIEHTRY;
 
-    h->is.peerauth = (unsigned)is_peerauth;
+    h->is.peerauth = is_peerauth ? 1 : 0;
 
     MSSPIEHCATCH_0;
 }
