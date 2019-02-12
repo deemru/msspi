@@ -114,7 +114,7 @@ void msspi_logger_func( char level, const char * format, ... )
     va_start( ap, format );
     char out[MSSPI_LOGGER_MAX];
     int n = sizeof( out );
- 
+
     n = vsnprintf( out, n, format, ap );
 
     if( n < 0 || n >= (int)sizeof( out ) )
@@ -144,7 +144,7 @@ void msspi_logger_func( char level, const char * format, ... )
         default:
             type = EVENTLOG_INFORMATION_TYPE;
     }
-    
+
     const char * msgs[9] = { out, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "\n" };
     ReportEventA( es, type, 0, 3299, NULL, 9, 0, (LPCSTR *)msgs, NULL );
 
@@ -900,11 +900,12 @@ int msspi_accept( MSSPI_HANDLE h )
             SecBufferDesc   InBuffer;
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
-            SecBuffer       OutBuffers[1];
+            SecBuffer       OutBuffers[2];
             unsigned long   dwSSPIOutFlags;
             TimeStamp       tsExpiry;
 
-            static DWORD dwSSPIFlags = ASC_REQ_SEQUENCE_DETECT |
+            static DWORD dwSSPIFlags =
+                ASC_REQ_SEQUENCE_DETECT |
                 ASC_REQ_REPLAY_DETECT |
                 ASC_REQ_CONFIDENTIALITY |
                 ASC_REQ_EXTENDED_ERROR |
@@ -924,7 +925,11 @@ int msspi_accept( MSSPI_HANDLE h )
             OutBuffers[0].BufferType = SECBUFFER_TOKEN;
             OutBuffers[0].cbBuffer = 0;
 
-            OutBuffer.cBuffers = 1;
+            OutBuffers[1].pvBuffer = NULL;
+            OutBuffers[1].BufferType = SECBUFFER_ALERT;
+            OutBuffers[1].cbBuffer = 0;
+
+            OutBuffer.cBuffers = 2;
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
@@ -954,7 +959,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 &dwSSPIOutFlags,
                 &tsExpiry );
 
-            msspi_logger_info( "AcceptSecurityContext( hCred = %016llX:%016llX, hCtx = %016llX:%016llX, pInput (length) = %d, fContextReq = %08X ) returned %08X", 
+            msspi_logger_info( "AcceptSecurityContext( hCred = %016llX:%016llX, hCtx = %016llX:%016llX, pInput (length) = %d, fContextReq = %08X ) returned %08X",
                 (uint64_t)(uintptr_t)h->cred->hCred.dwUpper, (uint64_t)(uintptr_t)h->cred->hCred.dwLower,
                 (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower,
                 h->in_len, dwSSPIFlags | ( h->is.peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ), (uint32_t)scRet );
@@ -970,18 +975,23 @@ int msspi_accept( MSSPI_HANDLE h )
                     h->in_len = 0;
             }
 
-            if( scRet == SEC_E_OK ||
-                scRet == SEC_I_CONTINUE_NEEDED ||
-                ( FAILED( scRet ) && ( dwSSPIOutFlags & ISC_RET_EXTENDED_ERROR ) ) )
+            if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED ) &&
+                OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                if( OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
-                {
-                    memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                    h->out_len = (int)OutBuffers[0].cbBuffer;
+                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len = (int)OutBuffers[0].cbBuffer;
 
-                    msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
-                    sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
-                }
+                msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
+                sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
+            }
+            else if( FAILED( scRet ) && ( dwSSPIOutFlags & ASC_REQ_EXTENDED_ERROR ) &&
+                     OutBuffers[1].cbBuffer != 0 && OutBuffers[1].pvBuffer != NULL )
+            {
+                memcpy( h->out_buf, OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
+                h->out_len = (int)OutBuffers[1].cbBuffer;
+
+                msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
+                sspi->FreeContextBuffer( OutBuffers[1].pvBuffer );
             }
         }
 
@@ -1155,12 +1165,13 @@ int msspi_connect( MSSPI_HANDLE h )
             SecBufferDesc   InBuffer = { 0 };
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
-            SecBuffer       OutBuffers[1];
+            SecBuffer       OutBuffers[2];
             unsigned long   dwSSPIOutFlags;
             TimeStamp       tsExpiry;
             std::string     alpn_holder;
 
-            static DWORD dwSSPIFlags = ISC_REQ_SEQUENCE_DETECT |
+            static DWORD dwSSPIFlags = 
+                ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
                 ISC_RET_EXTENDED_ERROR |
@@ -1180,7 +1191,11 @@ int msspi_connect( MSSPI_HANDLE h )
             OutBuffers[0].BufferType = SECBUFFER_TOKEN;
             OutBuffers[0].cbBuffer = 0;
 
-            OutBuffer.cBuffers = 1;
+            OutBuffers[1].pvBuffer = NULL;
+            OutBuffers[1].BufferType = SECBUFFER_ALERT;
+            OutBuffers[1].cbBuffer = 0;
+
+            OutBuffer.cBuffers = 2;
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
@@ -1249,18 +1264,23 @@ int msspi_connect( MSSPI_HANDLE h )
                     h->in_len = 0;
             }
 
-            if( scRet == SEC_E_OK ||
-                scRet == SEC_I_CONTINUE_NEEDED ||
-                ( FAILED( scRet ) && ( dwSSPIOutFlags & ISC_RET_EXTENDED_ERROR ) ) )
+            if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED ) &&
+                OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                if( OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
-                {
-                    memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                    h->out_len = (int)OutBuffers[0].cbBuffer;
+                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len = (int)OutBuffers[0].cbBuffer;
 
-                    msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
-                    sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
-                }
+                msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
+                sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
+            }
+            else if( FAILED( scRet ) && ( dwSSPIOutFlags & ISC_RET_EXTENDED_ERROR ) &&
+                     OutBuffers[1].cbBuffer != 0 && OutBuffers[1].pvBuffer != NULL )
+            {
+                memcpy( h->out_buf, OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
+                h->out_len = (int)OutBuffers[1].cbBuffer;
+
+                msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
+                sspi->FreeContextBuffer( OutBuffers[1].pvBuffer );
             }
         }
 
@@ -1463,7 +1483,7 @@ void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
 {
     MSSPIEHTRY;
 
-    h->is.peerauth = is_peerauth ? 1 : 0;
+    h->is.peerauth = (unsigned)is_peerauth;
 
     MSSPIEHCATCH_0;
 }
@@ -1564,7 +1584,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                     break;
 
                 if( provinfo->dwProvType != PROV_GOST_2001_DH &&
-                    provinfo->dwProvType != PROV_GOST_2012_256 && 
+                    provinfo->dwProvType != PROV_GOST_2012_256 &&
                     provinfo->dwProvType != PROV_GOST_2012_512 )
                 {
                     selftest = 1;
