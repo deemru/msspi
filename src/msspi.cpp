@@ -418,6 +418,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
         usage = SECPKG_CRED_OUTBOUND;
         SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;
         SchannelCred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
+        SchannelCred.dwFlags |= SCH_CRED_REVOCATION_CHECK_CHAIN;
     }
     else
     {
