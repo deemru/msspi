@@ -101,7 +101,10 @@ const char * msspi_get_alpn( MSSPI_HANDLE h );
 #define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L
 #define CRYPT_E_REVOCATION_OFFLINE      0x80092013L
 #define CERT_E_ROLE                     0x800B0103L
+#endif
 
+#ifndef SECBUFFER_ALERT
+#define SECBUFFER_ALERT 17
 #endif
 
 unsigned msspi_verify( MSSPI_HANDLE h );
