@@ -241,18 +241,18 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
 
 // sspi
-static PSecurityFunctionTableA sspi = NULL;
+static PSecurityFunctionTableW sspi = NULL;
 
 static char msspi_sspi_init( void )
 {
     if( sspi )
         return 1;
 
-    INIT_SECURITY_INTERFACE_A pInitSecurityInterface;  
+    INIT_SECURITY_INTERFACE_W pInitSecurityInterface;
 
 #if TARGET_OS_IPHONE
 
-    pInitSecurityInterface = InitSecurityInterfaceA;
+    pInitSecurityInterface = InitSecurityInterfaceW;
 
 #else
 
@@ -261,7 +261,7 @@ static char msspi_sspi_init( void )
     if( hSecurity == NULL )
         return 0;
 
-    pInitSecurityInterface = (INIT_SECURITY_INTERFACE_A)LIBFUNC( hSecurity, "InitSecurityInterfaceA" );
+    pInitSecurityInterface = (INIT_SECURITY_INTERFACE_W)LIBFUNC( hSecurity, "InitSecurityInterfaceW" );
 
     if( pInitSecurityInterface == NULL )
         return 0;
@@ -373,6 +373,7 @@ struct MSSPI
 
     int state;
     std::string hostname;
+    std::wstring whostname;
     std::string cachestring;
     std::string alpn;
     SecPkgContext_CipherInfo cipherinfo;
@@ -433,9 +434,9 @@ static char credentials_acquire( MSSPI_HANDLE h )
     }
 
 #if TARGET_OS_IPHONE
-    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
+    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleW( NULL, (WCHAR *)L"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
 #else
-    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
+    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleW( NULL, (WCHAR *)UNISP_NAME_W, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
 #endif
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
@@ -676,7 +677,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         SECURITY_STATUS           scRet;
         SecPkgContext_StreamSizes Sizes;
 
-        scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes );
+        scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_STREAM_SIZES ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1171,7 +1172,7 @@ int msspi_connect( MSSPI_HANDLE h )
             TimeStamp       tsExpiry;
             std::string     alpn_holder;
 
-            static DWORD dwSSPIFlags = 
+            static DWORD dwSSPIFlags =
                 ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
@@ -1235,10 +1236,10 @@ int msspi_connect( MSSPI_HANDLE h )
                 InBuffer.ulVersion = SECBUFFER_VERSION;
             }
 
-            scRet = sspi->InitializeSecurityContextA(
+            scRet = sspi->InitializeSecurityContextW(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
-                h->hostname.length() ? (char *)h->hostname.data() : NULL,
+                h->whostname.length() ? (WCHAR *)h->whostname.data() : NULL,
                 dwSSPIFlags,
                 0,
                 SECURITY_NATIVE_DREP,
@@ -1409,7 +1410,10 @@ char msspi_set_hostname( MSSPI_HANDLE h, const char * hostname )
     MSSPIEHTRY;
 
     if( hostname )
+    {
         h->hostname = hostname;
+        h->whostname.assign( h->hostname.begin(), h->hostname.end() );
+    }
 
     return 1;
 
@@ -1805,7 +1809,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     if( h->is.cipherinfo )
         return &h->cipherinfo;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo );
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_CIPHER_INFO ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1827,7 +1831,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
 
     SecPkgContext_ApplicationProtocol alpn;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn );
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1897,7 +1901,7 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
         PCCERT_CONTEXT PeerCert = NULL;
         PCCERT_CONTEXT RunnerCert;
 
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
+        SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1961,7 +1965,7 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     {
         SecPkgContext_IssuerListInfoEx issuerlist = { NULL, 0 };
 
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist );
+        SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_ISSUER_LIST_EX ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -2019,7 +2023,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
+        SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -2041,16 +2045,12 @@ unsigned msspi_verify( MSSPI_HANDLE h )
             &PeerChain ) )
             break;
 
-        std::wstring whost;
         HTTPSPolicyCallbackData polHttps;
         memset( &polHttps, 0, sizeof( HTTPSPolicyCallbackData ) );
         polHttps.cbStruct = sizeof( HTTPSPolicyCallbackData );
         polHttps.dwAuthType = (DWORD)( h->is.client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
-        if( h->is.client && h->hostname.length() )
-        {
-            whost.assign( h->hostname.begin(), h->hostname.end() );
-            polHttps.pwszServerName = (WCHAR *)whost.data();
-        }
+        if( h->is.client && h->whostname.length() )
+            polHttps.pwszServerName = (WCHAR *)h->whostname.data();
 
         CERT_CHAIN_POLICY_PARA PolicyPara;
         memset( &PolicyPara, 0, sizeof( PolicyPara ) );
@@ -2096,7 +2096,7 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
     PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe );
+    SECURITY_STATUS scRet = sspi->QueryContextAttributesW( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
