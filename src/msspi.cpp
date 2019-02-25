@@ -985,7 +985,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
             }
-            else if( FAILED( scRet ) && ( dwSSPIOutFlags & ASC_REQ_EXTENDED_ERROR ) &&
+            else if( FAILED( scRet ) && ( dwSSPIOutFlags & ASC_RET_EXTENDED_ERROR ) &&
                      OutBuffers[1].cbBuffer != 0 && OutBuffers[1].pvBuffer != NULL )
             {
                 memcpy( h->out_buf, OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
@@ -1175,7 +1175,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
-                ISC_RET_EXTENDED_ERROR |
+                ISC_REQ_EXTENDED_ERROR |
                 ISC_REQ_ALLOCATE_MEMORY |
                 ISC_REQ_STREAM;
 
