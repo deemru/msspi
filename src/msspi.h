@@ -77,6 +77,7 @@ int msspi_pending( MSSPI_HANDLE h );
 
 PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
 const char * msspi_get_version( MSSPI_HANDLE h );
+char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len );
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 const char * msspi_get_alpn( MSSPI_HANDLE h );

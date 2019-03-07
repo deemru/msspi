@@ -248,7 +248,7 @@ static char msspi_sspi_init( void )
     if( sspi )
         return 1;
 
-    INIT_SECURITY_INTERFACE_A pInitSecurityInterface;  
+    INIT_SECURITY_INTERFACE_A pInitSecurityInterface;
 
 #if TARGET_OS_IPHONE
 
@@ -281,12 +281,14 @@ static char msspi_sspi_init( void )
 struct MSSPI_CredCache
 {
     CredHandle hCred;
+    PCCERT_CONTEXT cert;
     DWORD dwLastActive;
     DWORD dwRefs;
 
-    MSSPI_CredCache( CredHandle h )
+    MSSPI_CredCache( CredHandle h, PCCERT_CONTEXT c )
     {
         hCred = h;
+        cert = c ? CertDuplicateCertificateContext( c ) : NULL;
         dwLastActive = GetTickCount();
         dwRefs = 1;
     }
@@ -298,6 +300,9 @@ struct MSSPI_CredCache
             msspi_logger_info( "FreeCredentialsHandle( hCred = %016llX:%016llX )", (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
             sspi->FreeCredentialsHandle( &hCred );
         }
+
+        if( cert )
+            CertFreeCertificateContext( cert );
     }
 
     void Ping( DWORD dwNow )
@@ -442,7 +447,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
     if( scRet != SEC_E_OK )
         return 0;
 
-    h->cred = new MSSPI_CredCache( hCred );
+    h->cred = new MSSPI_CredCache( hCred, h->cert );
     return 1;
 }
 
@@ -1171,7 +1176,7 @@ int msspi_connect( MSSPI_HANDLE h )
             TimeStamp       tsExpiry;
             std::string     alpn_holder;
 
-            static DWORD dwSSPIFlags = 
+            static DWORD dwSSPIFlags =
                 ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
@@ -1886,6 +1891,23 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     return tlsproto;
 
     MSSPIEHCATCH_HERRRET( tlsproto );
+}
+
+char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
+{
+    MSSPIEHTRY;
+
+    if( !h->cert && ( !h->cred || !h->cred->cert ) )
+        return 0;
+
+    PCCERT_CONTEXT cert = h->cert ? h->cert : h->cred->cert;
+
+    *buf = (char *)cert->pbCertEncoded;
+    *len = (int)cert->cbCertEncoded;
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
