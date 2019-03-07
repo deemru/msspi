@@ -903,7 +903,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( !h->out_len )
         {
-            SecBufferDesc   InBuffer;
+            SecBufferDesc   InBuffer = { 0 };
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
             SecBuffer       OutBuffers[2];
@@ -957,7 +957,7 @@ int msspi_accept( MSSPI_HANDLE h )
             scRet = sspi->AcceptSecurityContext(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
-                h->in_len ? &InBuffer : NULL,
+                InBuffer.cBuffers ? &InBuffer : NULL,
                 dwSSPIFlags | ( h->is.peerauth ? ASC_REQ_MUTUAL_AUTH : 0 ),
                 SECURITY_NATIVE_DREP,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
