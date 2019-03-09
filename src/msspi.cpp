@@ -556,6 +556,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         int i;
         int decrypted = 0;
         int extra = 0;
+        int returning = 0;
 
         if( h->state & MSSPI_READING )
         {
@@ -597,6 +598,9 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
+            if( len == 0 )
+                return 0;
+
             h->state |= MSSPI_READING;
             continue;
         }
@@ -622,16 +626,17 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         {
             if( !decrypted && Buffers[i].BufferType == SECBUFFER_DATA )
             {
-                decrypted = (int)Buffers[i].cbBuffer;
+                returning = decrypted = (int)Buffers[i].cbBuffer;
 
-                if( decrypted > len )
+                if( returning > len )
                 {
-                    memcpy( h->dec_buf, (char *)Buffers[i].pvBuffer + len, (size_t)decrypted - len );
-                    h->dec_len = decrypted - len;
-                    decrypted = len;
+                    memcpy( h->dec_buf, (char *)Buffers[i].pvBuffer + len, (size_t)returning - len );
+                    h->dec_len = returning - len;
+                    returning = len;
                 }
 
-                memcpy( buf, Buffers[i].pvBuffer, (size_t)decrypted );
+                if( returning )
+                    memcpy( buf, Buffers[i].pvBuffer, (size_t)returning );
                 continue;
             }
 
@@ -648,7 +653,12 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         h->in_len = extra;
 
         if( scRet == SEC_E_OK && decrypted )
-            return decrypted;
+        {
+            if( h->in_len && h->dec_len == 0 )
+                msspi_read( h, NULL, 0 );
+
+            return returning;
+        }
 
         if( scRet == SEC_I_RENEGOTIATE )
         {
@@ -816,9 +826,6 @@ int msspi_pending( MSSPI_HANDLE h )
 
     if( h->dec_len )
         return h->dec_len;
-
-    if( h->in_len )
-        return h->in_len;
 
     return 0;
 
@@ -1059,6 +1066,8 @@ int msspi_accept( MSSPI_HANDLE h )
         if( scRet == SEC_E_OK )
         {
             h->is.connected = 1;
+            if( h->in_len )
+                msspi_read( h, NULL, 0 );
             return 1;
         }
 
@@ -1363,6 +1372,8 @@ int msspi_connect( MSSPI_HANDLE h )
             }
 
             h->is.connected = 1;
+            if( h->in_len )
+                msspi_read( h, NULL, 0 );
             return 1;
         }
 
