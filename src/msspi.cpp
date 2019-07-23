@@ -83,6 +83,8 @@ static DWORD GetTickCount()
     #endif // byte order
 #elif defined( __arm__ )
     #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/arm/libssp.so"
+#elif defined( __aarch64__ ) // archs
+    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/aarch64/libssp.so"
 #elif defined( __i386__ ) // archs
     #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/ia32/libssp.so"
 #else // archs

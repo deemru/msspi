@@ -5,3 +5,6 @@ msspi.o:
 
 libmsspi.a: msspi.o
 	ar cr libmsspi.a msspi.o
+
+clean:
+	rm libmsspi.a msspi.o
