@@ -21,19 +21,19 @@ extern "C" {
 }
 #endif
 
-#ifdef QT_NO_EXCEPTIONS
+#if defined( QT_NO_EXCEPTIONS ) || defined( NO_EXCEPTIONS ) || ( defined( __clang__ ) && !defined( __EXCEPTIONS ) )
 #define MSSPIEHTRY
 #define MSSPIEHCATCH
 #define MSSPIEHCATCH_HERRRET( ret )
 #define MSSPIEHCATCH_RET( ret )
 #define MSSPIEHCATCH_0 MSSPIEHCATCH
-#else // QT_NO_EXCEPTIONS
+#else // EXCEPTIONS
 #define MSSPIEHTRY try {
 #define MSSPIEHCATCH } catch( ... ) {
 #define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; return ret; }
 #define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
-#endif // QT_NO_EXCEPTIONS
+#endif // EXCEPTIONS
 
 #include <stdio.h>
 #include <stdint.h>
@@ -235,10 +235,10 @@ typedef struct _SecPkgContext_ApplicationProtocol
 
 // credentials_api
 #include <mutex>
-static std::recursive_mutex mtx;
+static std::recursive_mutex & mtx = *( new std::recursive_mutex() );
 struct MSSPI_CredCache;
 typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
-static CREDENTIALS_DB credentials_db;
+static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
 static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
 
