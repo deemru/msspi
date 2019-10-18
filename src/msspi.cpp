@@ -2069,7 +2069,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
             NULL,
             PeerCert,
             NULL,
-            NULL,
+            PeerCert->hCertStore,
             &ChainPara,
             CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_REVOCATION_CHECK_CHAIN,
             NULL,
