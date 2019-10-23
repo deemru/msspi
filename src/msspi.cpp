@@ -35,6 +35,12 @@ extern "C" {
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
 #endif // EXCEPTIONS
 
+#if defined( __has_attribute ) // NOCFI
+#define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
+#else
+#define EXTERCALL( call ) call
+#endif
+
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -270,7 +276,7 @@ static char msspi_sspi_init( void )
 
 #endif
 
-    sspi = pInitSecurityInterface();
+    EXTERCALL( sspi = pInitSecurityInterface() );
 
     msspi_logger_info( "InitSecurityInterface = %016llX", (uint64_t)(uintptr_t)sspi );
 
@@ -300,7 +306,7 @@ struct MSSPI_CredCache
         if( hCred.dwLower || hCred.dwUpper )
         {
             msspi_logger_info( "FreeCredentialsHandle( hCred = %016llX:%016llX )", (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
-            sspi->FreeCredentialsHandle( &hCred );
+            EXTERCALL( sspi->FreeCredentialsHandle( &hCred ) );
         }
 
         if( cert )
@@ -361,7 +367,7 @@ struct MSSPI
         if( hCtx.dwLower || hCtx.dwUpper )
         {
             msspi_logger_info( "DeleteSecurityContext( hCtx = %016llX:%016llX )", (uint64_t)hCtx.dwUpper, (uint64_t)hCtx.dwLower );
-            sspi->DeleteSecurityContext( &hCtx );
+            EXTERCALL( sspi->DeleteSecurityContext( &hCtx ) );
         }
 
         if( cert )
@@ -439,10 +445,11 @@ static char credentials_acquire( MSSPI_HANDLE h )
         SchannelCred.paCred = &h->cert;
     }
 
+    SECURITY_STATUS scRet;
 #if TARGET_OS_IPHONE
-    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
+    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
 #else
-    SECURITY_STATUS scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry );
+    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
 #endif
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
@@ -562,7 +569,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( h->state & MSSPI_READING )
         {
-            int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
+            int io;
+            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
 
             if( io < 0 )
             {
@@ -593,7 +601,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         Message.cBuffers = 4;
         Message.pBuffers = Buffers;
 
-        scRet = sspi->DecryptMessage( &h->hCtx, &Message, 0, NULL );
+        EXTERCALL( scRet = sspi->DecryptMessage( &h->hCtx, &Message, 0, NULL ) );
 
         msspi_logger_info( "DecryptMessage( hCtx = %016llX:%016llX, pMessage (length) = %d ) returned %08X",
             (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, h->in_len, (uint32_t)scRet );
@@ -693,7 +701,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         SECURITY_STATUS           scRet;
         SecPkgContext_StreamSizes Sizes;
 
-        scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes );
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_STREAM_SIZES, &Sizes ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_STREAM_SIZES ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -752,7 +760,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
         memcpy( Buffers[1].pvBuffer, buf, (size_t)len );
 
-        scRet = sspi->EncryptMessage( &h->hCtx, 0, &Message, 0 );
+        EXTERCALL( scRet = sspi->EncryptMessage( &h->hCtx, 0, &Message, 0 ) );
 
         msspi_logger_info( "EncryptMessage( hCtx = %016llX:%016llX, pMessage (length) = %d ) returned %08X",
             (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, len, (uint32_t)scRet );
@@ -777,7 +785,8 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
     while( h->out_len )
     {
-        int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
+        int io;
+        EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
 
         if( io == h->out_len )
         {
@@ -859,7 +868,8 @@ int msspi_shutdown( MSSPI_HANDLE h )
         OutBuffer.pBuffers = OutBuffers;
         OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-        SECURITY_STATUS scRet = sspi->ApplyControlToken( &h->hCtx, &OutBuffer );
+        SECURITY_STATUS scRet;
+        EXTERCALL( scRet = sspi->ApplyControlToken( &h->hCtx, &OutBuffer ) );
 
         msspi_logger_info( "ApplyControlToken( hCtx = %016llX:%016llX, SCHANNEL_SHUTDOWN ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -891,7 +901,8 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
-            int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
+            int io;
+            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
 
             if( io < 0 )
             {
@@ -963,7 +974,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 InBuffer.ulVersion = SECBUFFER_VERSION;
             }
 
-            scRet = sspi->AcceptSecurityContext(
+            EXTERCALL( scRet = sspi->AcceptSecurityContext(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
                 InBuffer.cBuffers ? &InBuffer : NULL,
@@ -972,7 +983,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
                 &OutBuffer,
                 &dwSSPIOutFlags,
-                &tsExpiry );
+                &tsExpiry ) );
 
             msspi_logger_info( "AcceptSecurityContext( hCred = %016llX:%016llX, hCtx = %016llX:%016llX, pInput (length) = %d, fContextReq = %08X ) returned %08X",
                 (uint64_t)(uintptr_t)h->cred->hCred.dwUpper, (uint64_t)(uintptr_t)h->cred->hCred.dwLower,
@@ -997,7 +1008,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 h->out_len = (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
-                sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
+                EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
             }
             else if( FAILED( scRet ) && ( dwSSPIOutFlags & ASC_RET_EXTENDED_ERROR ) &&
                      OutBuffers[1].cbBuffer != 0 && OutBuffers[1].pvBuffer != NULL )
@@ -1006,13 +1017,14 @@ int msspi_accept( MSSPI_HANDLE h )
                 h->out_len = (int)OutBuffers[1].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
-                sspi->FreeContextBuffer( OutBuffers[1].pvBuffer );
+                EXTERCALL( sspi->FreeContextBuffer( OutBuffers[1].pvBuffer ) );
             }
         }
 
         while( h->out_len )
         {
-            int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
+            int io;
+            EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
 
             if( io == h->out_len )
             {
@@ -1144,7 +1156,8 @@ int msspi_connect( MSSPI_HANDLE h )
         {
             if( h->cert_cb )
             {
-                int io = h->cert_cb( h->cb_arg );
+                int io;
+                EXTERCALL( io = h->cert_cb( h->cb_arg ) );
 
                 if( io != 1 )
                     return io;
@@ -1158,7 +1171,8 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
-            int io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len );
+            int io;
+            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
 
             if( io < 0 )
             {
@@ -1251,7 +1265,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 InBuffer.ulVersion = SECBUFFER_VERSION;
             }
 
-            scRet = sspi->InitializeSecurityContextA(
+            EXTERCALL( scRet = sspi->InitializeSecurityContextA(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
                 h->hostname.length() ? (char *)h->hostname.data() : NULL,
@@ -1263,7 +1277,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? NULL : &h->hCtx,
                 &OutBuffer,
                 &dwSSPIOutFlags,
-                &tsExpiry );
+                &tsExpiry ) );
 
             msspi_logger_info( "InitializeSecurityContext( hCred = %016llX:%016llX, hCtx = %016llX:%016llX, pszTargetName = %s, fContextReq = %08X, pInput (length) = %d ) returned %08X",
                 (uint64_t)(uintptr_t)h->cred->hCred.dwUpper, (uint64_t)(uintptr_t)h->cred->hCred.dwLower,
@@ -1288,7 +1302,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 h->out_len = (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
-                sspi->FreeContextBuffer( OutBuffers[0].pvBuffer );
+                EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
             }
             else if( FAILED( scRet ) && ( dwSSPIOutFlags & ISC_RET_EXTENDED_ERROR ) &&
                      OutBuffers[1].cbBuffer != 0 && OutBuffers[1].pvBuffer != NULL )
@@ -1297,13 +1311,14 @@ int msspi_connect( MSSPI_HANDLE h )
                 h->out_len = (int)OutBuffers[1].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
-                sspi->FreeContextBuffer( OutBuffers[1].pvBuffer );
+                EXTERCALL( sspi->FreeContextBuffer( OutBuffers[1].pvBuffer ) );
             }
         }
 
         while( h->out_len )
         {
-            int io = h->write_cb( h->cb_arg, h->out_buf, h->out_len );
+            int io;
+            EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
 
             if( io == h->out_len )
             {
@@ -1823,7 +1838,8 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     if( h->is.cipherinfo )
         return &h->cipherinfo;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo );
+    SECURITY_STATUS scRet;
+    EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo ) );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_CIPHER_INFO ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1845,7 +1861,8 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
 
     SecPkgContext_ApplicationProtocol alpn;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn );
+    SECURITY_STATUS scRet;
+    EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn ) );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1932,7 +1949,8 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
         PCCERT_CONTEXT PeerCert = NULL;
         PCCERT_CONTEXT RunnerCert;
 
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
+        SECURITY_STATUS scRet;
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -1996,7 +2014,8 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     {
         SecPkgContext_IssuerListInfoEx issuerlist = { NULL, 0 };
 
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist );
+        SECURITY_STATUS scRet;
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_ISSUER_LIST_EX, (PVOID)&issuerlist ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_ISSUER_LIST_EX ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -2009,7 +2028,7 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
         if( issuerlist.aIssuers )
         {
             msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)issuerlist.aIssuers );
-            sspi->FreeContextBuffer( issuerlist.aIssuers );
+            EXTERCALL( sspi->FreeContextBuffer( issuerlist.aIssuers ) );
         }
     }
 
@@ -2054,7 +2073,8 @@ unsigned msspi_verify( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert );
+        SECURITY_STATUS scRet;
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
@@ -2131,7 +2151,8 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
     PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
 
-    SECURITY_STATUS scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe );
+    SECURITY_STATUS scRet;
+    EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe ) );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
