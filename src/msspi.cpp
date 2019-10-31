@@ -240,8 +240,18 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #endif
 
 // credentials_api
+#ifdef USE_BOOST
+#define BOOST_ALL_NO_LIB 1
+#include <boost/thread/recursive_mutex.hpp>
+#define RECURSIVE_MUTEX boost::recursive_mutex
+#define UNIQUE_LOCK(mtx) boost::unique_lock<RECURSIVE_MUTEX> lck( (mtx) );
+#else
 #include <mutex>
-static std::recursive_mutex & mtx = *( new std::recursive_mutex() );
+#define RECURSIVE_MUTEX std::recursive_mutex
+#define UNIQUE_LOCK(mtx) std::unique_lock<RECURSIVE_MUTEX> lck( (mtx) );
+#endif /* WITH BOOST */
+
+static RECURSIVE_MUTEX & mtx = *( new RECURSIVE_MUTEX() );
 struct MSSPI_CredCache;
 typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
@@ -462,7 +472,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
 
 static void credentials_release( MSSPI_HANDLE h )
 {
-    std::unique_lock<std::recursive_mutex> lck( mtx );
+    UNIQUE_LOCK( mtx );
     h->cred->dwRefs--;
     h->cred = NULL;
 }
@@ -478,7 +488,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     }
 
-    std::unique_lock<std::recursive_mutex> lck( mtx );
+    UNIQUE_LOCK( mtx );
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
     for( it = credentials_db.begin(); it != credentials_db.end(); )
@@ -489,8 +499,11 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         }
         else
         {
+            CREDENTIALS_DB::iterator tmp = it;
+            ++tmp;
             delete it->second;
-            it = credentials_db.erase( it );
+            credentials_db.erase( it );
+            it = tmp;
         }
     }
 
