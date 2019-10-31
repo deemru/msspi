@@ -124,6 +124,7 @@ void msspi_logger_func( char level, const char * format, ... )
     int n = sizeof( out );
 
     n = vsnprintf( out, n, format, ap );
+    va_end( ap );
 
     if( n < 0 || n >= (int)sizeof( out ) )
     {
