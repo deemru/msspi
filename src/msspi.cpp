@@ -68,7 +68,6 @@ static DWORD GetTickCount()
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
-#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -244,7 +243,7 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #include <mutex>
 static std::recursive_mutex & mtx = *( new std::recursive_mutex() );
 struct MSSPI_CredCache;
-typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
+typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
 static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
