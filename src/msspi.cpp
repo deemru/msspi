@@ -68,7 +68,6 @@ static DWORD GetTickCount()
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
-#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -124,6 +123,7 @@ void msspi_logger_func( char level, const char * format, ... )
     int n = sizeof( out );
 
     n = vsnprintf( out, n, format, ap );
+    va_end( ap );
 
     if( n < 0 || n >= (int)sizeof( out ) )
     {
@@ -240,10 +240,20 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #endif
 
 // credentials_api
+#ifdef USE_BOOST
+#define BOOST_ALL_NO_LIB 1
+#include <boost/thread/recursive_mutex.hpp>
+#define std_prefix boost
+#else
 #include <mutex>
-static std::recursive_mutex & mtx = *( new std::recursive_mutex() );
+#define std_prefix std
+#endif /* WITH BOOST */
+
+static std_prefix::recursive_mutex & mtx = *( new std_prefix::recursive_mutex() );
+#define UNIQUE_LOCK(mtx) std_prefix::unique_lock<std_prefix::recursive_mutex> lck( (mtx) )
+
 struct MSSPI_CredCache;
-typedef std::unordered_map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
+typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
 static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
@@ -462,7 +472,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
 
 static void credentials_release( MSSPI_HANDLE h )
 {
-    std::unique_lock<std::recursive_mutex> lck( mtx );
+    UNIQUE_LOCK( mtx );
     h->cred->dwRefs--;
     h->cred = NULL;
 }
@@ -478,7 +488,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
     }
 
-    std::unique_lock<std::recursive_mutex> lck( mtx );
+    UNIQUE_LOCK( mtx );
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
     for( it = credentials_db.begin(); it != credentials_db.end(); )
@@ -489,8 +499,11 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         }
         else
         {
+            CREDENTIALS_DB::iterator tmp = it;
+            ++tmp;
             delete it->second;
-            it = credentials_db.erase( it );
+            credentials_db.erase( it );
+            it = tmp;
         }
     }
 
