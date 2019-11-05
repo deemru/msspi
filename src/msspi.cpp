@@ -243,15 +243,15 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #ifdef USE_BOOST
 #define BOOST_ALL_NO_LIB 1
 #include <boost/thread/recursive_mutex.hpp>
-#define RECURSIVE_MUTEX boost::recursive_mutex
-#define UNIQUE_LOCK(mtx) boost::unique_lock<RECURSIVE_MUTEX> lck( (mtx) );
+#define std_prefix boost
 #else
 #include <mutex>
-#define RECURSIVE_MUTEX std::recursive_mutex
-#define UNIQUE_LOCK(mtx) std::unique_lock<RECURSIVE_MUTEX> lck( (mtx) );
+#define std_prefix std
 #endif /* WITH BOOST */
 
-static RECURSIVE_MUTEX & mtx = *( new RECURSIVE_MUTEX() );
+static std_prefix::recursive_mutex & mtx = *( new std_prefix::recursive_mutex() );
+#define UNIQUE_LOCK(mtx) std_prefix::unique_lock<std_prefix::recursive_mutex> lck( (mtx) )
+
 struct MSSPI_CredCache;
 typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
