@@ -74,6 +74,7 @@ int msspi_shutdown( MSSPI_HANDLE h );
 
 int msspi_state( MSSPI_HANDLE h );
 int msspi_pending( MSSPI_HANDLE h );
+int msspi_peek( MSSPI_HANDLE h, void * buf, int len );
 
 PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
 const char * msspi_get_version( MSSPI_HANDLE h );

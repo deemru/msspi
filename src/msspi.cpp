@@ -856,6 +856,24 @@ int msspi_pending( MSSPI_HANDLE h )
     MSSPIEHCATCH_RET( 0 );
 }
 
+int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
+{
+    MSSPIEHTRY;
+
+    if( h->dec_len )
+    {
+        if( len > h->dec_len )
+            len = h->dec_len;
+
+        memcpy( buf, h->dec_buf, (size_t)len );
+        return len;
+    }
+
+    return 0;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
 int msspi_shutdown( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
