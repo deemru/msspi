@@ -35,7 +35,7 @@ extern "C" {
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
 #endif // EXCEPTIONS
 
-#if defined( __has_attribute ) // NOCFI
+#if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
 #define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
 #else
 #define EXTERCALL( call ) call
