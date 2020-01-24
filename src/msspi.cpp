@@ -299,14 +299,15 @@ static char msspi_sspi_init( void )
 struct MSSPI_CredCache
 {
     CredHandle hCred;
-    PCCERT_CONTEXT cert;
+    std::vector<PCCERT_CONTEXT> certs;
     DWORD dwLastActive;
     DWORD dwRefs;
 
-    MSSPI_CredCache( CredHandle h, PCCERT_CONTEXT c )
+    MSSPI_CredCache( CredHandle h, std::vector<PCCERT_CONTEXT> & c )
     {
         hCred = h;
-        cert = c ? CertDuplicateCertificateContext( c ) : NULL;
+        for( size_t i = 0; i < c.size(); i++ )
+            certs.push_back( CertDuplicateCertificateContext( c[i] ) );
         dwLastActive = GetTickCount();
         dwRefs = 1;
     }
@@ -319,8 +320,8 @@ struct MSSPI_CredCache
             EXTERCALL( sspi->FreeCredentialsHandle( &hCred ) );
         }
 
-        if( cert )
-            CertFreeCertificateContext( cert );
+        for( size_t i = 0; i < certs.size(); i++ )
+            CertFreeCertificateContext( certs[i] );
     }
 
     void Ping( DWORD dwNow )
@@ -354,7 +355,6 @@ struct MSSPI
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
         cred = NULL;
-        cert = NULL;
         in_len = 0;
         dec_len = 0;
         out_hdr_len = 0;
@@ -380,8 +380,8 @@ struct MSSPI
             EXTERCALL( sspi->DeleteSecurityContext( &hCtx ) );
         }
 
-        if( cert )
-            CertFreeCertificateContext( cert );
+        for( size_t i = 0; i < certs.size(); i++ )
+            CertFreeCertificateContext( certs[i] );
     }
 
     struct
@@ -404,7 +404,7 @@ struct MSSPI
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
-    PCCERT_CONTEXT cert;
+    std::vector<PCCERT_CONTEXT> certs;
     std::string certstore;
     std::string cred_record;
 
@@ -449,10 +449,10 @@ static char credentials_acquire( MSSPI_HANDLE h )
         SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER;
     }
 
-    if( h->cert )
+    if( h->certs.size() )
     {
-        SchannelCred.cCreds = 1;
-        SchannelCred.paCred = &h->cert;
+        SchannelCred.cCreds = h->certs.size();
+        SchannelCred.paCred = &h->certs[0];
     }
 
     SECURITY_STATUS scRet;
@@ -466,7 +466,10 @@ static char credentials_acquire( MSSPI_HANDLE h )
     if( scRet != SEC_E_OK )
         return 0;
 
-    h->cred = new MSSPI_CredCache( hCred, h->cert );
+    if( h->cred )
+        h->cred->dwRefs--;
+
+    h->cred = new MSSPI_CredCache( hCred, h->certs );
     return 1;
 }
 
@@ -1195,7 +1198,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
                 h->state &= ~MSSPI_X509_LOOKUP;
 
-                if( h->cred && h->cert )
+                if( h->cred && h->certs.size() )
                     credentials_release( h );
             }
         }
@@ -1574,7 +1577,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 {
     MSSPIEHTRY;
 
-    if( h->cred )
+    if( h->cred && !h->certs.size() )
         return 1;
 
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
@@ -1584,22 +1587,24 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
     {
         DWORD dw;
 
-        if( !h->cert )
+        if( !h->certs.size() )
             break;
 
-        if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
+        PCCERT_CONTEXT cert = h->certs.back();
+
+        if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
             break;
 
         provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
 
-        if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
+        if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
             break;
 
         if( silent )
         {
             provinfo->dwFlags |= CRYPT_SILENT;
 
-            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+            if( !CertSetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
         }
 
@@ -1615,7 +1620,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
             provinfo->cProvParam = 1;
             provinfo->rgProvParam = &pinparam;
 
-            if( !CertSetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+            if( !CertSetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
         }
 
@@ -1634,12 +1639,12 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 delete[]( char * )provinfo;
                 provinfo = NULL;
 
-                if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
+                if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
                     break;
 
                 provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
 
-                if( !CertGetCertificateContextProperty( h->cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
+                if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                     break;
 
                 if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, ( provinfo->dwFlags & ~CERT_SET_KEY_CONTEXT_PROP_ID ) ) )
@@ -1690,6 +1695,9 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
     if( provinfo )
         delete[]( char * )provinfo;
 
+    if( isok )
+        credentials_api( h );
+
     return isok;
 
     MSSPIEHCATCH_HERRRET( 0 );
@@ -1704,17 +1712,27 @@ void msspi_set_certstore( MSSPI_HANDLE h, const char * certstore )
     MSSPIEHCATCH_0;
 }
 
-char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
+static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, int len, bool can_append )
 {
     MSSPIEHTRY;
 
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
     PCCERT_CONTEXT certprobe = NULL;
-    unsigned int i;
+    bool is_append = can_append && h->cred_record.length() != 0;
+    std::string saved_cred_record;
 
-    h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
-    h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
+    if( is_append )
+    {
+        saved_cred_record = h->cred_record;
+        h->cred_record += ":";
+    }
+    else
+    {
+        h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
+        h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
+    }
+
     if( len )
         h->cred_record.append( clientCert, (unsigned)len );
     else
@@ -1727,14 +1745,17 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
         certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
 
     if( len && !certprobe )
+    {
+        h->cred_record = saved_cred_record;
         return 0;
+    }
 
     DWORD dwStoreFlags[2] = {
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_LOCAL_MACHINE,
     };
 
-    for( i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
+    for( size_t i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
     {
         hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], h->certstore.data() );
 
@@ -1798,10 +1819,11 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
     if( certprobe )
         CertFreeCertificateContext( certprobe );
 
-    if( h->cert )
+    if( h->certs.size() && !can_append )
     {
-        CertFreeCertificateContext( h->cert );
-        h->cert = NULL;
+        for( size_t i = 0; i < h->certs.size(); i++ )
+            CertFreeCertificateContext( h->certs[i] );
+        h->certs.clear();
     }
 
     if( certfound )
@@ -1840,7 +1862,7 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 
         if( isok )
         {
-            h->cert = cleancert;
+            h->certs.push_back( cleancert );
             return 1;
         }
         else if( cleancert )
@@ -1848,9 +1870,20 @@ char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 
     }
 
+    h->cred_record = saved_cred_record;
     return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
+{
+    return msspi_set_mycert_common( h, clientCert, len, false );
+}
+
+char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
+{
+    return msspi_set_mycert_common( h, clientCert, len, true );
 }
 
 void msspi_close( MSSPI_HANDLE h )
@@ -1958,10 +1991,15 @@ char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
 {
     MSSPIEHTRY;
 
-    if( !h->cert && ( !h->cred || !h->cred->cert ) )
-        return 0;
+    PCCERT_CONTEXT cert = NULL;
 
-    PCCERT_CONTEXT cert = h->cert ? h->cert : h->cred->cert;
+    if( h->certs.size() )
+        cert = h->certs[0];
+    else if( h->cred && h->cred->certs.size() )
+        cert = h->cred->certs[0];
+
+    if( !cert )
+        return 0;
 
     *buf = (char *)cert->pbCertEncoded;
     *len = (int)cert->cbCertEncoded;
