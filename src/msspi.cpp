@@ -392,6 +392,7 @@ struct MSSPI
         unsigned cipherinfo : 1;
         unsigned renegotiate : 1;
         unsigned alpn : 1;
+        unsigned can_append : 1;
     } is;
 
     int state;
@@ -1565,6 +1566,15 @@ void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert )
     MSSPIEHCATCH_0;
 }
 
+void msspi_set_client( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY;
+
+    h->is.client = 1;
+
+    MSSPIEHCATCH_0;
+}
+
 #ifndef _UN
 #ifdef _WIN32
 #define _UN
@@ -1695,7 +1705,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
     if( provinfo )
         delete[]( char * )provinfo;
 
-    if( isok )
+    if( isok && h->is.can_append )
         credentials_api( h );
 
     return isok;
@@ -1863,6 +1873,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
         if( isok )
         {
             h->certs.push_back( cleancert );
+            h->is.can_append = can_append == true ? 1 : 0;
             return 1;
         }
         else if( cleancert )

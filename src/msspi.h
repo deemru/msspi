@@ -55,6 +55,7 @@ char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
 char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest );
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth );
 void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb );
+void msspi_set_client( MSSPI_HANDLE h );
 
 int msspi_connect( MSSPI_HANDLE h );
 int msspi_accept( MSSPI_HANDLE h );
