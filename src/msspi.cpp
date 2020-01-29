@@ -335,6 +335,38 @@ struct MSSPI_CredCache
     }
 };
 
+struct MSSPI_VerifyProvider
+{
+    HCRYPTPROV hProv;
+
+    MSSPI_VerifyProvider()
+    {
+        hProv = 0;
+    }
+
+    ~MSSPI_VerifyProvider()
+    {
+        if( hProv )
+            CryptReleaseContext( hProv, 0 );
+    }
+
+    char Random( BYTE * pb, DWORD dw )
+    {
+        if( Init() && CryptGenRandom( hProv, dw, pb ) )
+            return 1;
+        return 0;
+    }
+
+    char Init()
+    {
+        if( hProv || CryptAcquireContextW( &hProv, NULL, NULL, PROV_GOST_2001_DH, CRYPT_VERIFYCONTEXT ) )
+            return 1;
+        return 0;
+    }
+};
+
+static MSSPI_VerifyProvider g_prov;
+
 #ifdef _WIN32
 typedef unsigned long bufsize_t;
 #else
@@ -1752,7 +1784,21 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
         return 1;
 
     if( len )
+    {
         certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
+
+        if( !certprobe )
+        {
+            std::vector<BYTE> clientCertDer;
+            DWORD dwData;
+            if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+            {
+                clientCertDer.resize( dwData );
+                if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
+                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
+            }
+        }
+    }
 
     if( len && !certprobe )
     {
@@ -2270,3 +2316,15 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
+
+char msspi_random( void * buf, int len )
+{
+    MSSPIEHTRY;
+
+    UNIQUE_LOCK( mtx );
+
+    return g_prov.Random( (BYTE *)buf, (DWORD)len );
+
+    MSSPIEHCATCH_RET( 0 );
+}
+

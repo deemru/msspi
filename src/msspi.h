@@ -63,6 +63,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len );
 int msspi_write( MSSPI_HANDLE h, const void * buf, int len );
 int msspi_shutdown( MSSPI_HANDLE h );
 
+char msspi_random( void * buf, int len );
+
 #define MSSPI_OK    ( 0 )
 #define MSSPI_ERROR ( 1 << 31 )
 
