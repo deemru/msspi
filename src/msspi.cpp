@@ -246,6 +246,7 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #define std_prefix boost
 #else
 #include <mutex>
+#include <random>
 #define std_prefix std
 #endif /* WITH BOOST */
 
@@ -2317,13 +2318,42 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-char msspi_random( void * buf, int len )
+char msspi_random( void * buf, int len, char safe )
 {
     MSSPIEHTRY;
 
     UNIQUE_LOCK( mtx );
 
-    return g_prov.Random( (BYTE *)buf, (DWORD)len );
+    if( safe )
+        return g_prov.Random( (BYTE *)buf, (DWORD)len );
+    else
+#ifdef USE_BOOST
+    {
+        static bool inited = false;
+
+        if( !inited )
+        {
+            srand( GetTickCount() );
+            inited = true;
+        }
+
+        for( int i = 0; i < len; i++ )
+            ( (BYTE *)buf )[i] = (BYTE)rand();
+
+        return 1;
+    }
+#else /* USE_BOOST */
+    {
+        static std::random_device & random_device = *( new std::random_device() );
+        static std::default_random_engine & default_random_engine = *( new std::default_random_engine{ random_device() } );
+        static std::uniform_int_distribution<> & random = *( new std::uniform_int_distribution<>( 0, 255 ) );
+
+        for( int i = 0; i < len; i++ )
+            ( (BYTE *)buf )[i] = (BYTE)random( default_random_engine );
+
+        return 1;
+    }
+#endif /* USE_BOOST */
 
     MSSPIEHCATCH_RET( 0 );
 }
