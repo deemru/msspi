@@ -521,8 +521,8 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
 
     if( h->cred_record.length() == 0 )
     {
-        h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
-        h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
+        h->cred_record = h->hostname.length() ? h->hostname + "::" : "**::";
+        h->cred_record += h->cachestring.length() ? h->cachestring : "**";
     }
 
     UNIQUE_LOCK( mtx );
@@ -1768,13 +1768,14 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
     if( is_append )
     {
         saved_cred_record = h->cred_record;
-        h->cred_record += ":";
     }
     else
     {
-        h->cred_record = h->hostname.length() ? h->hostname + ":" : "*:";
-        h->cred_record += h->cachestring.length() ? h->cachestring + ":" : "*:";
+        h->cred_record = h->hostname.length() ? h->hostname + "::" : "**::";
+        h->cred_record += h->cachestring.length() ? h->cachestring : "**";
     }
+
+    h->cred_record += "::cert::";
 
     if( len )
         h->cred_record.append( clientCert, (unsigned)len );
