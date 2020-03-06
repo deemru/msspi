@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _MSSPI_H_INCLUDED_
+#define _MSSPI_H_INCLUDED_
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1
 
@@ -121,3 +122,5 @@ void msspi_close( MSSPI_HANDLE h );
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* _MSSPI_H_INCLUDED_ */
