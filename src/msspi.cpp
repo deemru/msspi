@@ -250,8 +250,8 @@ typedef struct _SecPkgContext_ApplicationProtocol
 #define std_prefix std
 #endif /* WITH BOOST */
 
-static std_prefix::recursive_mutex & mtx = *( new std_prefix::recursive_mutex() );
-#define UNIQUE_LOCK(mtx) std_prefix::unique_lock<std_prefix::recursive_mutex> lck( (mtx) )
+static std_prefix::recursive_mutex & g_mtx = *( new std_prefix::recursive_mutex() );
+#define UNIQUE_LOCK( mtx ) std_prefix::unique_lock<std_prefix::recursive_mutex> lck( mtx )
 
 struct MSSPI_CredCache;
 typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
@@ -457,6 +457,8 @@ struct MSSPI
     msspi_read_cb read_cb;
     msspi_write_cb write_cb;
     msspi_cert_cb cert_cb;
+
+    std_prefix::recursive_mutex mtx;
 };
 
 static char credentials_acquire( MSSPI_HANDLE h )
@@ -509,7 +511,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
 
 static void credentials_release( MSSPI_HANDLE h )
 {
-    UNIQUE_LOCK( mtx );
+    UNIQUE_LOCK( g_mtx );
     h->cred->dwRefs--;
     h->cred = NULL;
 }
@@ -525,7 +527,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
         h->cred_record += h->cachestring.length() ? h->cachestring : "**";
     }
 
-    UNIQUE_LOCK( mtx );
+    UNIQUE_LOCK( g_mtx );
 
     // release creds > SSPI_CREDSCACHE_DEFAULT_TIMEOUT
     for( it = credentials_db.begin(); it != credentials_db.end(); )
@@ -581,6 +583,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
     if( !h->is.connected )
     {
+        UNIQUE_LOCK( h->mtx );
+
         int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
 
         if( i != 1 )
@@ -740,6 +744,8 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
     if( !h->is.connected )
     {
+        UNIQUE_LOCK( h->mtx );
+
         int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
 
         if( i != 1 )
@@ -2323,7 +2329,7 @@ char msspi_random( void * buf, int len, char safe )
 {
     MSSPIEHTRY;
 
-    UNIQUE_LOCK( mtx );
+    UNIQUE_LOCK( g_mtx );
 
     if( safe )
         return g_prov.Random( (BYTE *)buf, (DWORD)len );
