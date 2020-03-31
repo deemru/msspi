@@ -4,6 +4,12 @@
 #   pragma warning( disable:4820 )
 #   pragma warning( disable:4710 )
 #   pragma warning( disable:4668 )
+#   pragma warning( disable:4623 )
+#   pragma warning( disable:4625 )
+#   pragma warning( disable:4626 )
+#   pragma warning( disable:5026 )
+#   pragma warning( disable:5027 )
+#   pragma warning( disable:4774 )
 #   include <Windows.h>
 #endif
 
@@ -497,7 +503,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
 
     if( h->certs.size() )
     {
-        SchannelCred.cCreds = h->certs.size();
+        SchannelCred.cCreds = (DWORD)h->certs.size();
         SchannelCred.paCred = &h->certs[0];
     }
 
@@ -1934,7 +1940,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
         if( isOK )
         {
             h->certs.push_back( cleancert );
-            h->is.can_append = can_append == true ? 1 : 0;
+            h->is.can_append = (unsigned)can_append;
             return 1;
         }
         else if( cleancert )
@@ -2150,21 +2156,21 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-static std::string certname( PCCERT_CONTEXT cert, bool issuer )
+static std::string certname( PCCERT_CONTEXT cert, DWORD dwFlags )
 {
-    DWORD dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, issuer ? CERT_NAME_ISSUER_FLAG : 0, NULL, NULL, 0 );
+    DWORD dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, dwFlags, NULL, NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, issuer ? CERT_NAME_ISSUER_FLAG : 0, NULL, &w_str[0], dwLen );
+        dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, dwFlags, NULL, &w_str[0], dwLen );
         if( dwLen == w_str.size() )
         {
-            dwLen = WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
+            dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
             if( dwLen )
             {
                 std::string c_str;
                 c_str.resize( dwLen );
-                dwLen = WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, &c_str[0], dwLen, NULL, NULL );
+                dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, &c_str[0], (int)dwLen, NULL, NULL );
                 if( dwLen == c_str.size() )
                     return c_str;
             }
@@ -2183,8 +2189,8 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
 
     if( !h->is.names )
     {
-        h->peercert_subject = certname( h->peercert, false );
-        h->peercert_issuer = certname( h->peercert, true );
+        h->peercert_subject = certname( h->peercert, 0 );
+        h->peercert_issuer = certname( h->peercert, CERT_NAME_ISSUER_FLAG );
         h->is.names = 1;
     }
 
