@@ -384,6 +384,8 @@ struct MSSPI
         is.cipherinfo = 0;
         is.renegotiate = 0;
         is.alpn = 0;
+        is.can_append = 0;
+        is.names = 0;
         state = MSSPI_OK;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
@@ -400,6 +402,7 @@ struct MSSPI
         write_cb = write;
         cert_cb = NULL;
         certstore = "MY";
+        peercert = NULL;
     }
 
     ~MSSPI()
@@ -415,6 +418,9 @@ struct MSSPI
 
         for( size_t i = 0; i < certs.size(); i++ )
             CertFreeCertificateContext( certs[i] );
+
+        if( peercert )
+            CertFreeCertificateContext( peercert );
     }
 
     struct
@@ -426,6 +432,7 @@ struct MSSPI
         unsigned renegotiate : 1;
         unsigned alpn : 1;
         unsigned can_append : 1;
+        unsigned names : 1;
     } is;
 
     int state;
@@ -433,6 +440,9 @@ struct MSSPI
     std::string cachestring;
     std::string alpn;
     SecPkgContext_CipherInfo cipherinfo;
+    PCCERT_CONTEXT peercert;
+    std::string peercert_subject;
+    std::string peercert_issuer;
     std::vector<std::string> peercerts;
     std::vector<std::string> issuerlist;
 
@@ -962,6 +972,14 @@ int msspi_shutdown( MSSPI_HANDLE h )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
+static void connected( MSSPI_HANDLE h )
+{
+    msspi_get_cipherinfo( h );
+    msspi_get_peercerts( h, NULL, NULL, NULL );
+    msspi_get_peernames( h, NULL, NULL, NULL, NULL );
+    h->is.connected = 1;
+}
+
 int msspi_accept( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
@@ -1153,7 +1171,7 @@ int msspi_accept( MSSPI_HANDLE h )
         // handshake OK
         if( scRet == SEC_E_OK )
         {
-            h->is.connected = 1;
+            connected( h );
             if( h->in_len )
                 msspi_read( h, NULL, 0 );
             return 1;
@@ -1185,10 +1203,6 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
 {
     std::string old_session;
     std::string new_session;
-
-    // if a user does not check params - modifications are not important
-    if( !h->is.cipherinfo && !h->peercerts.size() )
-        return 1;
 
     old_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
     for( size_t i = 0; i < h->peercerts.size(); i++ )
@@ -1450,19 +1464,12 @@ int msspi_connect( MSSPI_HANDLE h )
             // shutdown if params are changed in renegotiation
             if( h->is.renegotiate && !is_new_session_unmodified( h ) )
             {
+                msspi_shutdown( h );
                 h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
                 return 0;
             }
-            // always cache session parameters
-            else
-            if( !msspi_get_cipherinfo( h ) ||
-                !msspi_get_peercerts( h, NULL, NULL, NULL ) )
-            {
-                h->state |= MSSPI_ERROR;
-                return 0;
-            }
 
-            h->is.connected = 1;
+            connected( h );
             if( h->in_len )
                 msspi_read( h, NULL, 0 );
             return 1;
@@ -1630,7 +1637,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
         return 1;
 
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
-    char isok = 0;
+    char isOK = 0;
 
     for( ;; )
     {
@@ -1737,17 +1744,17 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 break;
         }
 
-        isok = 1;
+        isOK = 1;
         break;
     }
 
     if( provinfo )
         delete[]( char * )provinfo;
 
-    if( isok && h->is.can_append )
+    if( isOK && h->is.can_append )
         credentials_api( h );
 
-    return isok;
+    return isOK;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
@@ -1892,7 +1899,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 
     if( certfound )
     {
-        bool isok = false;
+        bool isOK = false;
         PCCERT_CONTEXT cleancert = NULL;
         PCRYPT_KEY_PROV_INFO provinfo = NULL;
         DWORD dw;
@@ -1915,7 +1922,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
             if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
 
-            isok = true;
+            isOK = true;
             break;
         }
 
@@ -1924,7 +1931,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
         if( provinfo )
             delete[]( char * )provinfo;
 
-        if( isok )
+        if( isOK )
         {
             h->certs.push_back( cleancert );
             h->is.can_append = can_append == true ? 1 : 0;
@@ -2080,33 +2087,36 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
 
     if( !h->peercerts.size() )
     {
-        PCCERT_CONTEXT PeerCert = NULL;
-        PCCERT_CONTEXT RunnerCert;
+        if( h->peercert )
+        {
+            CertFreeCertificateContext( h->peercert );
+            h->peercert = NULL;
+        }
 
         SECURITY_STATUS scRet;
-        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert ) );
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&h->peercert ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
         if( scRet != SEC_E_OK )
             return 0;
 
-        for( RunnerCert = PeerCert; RunnerCert; )
+        PCCERT_CONTEXT cert;
+
+        for( cert = h->peercert; cert; )
         {
             PCCERT_CONTEXT IssuerCert = NULL;
             DWORD dwVerificationFlags = 0;
 
-            h->peercerts.push_back( std::string( (char *)RunnerCert->pbCertEncoded, RunnerCert->cbCertEncoded ) );
+            h->peercerts.push_back( std::string( (char *)cert->pbCertEncoded, cert->cbCertEncoded ) );
 
-            IssuerCert = CertGetIssuerCertificateFromStore( PeerCert->hCertStore, RunnerCert, NULL, &dwVerificationFlags );
+            IssuerCert = CertGetIssuerCertificateFromStore( h->peercert->hCertStore, cert, NULL, &dwVerificationFlags );
 
-            if( RunnerCert != PeerCert )
-                CertFreeCertificateContext( RunnerCert );
+            if( cert != h->peercert )
+                CertFreeCertificateContext( cert );
 
-            RunnerCert = IssuerCert;
+            cert = IssuerCert;
         }
-
-        CertFreeCertificateContext( PeerCert );
     }
 
     if( !h->peercerts.size() )
@@ -2133,6 +2143,61 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     {
         bufs[i] = h->peercerts[i].data();
         lens[i] = (int)h->peercerts[i].size();
+    }
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+static std::string certname( PCCERT_CONTEXT cert, bool issuer )
+{
+    DWORD dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, issuer ? CERT_NAME_ISSUER_FLAG : 0, NULL, NULL, 0 );
+    if( dwLen > 1 )
+    {
+        std::vector<WCHAR> w_str( dwLen );
+        dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, issuer ? CERT_NAME_ISSUER_FLAG : 0, NULL, &w_str[0], dwLen );
+        if( dwLen == w_str.size() )
+        {
+            dwLen = WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
+            if( dwLen )
+            {
+                std::string c_str;
+                c_str.resize( dwLen );
+                dwLen = WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, &c_str[0], dwLen, NULL, NULL );
+                if( dwLen == c_str.size() )
+                    return c_str;
+            }
+        }
+    }
+
+    return "";
+}
+
+char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, const char ** issuer, size_t * ilen )
+{
+    MSSPIEHTRY;
+
+    if( !h->peercert )
+        return 0;
+
+    if( !h->is.names )
+    {
+        h->peercert_subject = certname( h->peercert, false );
+        h->peercert_issuer = certname( h->peercert, true );
+        h->is.names = 1;
+    }
+
+    if( subject && slen )
+    {
+        *subject = &h->peercert_subject[0];
+        *slen = h->peercert_subject.size();
+    }
+
+    if( issuer && ilen )
+    {
+        *issuer = &h->peercert_issuer[0];
+        *ilen = h->peercert_issuer.size();
     }
 
     return 1;
@@ -2202,28 +2267,22 @@ unsigned msspi_verify( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     DWORD dwVerify = MSSPI_VERIFY_ERROR;
-    PCCERT_CONTEXT PeerCert = NULL;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
+
+    if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+        return 0;
 
     for( ;; )
     {
-        SECURITY_STATUS scRet;
-        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&PeerCert ) );
-
-        msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
-
-        if( scRet != SEC_E_OK )
-            break;
-
         CERT_CHAIN_PARA ChainPara;
         memset( &ChainPara, 0, sizeof( ChainPara ) );
         ChainPara.cbSize = sizeof( ChainPara );
 
         if( !CertGetCertificateChain(
             NULL,
-            PeerCert,
+            h->peercert,
             NULL,
-            PeerCert->hCertStore,
+            h->peercert->hCertStore,
             &ChainPara,
             CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_REVOCATION_CHECK_CHAIN,
             NULL,
@@ -2265,9 +2324,6 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         break;
     }
 
-    if( PeerCert )
-        CertFreeCertificateContext( PeerCert );
-
     if( PeerChain )
         CertFreeCertificateChain( PeerChain );
 
@@ -2282,16 +2338,7 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
 
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
-    PCCERT_CONTEXT certprobe = NULL;
     unsigned int i;
-
-    SECURITY_STATUS scRet;
-    EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&certprobe ) );
-
-    msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
-
-    if( scRet != SEC_E_OK )
-        return 0;
 
     DWORD dwStoreFlags[2] = {
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
@@ -2305,7 +2352,7 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
         if( !hStore )
             continue;
 
-        certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
+        certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, h->peercert, 0 );
 
         CertCloseStore( hStore, 0 );
         hStore = 0;
@@ -2313,9 +2360,6 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
         if( certfound )
             break;
     }
-
-    if( certprobe )
-        CertFreeCertificateContext( certprobe );
 
     if( certfound )
         CertFreeCertificateContext( certfound );
