@@ -79,33 +79,33 @@ static DWORD GetTickCount()
 
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
 #define SSPI_BUFFER_SIZE 32896 // 2 * ( 0x4000 + 128 )
+
+#ifndef SECURITY_DLL_NAME
 #ifdef _WIN32
 #define SECURITY_DLL_NAME "Security.dll"
 #elif defined( __APPLE__ )
 #define SECURITY_DLL_NAME "/opt/cprocsp/lib/libssp.dylib"
 #include <TargetConditionals.h>
 #else // other LINUX
-#ifndef SECURITY_DLL_NAME_LINUX
 #if defined( __mips__ ) // archs
     #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/mipsel/libssp.so"
+        #define SECURITY_DLL_NAME "/opt/cprocsp/lib/mipsel/libssp.so"
     #else // byte order
-        #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/mips/libssp.so"
+        #define SECURITY_DLL_NAME "/opt/cprocsp/lib/mips/libssp.so"
     #endif // byte order
 #elif defined( __arm__ )
-    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/arm/libssp.so"
+    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/arm/libssp.so"
 #elif defined( __aarch64__ ) // archs
-    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/aarch64/libssp.so"
+    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/aarch64/libssp.so"
 #elif defined( __i386__ ) // archs
-    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/ia32/libssp.so"
+    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/ia32/libssp.so"
 #elif defined( __PPC64__ ) // ppc arch
-    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/lib64/libssp.so"
+    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/lib64/libssp.so"
 #else // archs
-#define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
+#define SECURITY_DLL_NAME "/opt/cprocsp/lib/amd64/libssp.so"
 #endif // archs
-#endif // SECURITY_DLL_NAME_LINUX
-#define SECURITY_DLL_NAME SECURITY_DLL_NAME_LINUX
 #endif // _WIN32 or __APPLE__ or LINUX
+#endif // SECURITY_DLL_NAME
 
 #include "msspi.h"
 
