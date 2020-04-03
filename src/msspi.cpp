@@ -98,6 +98,8 @@ static DWORD GetTickCount()
     #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/aarch64/libssp.so"
 #elif defined( __i386__ ) // archs
     #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/ia32/libssp.so"
+#elif defined( __PPC64__ ) // ppc arch
+    #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/lib64/libssp.so"
 #else // archs
 #define SECURITY_DLL_NAME_LINUX "/opt/cprocsp/lib/amd64/libssp.so"
 #endif // archs
