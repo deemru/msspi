@@ -2158,13 +2158,13 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-static std::string certname( PCCERT_CONTEXT cert, DWORD dwFlags )
+static std::string certname( PCERT_NAME_BLOB name )
 {
-    DWORD dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, dwFlags, NULL, NULL, 0 );
+    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertGetNameStringW( cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, dwFlags, NULL, &w_str[0], dwLen );
+        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, &w_str[0], dwLen );
         if( dwLen == w_str.size() )
         {
             dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
@@ -2191,8 +2191,8 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
 
     if( !h->is.names )
     {
-        h->peercert_subject = certname( h->peercert, 0 );
-        h->peercert_issuer = certname( h->peercert, CERT_NAME_ISSUER_FLAG );
+        h->peercert_subject = certname( &h->peercert->pCertInfo->Subject );
+        h->peercert_issuer = certname( &h->peercert->pCertInfo->Issuer );
         h->is.names = 1;
     }
 
