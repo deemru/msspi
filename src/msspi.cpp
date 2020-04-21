@@ -621,6 +621,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( h->dec_len )
             memmove( h->dec_buf, h->dec_buf + decrypted, (size_t)h->dec_len );
+        else if( h->in_len )
+            msspi_read( h, NULL, 0 );
 
         return decrypted;
     }
