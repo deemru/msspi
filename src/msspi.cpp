@@ -592,22 +592,71 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
     return 0;
 }
 
+static int write_common( MSSPI_HANDLE h )
+{
+    while( h->out_len )
+    {
+        int io;
+        EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
+
+        if( io < 0 )
+        {
+            h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
+            return io;
+        }
+
+        h->state &= ~MSSPI_WRITING;
+
+        if( io == h->out_len )
+        {
+            h->out_len = 0;
+            break;
+        }
+
+        if( io == 0 )
+        {
+            h->state |= MSSPI_SENT_SHUTDOWN;
+            return 0;
+        }
+
+        if( io > h->out_len )
+        {
+            h->state |= MSSPI_ERROR;
+            return 0;
+        }
+
+        h->out_len -= io;
+        memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
+    }
+
+    return 1;
+}
+
+static int read_common( MSSPI_HANDLE h )
+{
+    int io;
+    EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
+
+    h->state &= ~MSSPI_LAST_PROC_WRITE;
+
+    if( io < 0 )
+        return io;
+
+    h->state &= ~MSSPI_READING;
+
+    if( io == 0 )
+    {
+        h->state |= MSSPI_RECEIVED_SHUTDOWN;
+        return 0;
+    }
+
+    h->in_len = h->in_len + io;
+    return 1;
+}
+
 int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 {
     MSSPIEHTRY;
-
-    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
-        return 0;
-
-    if( !h->is.connected )
-    {
-        UNIQUE_LOCK( h->mtx );
-
-        int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
-
-        if( i != 1 )
-            return i;
-    }
 
     if( h->dec_len )
     {
@@ -627,6 +676,19 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         return decrypted;
     }
 
+    if( h->state & MSSPI_ERROR || h->state & MSSPI_RECEIVED_SHUTDOWN )
+        return 0;
+
+    if( !h->is.connected )
+    {
+        UNIQUE_LOCK( h->mtx );
+
+        int i = h->is.client ? msspi_connect( h ) : msspi_accept( h );
+
+        if( i != 1 )
+            return i;
+    }
+
     if( h->in_len == 0 )
         h->state |= MSSPI_READING;
 
@@ -643,24 +705,12 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( h->state & MSSPI_READING )
         {
-            int io;
-            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
-
-            if( io < 0 )
-            {
-                h->state &= ~MSSPI_LAST_PROC_WRITE;
-                return io;
-            }
-
-            if( io == 0 )
-            {
-                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
+            if( len == 0 )
                 return 0;
-            }
 
-            h->in_len = h->in_len + io;
-
-            h->state &= ~MSSPI_READING;
+            int io = read_common( h );
+            if( io <= 0 )
+                return io;
         }
 
         Buffers[0].pvBuffer = h->in_buf;
@@ -682,10 +732,11 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
         {
+            h->state |= MSSPI_READING;
+
             if( len == 0 )
                 return 0;
 
-            h->state |= MSSPI_READING;
             continue;
         }
 
@@ -701,8 +752,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( scRet == SEC_I_CONTEXT_EXPIRED ||
             scRet == SEC_E_CONTEXT_EXPIRED )
         {
-            h->in_len = 0;
             h->state |= MSSPI_RECEIVED_SHUTDOWN;
+            h->in_len = 0;
             return 0;
         }
 
@@ -759,7 +810,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+    if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
         return 0;
 
     if( !h->is.connected )
@@ -859,38 +910,11 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         h->out_saved_len = len;
     }
 
-    while( h->out_len )
+    if( h->out_len )
     {
-        int io;
-        EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
-
-        if( io == h->out_len )
-        {
-            h->out_len = 0;
-            h->state &= ~MSSPI_WRITING;
-            break;
-        }
-
-        if( io < 0 )
-        {
-            h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
+        int io = write_common( h );
+        if( io <= 0 )
             return io;
-        }
-
-        if( io == 0 )
-        {
-            h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
-            return 0;
-        }
-
-        if( io > h->out_len )
-        {
-            h->state |= MSSPI_ERROR;
-            return 0;
-        }
-
-        h->out_len -= io;
-        memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
     }
 
     return h->out_saved_len;
@@ -941,7 +965,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+    if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
         return 0;
 
     h->state |= MSSPI_SHUTDOWN_PROC;
@@ -994,7 +1018,7 @@ int msspi_accept( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+    if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
         return 0;
 
     for( ;; )
@@ -1003,24 +1027,9 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
-            int io;
-            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
-
-            if( io < 0 )
-            {
-                h->state &= ~MSSPI_LAST_PROC_WRITE;
+            int io = read_common( h );
+            if( io <= 0 )
                 return io;
-            }
-
-            if( io == 0 )
-            {
-                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
-                return 0;
-            }
-
-            h->in_len = h->in_len + io;
-
-            h->state &= ~MSSPI_READING;
         }
 
         if( !h->out_len )
@@ -1123,38 +1132,11 @@ int msspi_accept( MSSPI_HANDLE h )
             }
         }
 
-        while( h->out_len )
+        if( h->out_len )
         {
-            int io;
-            EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
-
-            if( io == h->out_len )
-            {
-                h->out_len = 0;
-                h->state &= ~MSSPI_WRITING;
-                break;
-            }
-
-            if( io < 0 )
-            {
-                h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
+            int io = write_common( h );
+            if( io <= 0 )
                 return io;
-            }
-
-            if( io == 0 )
-            {
-                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
-                return 0;
-            }
-
-            if( io > h->out_len )
-            {
-                h->state |= MSSPI_ERROR;
-                return 0;
-            }
-
-            h->out_len -= io;
-            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
@@ -1240,7 +1222,7 @@ int msspi_connect( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->state & MSSPI_ERROR || ( h->state & MSSPI_SENT_SHUTDOWN && h->state & MSSPI_RECEIVED_SHUTDOWN ) )
+    if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
         return 0;
 
     if( h->is.client == 0 )
@@ -1269,24 +1251,9 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
-            int io;
-            EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf + h->in_len, SSPI_BUFFER_SIZE - h->in_len ) );
-
-            if( io < 0 )
-            {
-                h->state &= ~MSSPI_LAST_PROC_WRITE;
+            int io = read_common( h );
+            if( io <= 0 )
                 return io;
-            }
-
-            if( io == 0 )
-            {
-                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
-                return 0;
-            }
-
-            h->in_len = h->in_len + io;
-
-            h->state &= ~MSSPI_READING;
         }
 
         if( !h->out_len )
@@ -1413,38 +1380,11 @@ int msspi_connect( MSSPI_HANDLE h )
             }
         }
 
-        while( h->out_len )
+        if( h->out_len )
         {
-            int io;
-            EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf, h->out_len ) );
-
-            if( io == h->out_len )
-            {
-                h->out_len = 0;
-                h->state &= ~MSSPI_WRITING;
-                break;
-            }
-
-            if( io < 0 )
-            {
-                h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
+            int io = write_common( h );
+            if( io <= 0 )
                 return io;
-            }
-
-            if( io == 0 )
-            {
-                h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
-                return 0;
-            }
-
-            if( io > h->out_len )
-            {
-                h->state |= MSSPI_ERROR;
-                return 0;
-            }
-
-            h->out_len -= io;
-            memmove( h->out_buf, h->out_buf + io, (size_t)h->out_len );
         }
 
         if( scRet == SEC_E_INCOMPLETE_MESSAGE )
