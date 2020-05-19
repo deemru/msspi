@@ -109,6 +109,10 @@ static DWORD GetTickCount()
 
 #include "msspi.h"
 
+#ifdef MSSPI_USE_CAPIX
+#include "capix.hpp"
+#endif
+
 #ifdef MSSPI_LOGGER
 void msspi_logger_func( char level, const char * format, ... );
 #define msspi_logger_info( format, ... ) msspi_logger_func( 'i', "INFO (%s:%d): " format, __FUNCTION__, __LINE__, __VA_ARGS__ )
