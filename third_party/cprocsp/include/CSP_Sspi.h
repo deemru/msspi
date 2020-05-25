@@ -317,6 +317,7 @@ typedef struct _SecBufferDesc {
 #define SECBUFFER_MECHLIST_SIGNATURE 12 
 #define SECBUFFER_TARGET            13
 #define SECBUFFER_CHANNEL_BINDINGS  14
+#define SECBUFFER_ALERT             17
 
 #define SECBUFFER_ATTRMASK          0xF0000000
 #define SECBUFFER_READONLY          0x80000000  // Buffer is read-only

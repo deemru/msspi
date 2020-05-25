@@ -47,6 +47,8 @@
 #define SCHANNEL_NAME_A  "Schannel"
 #define SCHANNEL_NAME_W  L"Schannel"
 
+#define DEFAULT_TLS_SSP_NAME_A  "Default TLS SSP"
+#define DEFAULT_TLS_SSP_NAME_W  L"Default TLS SSP"
 
 #ifdef UNICODE
 
@@ -56,6 +58,7 @@
 #define SSL3SP_NAME  SSL3SP_NAME_W
 #define TLS1SP_NAME  TLS1SP_NAME_W
 #define SCHANNEL_NAME  SCHANNEL_NAME_W
+#define DEFAULT_TLS_SSP_NAME  DEFAULT_TLS_SSP_NAME_W
 
 #else
 
@@ -65,6 +68,7 @@
 #define SSL3SP_NAME  SSL3SP_NAME_A
 #define TLS1SP_NAME  TLS1SP_NAME_A
 #define SCHANNEL_NAME  SCHANNEL_NAME_A
+#define DEFAULT_TLS_SSP_NAME  DEFAULT_TLS_SSP_NAME_A
 
 #endif
 
@@ -101,6 +105,7 @@
 #define SECPKG_ATTR_USE_NCRYPT           0x62   // Sets the CRED_FLAG_USE_NCRYPT_PROVIDER FLAG on cred group
 #define SECPKG_ATTR_LOCAL_CERT_INFO      0x63   // returns SecPkgContext_CertInfo
 #define SECPKG_ATTR_CIPHER_INFO          0x64   // returns new CNG SecPkgContext_CipherInfo
+#define SECPKG_ATTR_SUPPORTED_SIGNATURES 0x66   // returns SecPkgContext_SupportedSignatures
 
 
 
@@ -285,6 +290,31 @@ typedef struct _SecPkgContext_CertInfo
     DWORD   dwKeySize;
 } SecPkgContext_CertInfo, *PSecPkgContext_CertInfo;
 
+typedef struct _SecPkgContext_SupportedSignatures
+{
+    WORD cSignatureAndHashAlgorithms;
+
+    //
+    // Upper byte (from TLS 1.2, RFC 4346):
+    //     enum {
+    //         anonymous(0), rsa(1), dsa(2), ecdsa(3), (255)
+    //     } SignatureAlgorithm;
+    //
+    // enum eTlsSignatureAlgorithm
+
+    //
+    // Lower byte (from TLS 1.2, RFC 4346):
+    //     enum {
+    //         none(0), md5(1), sha1(2), sha224(3), sha256(4), sha384(5),
+    //         sha512(6), (255)
+    //     } HashAlgorithm;
+    //
+    //
+    // enum eTlsHashAlgorithm
+
+    WORD *pSignatureAndHashAlgorithms;
+} SecPkgContext_SupportedSignatures, *PSecPkgContext_SupportedSignatures;
+
 #define KERN_CONTEXT_CERT_INFO_V1 0x00000000
 
 //
@@ -318,9 +348,37 @@ typedef struct _SCHANNEL_CRED
     DWORD           dwMaximumCipherStrength;
     DWORD           dwSessionLifespan;
     DWORD           dwFlags;
-    DWORD           reserved;
+    DWORD           dwCredFormat;
 } SCHANNEL_CRED, *PSCHANNEL_CRED;
 
+// Values for SCHANNEL_CRED dwCredFormat field.
+#define SCH_CRED_FORMAT_CERT_CONTEXT    0x00000000
+#define SCH_CRED_FORMAT_CERT_HASH       0x00000001
+#define SCH_CRED_FORMAT_CERT_HASH_STORE 0x00000002
+
+#define SCH_CRED_MAX_STORE_NAME_SIZE    128
+#define SCH_CRED_MAX_SUPPORTED_ALGS     256
+#define SCH_CRED_MAX_SUPPORTED_CERTS    100
+
+typedef struct _SCHANNEL_CERT_HASH
+{
+    DWORD           dwLength;
+    DWORD           dwFlags;
+    HCRYPTPROV      hProv;
+    BYTE            ShaHash[20];
+} SCHANNEL_CERT_HASH, *PSCHANNEL_CERT_HASH;
+
+typedef struct _SCHANNEL_CERT_HASH_STORE
+{
+    DWORD           dwLength;
+    DWORD           dwFlags;
+    HCRYPTPROV      hProv;
+    BYTE            ShaHash[20];
+    WCHAR           pwszStoreName[SCH_CRED_MAX_STORE_NAME_SIZE];
+} SCHANNEL_CERT_HASH_STORE, *PSCHANNEL_CERT_HASH_STORE;
+
+// Values for SCHANNEL_CERT_HASH dwFlags field.
+#define SCH_MACHINE_CERT_HASH           0x00000001
 
 //+-------------------------------------------------------------------------
 // Flags for use with SCHANNEL_CRED
@@ -539,44 +597,78 @@ typedef struct _SCHANNEL_SESSION_TOKEN
 #define SP_PROT_TLS1_0_SERVER           SP_PROT_TLS1_SERVER
 #define SP_PROT_TLS1_0_CLIENT           SP_PROT_TLS1_CLIENT
 #define SP_PROT_TLS1_0                  (SP_PROT_TLS1_0_SERVER | \
-    SP_PROT_TLS1_0_CLIENT)
+                                         SP_PROT_TLS1_0_CLIENT)
 
 #define SP_PROT_TLS1_1_SERVER           0x00000100
 #define SP_PROT_TLS1_1_CLIENT           0x00000200
 #define SP_PROT_TLS1_1                  (SP_PROT_TLS1_1_SERVER | \
-    SP_PROT_TLS1_1_CLIENT)
+                                         SP_PROT_TLS1_1_CLIENT)
 
 #define SP_PROT_TLS1_2_SERVER           0x00000400
 #define SP_PROT_TLS1_2_CLIENT           0x00000800
 #define SP_PROT_TLS1_2                  (SP_PROT_TLS1_2_SERVER | \
-    SP_PROT_TLS1_2_CLIENT)
+                                         SP_PROT_TLS1_2_CLIENT)
+
+#define SP_PROT_TLS1_3_SERVER           0x00001000
+#define SP_PROT_TLS1_3_CLIENT           0x00002000
+#define SP_PROT_TLS1_3                  (SP_PROT_TLS1_3_SERVER | \
+                                         SP_PROT_TLS1_3_CLIENT)
+
+#define SP_PROT_DTLS_SERVER             0x00010000
+#define SP_PROT_DTLS_CLIENT             0x00020000
+#define SP_PROT_DTLS                    (SP_PROT_DTLS_SERVER | \
+                                         SP_PROT_DTLS_CLIENT )
+
+#define SP_PROT_DTLS1_0_SERVER          SP_PROT_DTLS_SERVER 
+#define SP_PROT_DTLS1_0_CLIENT          SP_PROT_DTLS_CLIENT
+#define SP_PROT_DTLS1_0                 (SP_PROT_DTLS1_0_SERVER | SP_PROT_DTLS1_0_CLIENT)
+
+#define SP_PROT_DTLS1_2_SERVER          0x00040000 
+#define SP_PROT_DTLS1_2_CLIENT          0x00080000
+#define SP_PROT_DTLS1_2                 (SP_PROT_DTLS1_2_SERVER | SP_PROT_DTLS1_2_CLIENT)
+
+#define SP_PROT_DTLS1_X_SERVER          (SP_PROT_DTLS1_0_SERVER | \
+                                         SP_PROT_DTLS1_2_SERVER)
+
+#define SP_PROT_DTLS1_X_CLIENT          (SP_PROT_DTLS1_0_CLIENT | \
+                                         SP_PROT_DTLS1_2_CLIENT)
+
+#define SP_PROT_DTLS1_X                 (SP_PROT_DTLS1_X_SERVER | \
+                                         SP_PROT_DTLS1_X_CLIENT)
 
 #define SP_PROT_TLS1_1PLUS_SERVER       (SP_PROT_TLS1_1_SERVER | \
-    SP_PROT_TLS1_2_SERVER)
+                                         SP_PROT_TLS1_2_SERVER | \
+                                         SP_PROT_TLS1_3_SERVER)
 #define SP_PROT_TLS1_1PLUS_CLIENT       (SP_PROT_TLS1_1_CLIENT | \
-    SP_PROT_TLS1_2_CLIENT)
+                                         SP_PROT_TLS1_2_CLIENT | \
+                                         SP_PROT_TLS1_3_CLIENT)
+
 #define SP_PROT_TLS1_1PLUS              (SP_PROT_TLS1_1PLUS_SERVER | \
-    SP_PROT_TLS1_1PLUS_CLIENT)
+                                         SP_PROT_TLS1_1PLUS_CLIENT)
 
 #define SP_PROT_TLS1_X_SERVER           (SP_PROT_TLS1_0_SERVER | \
-    SP_PROT_TLS1_1_SERVER | \
-    SP_PROT_TLS1_2_SERVER)
+                                         SP_PROT_TLS1_1_SERVER | \
+                                         SP_PROT_TLS1_2_SERVER | \
+                                         SP_PROT_TLS1_3_SERVER)
 #define SP_PROT_TLS1_X_CLIENT           (SP_PROT_TLS1_0_CLIENT | \
-    SP_PROT_TLS1_1_CLIENT | \
-    SP_PROT_TLS1_2_CLIENT)
+                                         SP_PROT_TLS1_1_CLIENT | \
+                                         SP_PROT_TLS1_2_CLIENT | \
+                                         SP_PROT_TLS1_3_CLIENT)
 #define SP_PROT_TLS1_X                  (SP_PROT_TLS1_X_SERVER | \
-    SP_PROT_TLS1_X_CLIENT)
+                                         SP_PROT_TLS1_X_CLIENT)
 
 #define SP_PROT_SSL3TLS1_X_CLIENTS      (SP_PROT_TLS1_X_CLIENT | \
-    SP_PROT_SSL3_CLIENT)
+                                         SP_PROT_SSL3_CLIENT)
 #define SP_PROT_SSL3TLS1_X_SERVERS      (SP_PROT_TLS1_X_SERVER | \
-    SP_PROT_SSL3_SERVER)
+                                         SP_PROT_SSL3_SERVER)
 #define SP_PROT_SSL3TLS1_X              (SP_PROT_SSL3 | SP_PROT_TLS1_X)
 
 #define SP_PROT_X_CLIENTS               (SP_PROT_CLIENTS | \
-    SP_PROT_TLS1_X_CLIENT)
+                                         SP_PROT_TLS1_X_CLIENT | \
+                                         SP_PROT_DTLS1_X_CLIENT )
 #define SP_PROT_X_SERVERS               (SP_PROT_SERVERS | \
-    SP_PROT_TLS1_X_SERVER)
+                                         SP_PROT_TLS1_X_SERVER | \
+                                         SP_PROT_DTLS1_X_SERVER )
 
 
 //

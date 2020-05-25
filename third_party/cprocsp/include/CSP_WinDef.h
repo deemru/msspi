@@ -24,7 +24,7 @@
 #ifndef _WINDEF_
 #define _WINDEF_
 
-#ifdef HAVE_CONFIG_H
+#ifdef HAVE_CPRO_CONFIG_H
 #include "common.h"
 #endif
 
@@ -387,6 +387,16 @@ typedef struct _LUID {
     LONG HighPart;
 } LUID, *PLUID;
 
+#define LANG_NEUTRAL                     0x00
+#define LANG_ENGLISH                     0x09
+#define LANG_RUSSIAN                     0x19
+#define SUBLANG_NEUTRAL                  0x00    // language neutral
+#define SUBLANG_DEFAULT                  0x01    // user default
+
+#define MAKELANGID(p, s)       ((((WORD  )(s)) << 10) | (WORD  )(p))
+#define PRIMARYLANGID(lgid)    ((WORD  )(lgid) & 0x3ff)
+#define SUBLANGID(lgid)        ((WORD  )(lgid) >> 10)
+
 #define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
 #define CopyMemory(Destination,Source,Length) memcpy((Destination),(Source),(Length))
 #define FillMemory(Destination,Length,Fill) memset((Destination),(Fill),(Length))
@@ -401,6 +411,8 @@ typedef struct _LUID {
 //
 #define CP_ACP                      0           // default to ANSI code page
 #define CP_UTF8                     65001
+#define CP_UTF16LE                  1200
+#define CP_ISO8859_5                28595
 
 #define MB_PRECOMPOSED              0x01
 #define MB_COMPOSITE                0x02
@@ -447,6 +459,8 @@ WINBASEAPI DWORD WINAPI GetLastError(void);
 
 WINBASEAPI void WINAPI SetLastError(DWORD dwErr);   //Sets error code
 
+#ifdef LEGACY_FORMAT_MESSAGE_IMPL
+
 WINBASEAPI
 DWORD
 WINAPI
@@ -461,6 +475,50 @@ FormatMessage(
     );
 
 #define FormatMessageA FormatMessage
+
+#else
+
+#if defined (_MSC_VER) || defined (__GNUC__)
+#  if defined (__cplusplus) && !defined (IGNORE_LEGACY_FORMAT_MESSAGE_MSG)
+#    if !(defined(PROCESSOR_TYPE) && (PROCESSOR_TYPE == PROC_TYPE_E2K32 || PROCESSOR_TYPE == PROC_TYPE_E2K64))
+#      pragma message ("Your application will require at least CryptoPro CSP 4.0 R3. You can use LEGACY_FORMAT_MESSAGE_IMPL to support older versions.")
+#    endif
+#  endif
+#endif
+
+WINBASEAPI
+DWORD
+WINAPI
+FormatMessageA(
+    IN DWORD dwFlags,
+    IN LPCVOID lpSource,
+    IN DWORD dwMessageId,
+    IN DWORD dwLanguageId,
+    OUT LPSTR lpBuffer,
+    IN DWORD nSize,
+    IN void *Arguments
+    );
+
+WINBASEAPI
+DWORD
+WINAPI
+FormatMessageW(
+    IN DWORD dwFlags,
+    IN LPCVOID lpSource,
+    IN DWORD dwMessageId,
+    IN DWORD dwLanguageId,
+    OUT LPWSTR lpBuffer,
+    IN DWORD nSize,
+    IN void *Arguments
+    );
+
+#ifdef UNICODE
+#    define FormatMessage FormatMessageW
+#else
+#    define FormatMessage FormatMessageA
+#endif // UNICODE
+
+#endif // LEGACY_FORMAT_MESSAGE_IMPL
 
 #define FORMAT_MESSAGE_ALLOCATE_BUFFER 0x00000100
 #define FORMAT_MESSAGE_IGNORE_INSERTS  0x00000200

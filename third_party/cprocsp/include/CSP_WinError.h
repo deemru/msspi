@@ -21419,6 +21419,51 @@
 /**/
 #define SCARD_E_COMM_DATA_LOST           _HRESULT_TYPEDEF_(0x8010002FL)
 
+//
+// MessageId: SCARD_E_NO_KEY_CONTAINER
+//
+// MessageText:
+//
+// The requested key container does not exist on the smart card.
+//
+#define SCARD_E_NO_KEY_CONTAINER         _HRESULT_TYPEDEF_(0x80100030L)
+
+//
+// MessageId: SCARD_E_SERVER_TOO_BUSY
+//
+// MessageText:
+//
+// The Smart Card Resource Manager is too busy to complete this operation.
+//
+#define SCARD_E_SERVER_TOO_BUSY          _HRESULT_TYPEDEF_(0x80100031L)
+
+//
+// MessageId: SCARD_E_PIN_CACHE_EXPIRED
+//
+// MessageText:
+//
+// The smart card PIN cache has expired.
+//
+#define SCARD_E_PIN_CACHE_EXPIRED        _HRESULT_TYPEDEF_(0x80100032L)
+
+//
+// MessageId: SCARD_E_NO_PIN_CACHE
+//
+// MessageText:
+//
+// The smart card PIN cannot be cached.
+//
+#define SCARD_E_NO_PIN_CACHE             _HRESULT_TYPEDEF_(0x80100033L)
+
+//
+// MessageId: SCARD_E_READ_ONLY_CARD
+//
+// MessageText:
+//
+// The smart card is read only and cannot be written to.
+//
+#define SCARD_E_READ_ONLY_CARD           _HRESULT_TYPEDEF_(0x80100034L)
+
 /**/
 /* These are warning codes.*/
 /**/
@@ -21511,6 +21556,15 @@
 /*  The action was cancelled by the user.*/
 /**/
 #define SCARD_W_CANCELLED_BY_USER        _HRESULT_TYPEDEF_(0x8010006EL)
+
+//
+// MessageId: SCARD_W_CARD_NOT_AUTHENTICATED
+//
+// MessageText:
+//
+// No PIN was presented to the smart card.
+//
+#define SCARD_W_CARD_NOT_AUTHENTICATED   _HRESULT_TYPEDEF_(0x8010006FL)
 
 /* ******************/
 /* FACILITY_COMPLUS*/
@@ -22066,284 +22120,6 @@
 /**/
 #define COMQC_E_QUEUING_SERVICE_NOT_AVAILABLE _HRESULT_TYPEDEF_(0x80110602L)
 
-#define FACILITY_TSPCLI                  0x210
-
-
-//
-// Define the severity codes
-//
-
-
-//
-// MessageId: TSPCLI_ERROR_HTTP
-//
-// MessageText:
-//
-// HTTP error occurred during sending request
-//
-#define TSPCLI_ERROR_HTTP                _HRESULT_TYPEDEF_(0xC2100100L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedAuthType
-//
-// MessageText:
-//
-// Specified authentication type prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedAuthType _HRESULT_TYPEDEF_(0xC2100101L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedProxyAuthType
-//
-// MessageText:
-//
-// Specified proxy authentication type prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedProxyAuthType _HRESULT_TYPEDEF_(0xC2100102L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedURL
-//
-// MessageText:
-//
-// Specified time-stamp authority prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedURL     _HRESULT_TYPEDEF_(0xC2100103L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedNonce
-//
-// MessageText:
-//
-// Nonce usage prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedNonce   _HRESULT_TYPEDEF_(0xC2100104L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedHashAlg
-//
-// MessageText:
-//
-// Specified hash algorithm prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedHashAlg _HRESULT_TYPEDEF_(0xC2100110L)
-
-//
-// MessageId: TSPCLI_ERROR_PolicyDeniedPolicyID
-//
-// MessageText:
-//
-// Specified PolicyID prohibited by group policy
-//
-#define TSPCLI_ERROR_PolicyDeniedPolicyID _HRESULT_TYPEDEF_(0xC2100111L)
-
-//
-// MessageId: TSPCLI_ERROR_IncorrectNonce
-//
-// MessageText:
-//
-// The values of request's and stamp's "Nonce" fields are not equal.
-//
-#define TSPCLI_ERROR_IncorrectNonce      _HRESULT_TYPEDEF_(0xC2100120L)
-
-//
-// MessageId: TSPCLI_ERROR_AddressIsEmpty
-//
-// MessageText:
-//
-// The URL of TSP service is not specified
-//
-#define TSPCLI_ERROR_AddressIsEmpty      _HRESULT_TYPEDEF_(0xC2100121L)
-
-//
-// MessageId: TSPCLI_ERROR_ExpiredStamp
-//
-// MessageText:
-//
-// The time stamp is expired (ProducedAt value)
-//
-#define TSPCLI_ERROR_ExpiredStamp        _HRESULT_TYPEDEF_(0xC2100122L)
-
-//
-// MessageId: TSPCLI_ERROR_DataHashIsEmpty
-//
-// MessageText:
-//
-// Request does not contain data hash
-//
-#define TSPCLI_ERROR_DataHashIsEmpty     _HRESULT_TYPEDEF_(0xC2100123L)
-
-//
-// MessageId: TSPCLI_ERROR_UnsuccessfullResponse
-//
-// MessageText:
-//
-// TSA response is unsuccessfull
-//
-#define TSPCLI_ERROR_UnsuccessfullResponse _HRESULT_TYPEDEF_(0xC2100124L)
-
-// Define the facility codes
-//
-#define FACILITY_OCSPCLI                 0x211
-
-
-//
-// Define the severity codes
-//
-
-
-//
-// MessageId: OCSPCLI_ERROR_HTTP
-//
-// MessageText:
-//
-// HTTP error occurred during sending request
-//
-#define OCSPCLI_ERROR_HTTP               _HRESULT_TYPEDEF_(0xC2110100L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedAuthType
-//
-// MessageText:
-//
-// Specified authentication type prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedAuthType _HRESULT_TYPEDEF_(0xC2110101L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedProxyAuthType
-//
-// MessageText:
-//
-// Specified proxy authentication type prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedProxyAuthType _HRESULT_TYPEDEF_(0xC2110102L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedURL
-//
-// MessageText:
-//
-// Specified OCSP responder prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedURL    _HRESULT_TYPEDEF_(0xC2110103L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedExtension
-//
-// MessageText:
-//
-// Encountered extension (AcceptableTypes or Nonce) prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedExtension _HRESULT_TYPEDEF_(0xC2110104L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedSignedRequest
-//
-// MessageText:
-//
-// Signed OCSP requests prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedSignedRequest _HRESULT_TYPEDEF_(0xC2110110L)
-
-//
-// MessageId: OCSPCLI_ERROR_PolicyDeniedUnsignedRequest
-//
-// MessageText:
-//
-// Unsigned OCSP requests prohibited by group policy
-//
-#define OCSPCLI_ERROR_PolicyDeniedUnsignedRequest _HRESULT_TYPEDEF_(0xC2110111L)
-
-//
-// MessageId: OCSPCLI_ERROR_IncorrectNonce
-//
-// MessageText:
-//
-// The values of OCSP-request's and response's "Nonce" extensions are not equal.
-//
-#define OCSPCLI_ERROR_IncorrectNonce     _HRESULT_TYPEDEF_(0xC2110120L)
-
-//
-// MessageId: OCSPCLI_ERROR_AddressIsEmpty
-//
-// MessageText:
-//
-// The URL of OCSP service is not specified
-//
-#define OCSPCLI_ERROR_AddressIsEmpty     _HRESULT_TYPEDEF_(0xC2110121L)
-
-//
-// MessageId: OCSPCLI_ERROR_ExpiredResponse
-//
-// MessageText:
-//
-// OCSP-response is expired by ProducedAt or by NextUpdate
-//
-#define OCSPCLI_ERROR_ExpiredResponse    _HRESULT_TYPEDEF_(0xC2110122L)
-
-//
-// MessageId: OCSPCLI_ERROR_ExpiredThisUpdate
-//
-// MessageText:
-//
-// ThisUpdate value of single response is expired
-//
-#define OCSPCLI_ERROR_ExpiredThisUpdate  _HRESULT_TYPEDEF_(0xC2110123L)
-
-//
-// MessageId: OCSPCLI_ERROR_IncorrectNextUpdate
-//
-// MessageText:
-//
-// NextUpdate value of single response is less than ThisUpdate
-//
-#define OCSPCLI_ERROR_IncorrectNextUpdate _HRESULT_TYPEDEF_(0xC2110124L)
-
-//
-// MessageId: OCSPCLI_ERROR_ReqRespNotMatch
-//
-// MessageText:
-//
-// OCSP-response does not contain requested certificate status
-//
-#define OCSPCLI_ERROR_ReqRespNotMatch    _HRESULT_TYPEDEF_(0xC2110125L)
-
-//
-// MessageId: OCSPCLI_ERROR_CertStatusIsRevoked
-//
-// MessageText:
-//
-// Certificate is revoked
-//
-#define OCSPCLI_ERROR_CertStatusIsRevoked _HRESULT_TYPEDEF_(0xC2110126L)
-
-//
-// MessageId: OCSPCLI_ERROR_CertStatusIsUnknown
-//
-// MessageText:
-//
-// Certificate status is unknown
-//
-#define OCSPCLI_ERROR_CertStatusIsUnknown _HRESULT_TYPEDEF_(0xC2110127L)
-
-//
-// MessageId: OCSPCLI_ERROR_UnsuccessfullResponse
-//
-// MessageText:
-//
-// OCSP-response is unsuccessfull
-//
-#define OCSPCLI_ERROR_UnsuccessfullResponse _HRESULT_TYPEDEF_(0xC2110128L)
-
-//
-// MessageId: OCSPCLI_ERROR_ResponseWithUnallowedExtension
-//
-// MessageText:
-//
-// OCSP-response contains unallowed critical extension
-//
-#define OCSPCLI_ERROR_ResponseWithUnallowedExtension _HRESULT_TYPEDEF_(0xC2110129L)
 
 // WINHTTP Error statuses
 

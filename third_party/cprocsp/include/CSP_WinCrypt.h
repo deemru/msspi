@@ -229,13 +229,17 @@ typedef unsigned int ALG_ID;
 typedef ULONG_PTR HCRYPTPROV;
 typedef ULONG_PTR HCRYPTKEY;
 typedef ULONG_PTR HCRYPTHASH;
+typedef ULONG_PTR HCRYPTPROV_OR_NCRYPT_KEY_HANDLE;
+typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 
 /* dwFlags definitions for CryptAcquireContext*/
 #define CRYPT_VERIFYCONTEXT     0xF0000000
 #define CRYPT_NEWKEYSET         0x00000008
 #define CRYPT_DELETEKEYSET      0x00000010
 #define CRYPT_MACHINE_KEYSET    0x00000020
+#define NCRYPT_MACHINE_KEY_FLAG 0x00000020
 #define CRYPT_SILENT            0x00000040
+#define CRYPT_DEFAULT_CONTAINER_OPTIONAL 0x00000080
 
 /* dwFlag definitions for CryptGenKey*/
 #define CRYPT_EXPORTABLE        0x00000001
@@ -270,6 +274,11 @@ typedef ULONG_PTR HCRYPTHASH;
                                             /* CryptEncrypt and CryptDecrypt*/
 
 #define CRYPT_BLOB_VER3         0x00000080  /* export version 3 of a blob type*/
+
+// dwFlags definitions for CryptDecrypt
+//  See also CRYPT_OAEP, above.
+//  Note, the following flag is not supported for CryptEncrypt
+#define CRYPT_DECRYPT_RSA_NO_PADDING_CHECK      0x00000020
 
 /* dwFlags definitions for CryptCreateHash*/
 #define CRYPT_SECRETDIGEST      0x00000001
@@ -663,6 +672,11 @@ typedef ULONG_PTR HCRYPTHASH;
 #endif
 #define szOID_CERTSRV_CROSSCA_VERSION          "1.3.6.1.4.1.311.21.22"
 
+#define CERT_ENCODING_TYPE_MASK 0x0000ffff
+#define CMSG_ENCODING_TYPE_MASK 0xffff0000
+#define GET_CERT_ENCODING_TYPE(x) ((x) & CERT_ENCODING_TYPE_MASK)
+#define GET_CMSG_ENCODING_TYPE(x) ((x) & CMSG_ENCODING_TYPE_MASK)
+
 #define CRYPT_ASN_ENCODING          0x00000001
 #define CRYPT_NDR_ENCODING          0x00000002
 #define X509_ASN_ENCODING           0x00000001
@@ -943,6 +957,13 @@ CryptDecodeObject(
 #define X509_DH_PARAMETERS                  ((LPCSTR) 47)
 #define PKCS_ATTRIBUTES                     ((LPCSTR) 48)
 #define PKCS_SORTED_CTL                     ((LPCSTR) 49)
+
+//+-------------------------------------------------------------------------
+//  ECC Signature
+//--------------------------------------------------------------------------
+// Uses the same encode/decode function as X509_DH_PARAMETERS. Its data
+// structure is identical except for the names of the fields.
+#define X509_ECC_SIGNATURE                  ((LPCSTR) 47)
 
 //+-------------------------------------------------------------------------
 //  X942 Diffie-Hellman
@@ -1301,6 +1322,17 @@ typedef struct _CRYPT_ALGORITHM_IDENTIFIER {
 #define szOID_INFOSEC_mosaicKMandUpdSig     "2.16.840.1.101.2.1.1.20"
 #define szOID_INFOSEC_mosaicUpdatedInteg    "2.16.840.1.101.2.1.1.21"
 
+// NIST AES CBC Algorithms
+// joint-iso-itu-t(2) country(16) us(840) organization(1) gov(101) csor(3) nistAlgorithms(4)  aesAlgs(1) }
+#define szOID_NIST_AES128_CBC		    "2.16.840.1.101.3.4.1.2"
+#define szOID_NIST_AES192_CBC		    "2.16.840.1.101.3.4.1.22"
+#define szOID_NIST_AES256_CBC		    "2.16.840.1.101.3.4.1.42"
+
+// ECDH single pass ephemeral-static KeyAgreement KeyEncryptionAlgorithm
+#define szOID_DH_SINGLE_PASS_STDDH_SHA1_KDF   "1.3.133.16.840.63.0.2"
+#define szOID_DH_SINGLE_PASS_STDDH_SHA256_KDF "1.3.132.1.11.1"
+#define szOID_DH_SINGLE_PASS_STDDH_SHA384_KDF "1.3.132.1.11.2"
+
 // NIST Hash Algorithms
 // joint-iso-itu-t(2) country(16) us(840) organization(1) gov(101) csor(3) nistalgorithm(4) hashalgs(2)
 
@@ -1322,6 +1354,14 @@ typedef struct _CRYPT_ALGORITHM_IDENTIFIER {
 
 #define szOID_CERT_MANIFOLD             "1.3.6.1.4.1.311.20.3"
 
+
+//+-------------------------------------------------------------------------
+//  PKCS #1 HashInfo (DigestInfo)
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_HASH_INFO {
+    CRYPT_ALGORITHM_IDENTIFIER  HashAlgorithm;
+    CRYPT_HASH_BLOB             Hash;
+} CRYPT_HASH_INFO, *PCRYPT_HASH_INFO;
 
 //+-------------------------------------------------------------------------
 //  Type used for an extension to an encoded content
@@ -1453,6 +1493,8 @@ typedef struct _CERT_RDN_ATTR {
 #define szOID_PKCS_12_LOCAL_KEY_ID           "1.2.840.113549.1.9.21"
 #define szOID_PKCS_12_KEY_PROVIDER_NAME_ATTR "1.3.6.1.4.1.311.17.1"
 #define szOID_LOCAL_MACHINE_KEYSET                       "1.3.6.1.4.1.311.17.2"
+
+#define szOID_PKIX_NO_SIGNATURE         "1.3.6.1.5.5.7.6.2"
 
 //+-------------------------------------------------------------------------
 //  Microsoft CERT_RDN attribute Object Identifiers
@@ -1636,6 +1678,34 @@ typedef struct _CERT_POLICIES_INFO {
     CERT_POLICY_INFO            *rgPolicyInfo;
 } CERT_POLICIES_INFO, *PCERT_POLICIES_INFO;
 
+// X509_POLICY_CONSTRAINTS
+// szOID_POLICY_CONSTRAINTS
+// szOID_APPLICATION_POLICY_CONSTRAINTS
+typedef struct _CERT_POLICY_CONSTRAINTS_INFO {
+    BOOL  fRequireExplicitPolicy;
+    DWORD dwRequireExplicitPolicySkipCerts;
+    BOOL  fInhibitPolicyMapping;
+    DWORD dwInhibitPolicyMappingSkipCerts;
+} CERT_POLICY_CONSTRAINTS_INFO, *PCERT_POLICY_CONSTRAINTS_INFO;
+
+//+-------------------------------------------------------------------------
+//  X509_PKIX_POLICY_QUALIFIER_USERNOTICE
+//  szOID_PKIX_POLICY_QUALIFIER_USERNOTICE
+//
+//  pvStructInfo points to following CERT_POLICY_QUALIFIER_USER_NOTICE.
+//
+//--------------------------------------------------------------------------
+typedef struct _CERT_POLICY_QUALIFIER_NOTICE_REFERENCE {
+    LPSTR   pszOrganization;
+    DWORD   cNoticeNumbers;
+    int     *rgNoticeNumbers;
+} CERT_POLICY_QUALIFIER_NOTICE_REFERENCE, *PCERT_POLICY_QUALIFIER_NOTICE_REFERENCE;
+
+typedef struct _CERT_POLICY_QUALIFIER_USER_NOTICE {
+    CERT_POLICY_QUALIFIER_NOTICE_REFERENCE  *pNoticeReference;  // optional
+    LPWSTR                                  pszDisplayText;     // optional
+} CERT_POLICY_QUALIFIER_USER_NOTICE, *PCERT_POLICY_QUALIFIER_USER_NOTICE;
+
 // See CERT_KEY_ATTRIBUTES_INFO for definition of the RestrictedKeyUsage bits
 
 //+-------------------------------------------------------------------------
@@ -1728,6 +1798,16 @@ typedef struct _CRL_DIST_POINT {
 #define CRL_REASON_CESSATION_OF_OPERATION_FLAG  0x04
 #define CRL_REASON_CERTIFICATE_HOLD_FLAG        0x02
 
+/* CRL reason codes */
+#define CRL_REASON_UNSPECIFIED            0
+#define CRL_REASON_KEY_COMPROMISE         1
+#define CRL_REASON_CA_COMPROMISE          2
+#define CRL_REASON_AFFILIATION_CHANGED    3
+#define CRL_REASON_SUPERSEDED             4
+#define CRL_REASON_CESSATION_OF_OPERATION 5
+#define CRL_REASON_CERTIFICATE_HOLD       6
+#define CRL_REASON_REMOVE_FROM_CRL        8
+
 typedef struct _CRL_DIST_POINTS_INFO {
     DWORD                   cDistPoint;
     PCRL_DIST_POINT         rgDistPoint;
@@ -1759,6 +1839,19 @@ typedef struct _CERT_AUTHORITY_KEY_ID2_INFO {
                                                 // to 0 to omit.
     CRYPT_INTEGER_BLOB  AuthorityCertSerialNumber;
 } CERT_AUTHORITY_KEY_ID2_INFO, *PCERT_AUTHORITY_KEY_ID2_INFO;
+
+//+-------------------------------------------------------------------------
+//  X509_ECC_SIGNATURE
+//
+//  pvStructInfo points to following CERT_ECC_SIGNATURE data structure.
+//
+//  Note, identical to the above except for the names of the fields. Same
+//  underlying encode/decode functions are used.
+//--------------------------------------------------------------------------
+typedef struct _CERT_ECC_SIGNATURE {
+    CRYPT_UINT_BLOB     r;
+    CRYPT_UINT_BLOB     s;
+} CERT_ECC_SIGNATURE, *PCERT_ECC_SIGNATURE;
 
 //+-------------------------------------------------------------------------
 //  X509_SEQUENCE_OF_ANY data structure
@@ -2061,17 +2154,35 @@ typedef struct _CRYPT_TIME_STAMP_REQUEST_INFO {
 #define CERT_SUBJECT_NAME_MD5_HASH_PROP_ID  29
 #define CERT_EXTENDED_ERROR_INFO_PROP_ID    30
 
-#define CERT_CRL_ISSUER_PROP_ID		    35
+#define CERT_CRL_ISSUER_PROP_ID_LEGACY	    35
 
 // Note, 32 - 35 are reserved for the CERT, CRL, CTL and KeyId file element IDs.
 //       36 - 63 are reserved for future element IDs.
 
 #define CERT_RENEWAL_PROP_ID                64
 #define CERT_ARCHIVED_KEY_HASH_PROP_ID      65
-#define CERT_FIRST_RESERVED_PROP_ID         66
+
+
+#define CERT_OCSP_RESPONSE_PROP_ID          70
+#define CERT_REQUEST_ORIGINATOR_PROP_ID     71	// string:machine DNS name
+#define CERT_NCRYPT_KEY_HANDLE_PROP_ID      78
+#define CERT_HCRYPTPROV_OR_NCRYPT_KEY_HANDLE_PROP_ID   79
+
 #define CERT_CA_OCSP_AUTHORITY_INFO_ACCESS_PROP_ID 81
 
-#define CERT_LAST_RESERVED_PROP_ID          0x00007FFF
+#define CERT_SUBJECT_PUB_KEY_BIT_LENGTH_PROP_ID 92
+
+#define CERT_NO_EXPIRE_NOTIFICATION_PROP_ID 97
+
+#define CERT_NCRYPT_KEY_HANDLE_TRANSFER_PROP_ID 99
+#define CERT_HCRYPTPROV_TRANSFER_PROP_ID    100
+
+#define CERT_FIRST_RESERVED_PROP_ID            128
+
+#define CERT_CRL_ISSUER_PROP_ID		    32000
+#define CERT_KEY_PROV_INFO_PROP_ID_BLOB	    32001
+
+#define CERT_LAST_RESERVED_PROP_ID          0x00007FFF // 32767
 #define CERT_FIRST_USER_PROP_ID             0x00008000
 #define CERT_LAST_USER_PROP_ID              0x0000FFFF
 
@@ -2378,6 +2489,8 @@ CryptAcquireCertificatePrivateKey(
 #define CRYPT_ACQUIRE_COMPARE_KEY_FLAG          0x00000004
 
 #define CRYPT_ACQUIRE_SILENT_FLAG               0x00000040
+
+#define CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG      0x00040000
 
 //+=========================================================================
 //  Object IDentifier (OID) Information:  Data Structures and APIs
@@ -3515,6 +3628,111 @@ CertOpenSystemStoreW(
 #else
 #define CertOpenSystemStore CertOpenSystemStoreA
 #endif //UNICODE
+
+WINCRYPT32API
+BOOL
+WINAPI
+CertAddEncodedCertificateToSystemStoreA(
+    IN LPCSTR szCertStoreName,
+    IN const BYTE *pbCertEncoded,
+    IN DWORD cbCertEncoded
+    );
+
+WINCRYPT32API
+BOOL
+WINAPI
+CertAddEncodedCertificateToSystemStoreW(
+    IN LPCWSTR szCertStoreName,
+    IN const BYTE *pbCertEncoded,
+    IN DWORD cbCertEncoded
+    );
+
+#ifdef UNICODE
+#define CertAddEncodedCertificateToSystemStore CertAddEncodedCertificateToSystemStoreW
+#else
+#define CertAddEncodedCertificateToSystemStore CertAddEncodedCertificateToSystemStoreA
+#endif // !UNICODE
+
+//--------------------------------------------------------------------------
+
+WINCRYPT32API
+BOOL
+WINAPI
+CryptQueryObject(
+    IN DWORD dwObjectType,
+    IN const void *pvObject,
+    IN DWORD dwExpectedContentTypeFlags,
+    IN DWORD dwExpectedFormatTypeFlags,
+    IN DWORD dwFlags,
+    OUT DWORD *pdwMsgAndCertEncodingType,
+    OUT DWORD *pdwContentType,
+    OUT DWORD *pdwFormatType,
+    OUT HCERTSTORE *phCertStore,
+    OUT HCRYPTMSG *phMsg,
+    OUT const void **ppvContext
+    );
+
+/* CryptQueryObject types and flags */
+#define CERT_QUERY_OBJECT_FILE 1
+#define CERT_QUERY_OBJECT_BLOB 2
+
+#define CERT_QUERY_CONTENT_CERT               1
+#define CERT_QUERY_CONTENT_CTL                2
+#define CERT_QUERY_CONTENT_CRL                3
+#define CERT_QUERY_CONTENT_SERIALIZED_STORE   4
+#define CERT_QUERY_CONTENT_SERIALIZED_CERT    5
+#define CERT_QUERY_CONTENT_SERIALIZED_CTL     6
+#define CERT_QUERY_CONTENT_SERIALIZED_CRL     7
+#define CERT_QUERY_CONTENT_PKCS7_SIGNED       8
+#define CERT_QUERY_CONTENT_PKCS7_UNSIGNED     9
+#define CERT_QUERY_CONTENT_PKCS7_SIGNED_EMBED 10
+#define CERT_QUERY_CONTENT_PKCS10             11
+#define CERT_QUERY_CONTENT_PFX                12
+#define CERT_QUERY_CONTENT_CERT_PAIR          13
+#define CERT_QUERY_CONTENT_PFX_AND_LOAD       14
+
+#define CERT_QUERY_CONTENT_FLAG_CERT               (1 << CERT_QUERY_CONTENT_CERT)
+#define CERT_QUERY_CONTENT_FLAG_CTL                (1 << CERT_QUERY_CONTENT_CTL)
+#define CERT_QUERY_CONTENT_FLAG_CRL                (1 << CERT_QUERY_CONTENT_CRL)
+#define CERT_QUERY_CONTENT_FLAG_SERIALIZED_STORE   (1 << CERT_QUERY_CONTENT_SERIALIZED_STORE)
+#define CERT_QUERY_CONTENT_FLAG_SERIALIZED_CERT    (1 << CERT_QUERY_CONTENT_SERIALIZED_CERT)
+#define CERT_QUERY_CONTENT_FLAG_SERIALIZED_CTL     (1 << CERT_QUERY_CONTENT_SERIALIZED_CTL)
+#define CERT_QUERY_CONTENT_FLAG_SERIALIZED_CRL     (1 << CERT_QUERY_CONTENT_SERIALIZED_CRL)
+#define CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED       (1 << CERT_QUERY_CONTENT_PKCS7_SIGNED)
+#define CERT_QUERY_CONTENT_FLAG_PKCS7_UNSIGNED     (1 << CERT_QUERY_CONTENT_PKCS7_UNSIGNED)
+#define CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED (1 << CERT_QUERY_CONTENT_PKCS7_SIGNED_EMBED)
+#define CERT_QUERY_CONTENT_FLAG_PKCS10             (1 << CERT_QUERY_CONTENT_PKCS10)
+#define CERT_QUERY_CONTENT_FLAG_PFX                (1 << CERT_QUERY_CONTENT_PFX)
+#define CERT_QUERY_CONTENT_FLAG_CERT_PAIR          (1 << CERT_QUERY_CONTENT_CERT_PAIR)
+#define CERT_QUERY_CONTENT_FLAG_PFX_AND_LOAD       (1 << CERT_QUERY_CONTENT_PFX_AND_LOAD)
+
+#define CERT_QUERY_CONTENT_FLAG_ALL \
+    (CERT_QUERY_CONTENT_FLAG_CERT | \
+     CERT_QUERY_CONTENT_FLAG_CTL | \
+     CERT_QUERY_CONTENT_FLAG_CRL | \
+     CERT_QUERY_CONTENT_FLAG_SERIALIZED_STORE | \
+     CERT_QUERY_CONTENT_FLAG_SERIALIZED_CERT | \
+     CERT_QUERY_CONTENT_FLAG_SERIALIZED_CTL | \
+     CERT_QUERY_CONTENT_FLAG_SERIALIZED_CRL | \
+     CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED | \
+     CERT_QUERY_CONTENT_FLAG_PKCS7_UNSIGNED | \
+     CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED | \
+     CERT_QUERY_CONTENT_FLAG_PKCS10 | \
+     CERT_QUERY_CONTENT_FLAG_PFX | \
+     CERT_QUERY_CONTENT_FLAG_CERT_PAIR)
+
+#define CERT_QUERY_FORMAT_BINARY                1
+#define CERT_QUERY_FORMAT_BASE64_ENCODED        2
+#define CERT_QUERY_FORMAT_ASN_ASCII_HEX_ENCODED 3
+
+#define CERT_QUERY_FORMAT_FLAG_BINARY                (1 << CERT_QUERY_FORMAT_BINARY)
+#define CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED        (1 << CERT_QUERY_FORMAT_BASE64_ENCODED)
+#define CERT_QUERY_FORMAT_FLAG_ASN_ASCII_HEX_ENCODED (1 << CERT_QUERY_FORMAT_ASN_ASCII_HEX_ENCODED)
+
+#define CERT_QUERY_FORMAT_FLAG_ALL \
+    (CERT_QUERY_FORMAT_FLAG_BINARY | \
+     CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED | \
+     CERT_QUERY_FORMAT_FLAG_ASN_ASCII_HEX_ENCODED)
 
 //+-------------------------------------------------------------------------
 //  OID Installable Certificate Store Provider Data Structures
@@ -6122,12 +6340,10 @@ typedef struct _CERT_PHYSICAL_STORE_INFO {
 //+-------------------------------------------------------------------------
 //  Physical Store Information dwFlags
 //--------------------------------------------------------------------------
-#if defined WIN32
 #define CERT_PHYSICAL_STORE_ADD_ENABLE_FLAG                     0x1
 #define CERT_PHYSICAL_STORE_OPEN_DISABLE_FLAG                   0x2
 #define CERT_PHYSICAL_STORE_REMOTE_OPEN_DISABLE_FLAG            0x4
 #define CERT_PHYSICAL_STORE_INSERT_COMPUTER_NAME_ENABLE_FLAG    0x8
-#endif	/* WIN32 */
 
 //+-------------------------------------------------------------------------
 //  Register a system store.
@@ -6265,14 +6481,12 @@ CertUnregisterPhysicalStore(
 //  ServiceName prefixes where appropriate.
 //--------------------------------------------------------------------------
 
-#if defined WIN32
 typedef BOOL (WINAPI *PFN_CERT_ENUM_SYSTEM_STORE_LOCATION)(
     IN LPCWSTR pwszStoreLocation,
     IN DWORD dwFlags,
     IN OPTIONAL void *pvReserved,
     IN OPTIONAL void *pvArg
     );
-#endif /* WIN32 */
 
 typedef BOOL (WINAPI *PFN_CERT_ENUM_SYSTEM_STORE)(
     IN const void *pvSystemStore,
@@ -6311,7 +6525,6 @@ typedef BOOL (WINAPI *PFN_CERT_ENUM_PHYSICAL_STORE)(
 //+-------------------------------------------------------------------------
 //  Enumerate the system store locations.
 //--------------------------------------------------------------------------
-#if defined WIN32
 WINCRYPT32API
 BOOL
 WINAPI
@@ -6320,7 +6533,6 @@ CertEnumSystemStoreLocation(
     IN void *pvArg,
     IN PFN_CERT_ENUM_SYSTEM_STORE_LOCATION pfnEnum
     );
-#endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
 //  Enumerate the system stores.
@@ -6755,6 +6967,13 @@ typedef struct _CERT_REVOCATION_STATUS {
 //  retrievals.
 //--------------------------------------------------------------------------
 #define CERT_VERIFY_REV_ACCUMULATIVE_TIMEOUT_FLAG   0x00000004
+
+//+-------------------------------------------------------------------------
+//  When the following flag is set, only OCSP responses are used for
+//  doing revocation checking. If the certificate doesn't have any
+//  OCSP AIA URLs, dwError is set to CRYPT_E_NOT_IN_REVOCATION_DATABASE.
+//--------------------------------------------------------------------------
+#define CERT_VERIFY_REV_SERVER_OCSP_FLAG            0x00000008
 
 
 //+-------------------------------------------------------------------------
@@ -7900,14 +8119,6 @@ CertStrToNameW(
 #define CertStrToName  CertStrToNameA
 #endif // !UNICODE
 
-#define CERT_STORE_ALL_CONTEXT_FLAG             (~0UL)
-#define CERT_STORE_CERTIFICATE_CONTEXT_FLAG     \
-                (1 << CERT_STORE_CERTIFICATE_CONTEXT)
-#define CERT_STORE_CRL_CONTEXT_FLAG             \
-                (1 << CERT_STORE_CRL_CONTEXT)
-#define CERT_STORE_CTL_CONTEXT_FLAG             \
-                (1 << CERT_STORE_CTL_CONTEXT)
-//-------------------------------------------------------------------------
 //-------------------------------------------------------------------------
 WINCRYPT32API
 PCERT_RDN_ATTR
@@ -7915,7 +8126,25 @@ WINAPI
 CertFindRDNAttr(
     IN LPCSTR pszObjId,
     IN PCERT_NAME_INFO pName);
+
+//+------------------------------------------------------------------------
+//  Compute the hash of the encoded public key info.
+//
+//  The public key info is encoded and then hashed.
 //-------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptHashPublicKeyInfo(
+    IN HCRYPTPROV hCryptProv,
+    IN ALG_ID Algid,
+    IN DWORD dwFlags,
+    IN DWORD dwCertEncodingType,
+    IN PCERT_PUBLIC_KEY_INFO pInfo,
+    OUT BYTE *pbComputedHash,
+    IN OUT DWORD *pcbComputedHash
+    );
+
 //-------------------------------------------------------------------------
 WINCRYPT32API
 DWORD
@@ -8087,6 +8316,8 @@ CryptVerifyCertificateSignatureEx(
     // pvIssuer :: PCCERT_CHAIN_CONTEXT
 #define CRYPT_VERIFY_CERT_SIGN_ISSUER_NULL          4
     // pvIssuer :: NULL
+
+#define CRYPT_VERIFY_CERT_SIGN_DISABLE_MD2_MD4_FLAG     0x00000001
 
 //+-------------------------------------------------------------------------
 //  Compute the hash of the "to be signed" information in the encoded
@@ -8829,6 +9060,64 @@ CryptRetrieveObjectByUrlW (
 #else
 #define CryptRetrieveObjectByUrl  CryptRetrieveObjectByUrlA
 #endif // !UNICODE
+
+// The following are REG_DWORD's. These configuration parameters are
+// used by the following APIs to get a non-blocking, time valid OCSP
+// response for a server certificate chain:
+//   CertOpenServerOcspResponse
+//   CertAddRefServerOcspResponse
+//   CertCloseServerOcspResponse
+//   CertGetServerOcspResponseContext
+//   CertAddRefServerOcspResponseContext
+//   CertFreeServerOcspResponseContext
+
+// This is the minimum validity of the server OCSP response to be
+// returned by CertGetServerOcspResponseContext(). Since this OCSP
+// response will be returned to the client, it must be sufficiently long
+// so that the client will treat it as being time valid.
+#define CERT_SRV_OCSP_RESP_MIN_VALIDITY_SECONDS_VALUE_NAME \
+    L"SrvOcspRespMinValiditySeconds"
+// 10 minutes
+#define CERT_SRV_OCSP_RESP_MIN_VALIDITY_SECONDS_DEFAULT \
+    (10 * 60)
+
+// This is the maximum number of milliseconds for each server OCSP response
+// pre-fetch wire URL retrieval.
+#define CERT_SRV_OCSP_RESP_URL_RETRIEVAL_TIMEOUT_MILLISECONDS_VALUE_NAME \
+    L"SrvOcspRespUrlRetrievalTimeoutMilliseconds"
+// 15 seconds
+#define CERT_SRV_OCSP_RESP_URL_RETRIEVAL_TIMEOUT_MILLISECONDS_DEFAULT \
+    (15 * 1000)
+
+// This is the maximum number of seconds to do a server OCSP response
+// pre-fetch retrieval before the OCSP response's NextUpdate. The
+// server OCSP response pre-fetch thread will wait until CurrentTime >=
+// NextUpdate - MaxBeforeNextUpdateSeconds before doing the next retrieval.
+#define CERT_SRV_OCSP_RESP_MAX_BEFORE_NEXT_UPDATE_SECONDS_VALUE_NAME \
+    L"SrvOcspRespMaxBeforeNextUpdateSeconds"
+// 4 hours
+#define CERT_SRV_OCSP_RESP_MAX_BEFORE_NEXT_UPDATE_SECONDS_DEFAULT \
+    (4 * 60 * 60)
+
+// This is the minimum number of seconds to do a server OCSP response
+// pre-fetch retrieval before the OCSP response's NextUpdate.
+// If CurrentTime >= NextUpdate - MinBeforeNextUpdateSeconds, will wait until
+// after NextUpdate + MinAfterNextUpdateSeconds.
+#define CERT_SRV_OCSP_RESP_MIN_BEFORE_NEXT_UPDATE_SECONDS_VALUE_NAME \
+    L"SrvOcspRespMinBeforeNextUpdateSeconds"
+// 2 minutes
+#define CERT_SRV_OCSP_RESP_MIN_BEFORE_NEXT_UPDATE_SECONDS_DEFAULT \
+    (2 * 60)
+
+// This is the minimum number of seconds to do a server OCSP response
+// pre-fetch retrieval after the OCSP response's NextUpdate when
+// (NextUpdate - MinBeforeNextUpdateSeconds) < CurrentTime < NextUpdate.
+#define CERT_SRV_OCSP_RESP_MIN_AFTER_NEXT_UPDATE_SECONDS_VALUE_NAME\
+    L"SrvOcspRespMinAfterNextUpdateSeconds"
+// 1 minute
+#define CERT_SRV_OCSP_RESP_MIN_AFTER_NEXT_UPDATE_SECONDS_DEFAULT \
+    (1 * 60)
+
 
 //+=========================================================================
 //  Low Level Cryptographic Message Data Structures and APIs
@@ -11126,6 +11415,11 @@ typedef struct _CRYPT_KEY_VERIFY_MESSAGE_PARA {
     HCRYPTPROV              hCryptProv;
 } CRYPT_KEY_VERIFY_MESSAGE_PARA, *PCRYPT_KEY_VERIFY_MESSAGE_PARA;
 
+#define CRYPT_GET_URL_FROM_PROPERTY         0x00000001
+#define CRYPT_GET_URL_FROM_EXTENSION        0x00000002
+#define CRYPT_GET_URL_FROM_UNAUTH_ATTRIBUTE 0x00000004
+#define CRYPT_GET_URL_FROM_AUTH_ATTRIBUTE   0x00000008
+
 typedef struct _CRYPT_URL_ARRAY {
     DWORD   cUrl;
     LPWSTR *rgwszUrl;
@@ -11425,6 +11719,14 @@ CryptBinaryToStringW(
 #define CryptBinaryToString  CryptBinaryToStringA
 #endif // !UNICODE
 
+#define szOID_PKCS_12_PbeIds                        "1.2.840.113549.1.12.1"
+#define szOID_PKCS_12_pbeWithSHA1And128BitRC4       "1.2.840.113549.1.12.1.1"
+#define szOID_PKCS_12_pbeWithSHA1And40BitRC4        "1.2.840.113549.1.12.1.2"
+#define szOID_PKCS_12_pbeWithSHA1And3KeyTripleDES   "1.2.840.113549.1.12.1.3"
+#define szOID_PKCS_12_pbeWithSHA1And2KeyTripleDES   "1.2.840.113549.1.12.1.4"
+#define szOID_PKCS_12_pbeWithSHA1And128BitRC2       "1.2.840.113549.1.12.1.5"
+#define szOID_PKCS_12_pbeWithSHA1And40BitRC2        "1.2.840.113549.1.12.1.6"
+
 //+-------------------------------------------------------------------------
 // Imports a PFX BLOB and returns the handle of a store that contains
 //   certificates and any associated private keys.
@@ -11440,27 +11742,107 @@ HCERTSTORE
 WINAPI
 PFXImportCertStore(
     IN     CRYPT_DATA_BLOB *pPFX, 
-    IN     LPCTSTR         szPassword, 
+    IN     LPCWSTR         szPassword,
     IN     DWORD           dwFlags
     );
 
+// dwFlags definitions for PFXImportCertStore
+//#define CRYPT_EXPORTABLE          0x00000001  // CryptImportKey dwFlags
+//#define CRYPT_USER_PROTECTED      0x00000002  // CryptImportKey dwFlags
+//#define CRYPT_MACHINE_KEYSET      0x00000020  // CryptAcquireContext dwFlags
+//#define PKCS12_INCLUDE_EXTENDED_PROPERTIES 0x10
+#define CRYPT_USER_KEYSET           0x00001000
+#define PKCS12_ALLOW_OVERWRITE_KEY  0x00004000  // allow overwrite existing key
+#define PKCS12_NO_PERSIST_KEY       0x00008000  // key will not be persisted
+
 //+-------------------------------------------------------------------------
-// Exports the certificates and, if available, the associated private keys 
-// from the referenced certificate store.
-// hStore [in] Handle of the certificate store with the certificates to be exported.
-// pPFX [in, out] A pointer to a CRYPT_DATA_BLOB structure to contain 
-//   the PFX packet with the exported certificates and keys.
-// szPassword [in] String password used to encrypt and verify the PFX packet.
-// dwFlags [in] Flags
-// Returns TRUE if the function succeeds, and FALSE if the function fails.
+//      PFXIsPFXBlob
+//
+//  This function will try to decode the outer layer of the blob as a pfx 
+//  blob, and if that works it will return TRUE, it will return FALSE otherwise
+//
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXIsPFXBlob(
+    IN CRYPT_DATA_BLOB *pPFX);
+
+//+-------------------------------------------------------------------------
+//      PFXVerifyPassword
+//
+//  This function will attempt to decode the outer layer of the blob as a pfx 
+//  blob and decrypt with the given password. No data from the blob will be
+//  imported.
+//
+//  Return value is TRUE if password appears correct, FALSE otherwise.
+//
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXVerifyPassword(
+    IN CRYPT_DATA_BLOB *pPFX,
+    IN LPCWSTR szPassword,
+    IN DWORD dwFlags);
+
+//+-------------------------------------------------------------------------
+//      PFXExportCertStoreEx
+//
+//  Export the certificates and private keys referenced in the passed-in store
+//
+//  This API encodes the blob under a stronger algorithm. The resulting
+//  PKCS12 blobs are incompatible with the earlier PFXExportCertStore API.
+//
+//  The value passed in the password parameter will be used to encrypt and
+//  verify the integrity of the PFX packet. If any problems encoding the store
+//  are encountered, the function will return FALSE and the error code can
+//  be found from GetLastError().
+//
+//  The dwFlags parameter may be set to any combination of
+//      EXPORT_PRIVATE_KEYS
+//      REPORT_NO_PRIVATE_KEY
+//      REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY
+//      PKCS12_INCLUDE_EXTENDED_PROPERTIES
+//
+//  The encoded PFX blob is returned in *pPFX. If pPFX->pbData is NULL upon
+//  input, this is a length only calculation, whereby, pPFX->cbData is updated
+//  with the number of bytes required for the encoded blob. Otherwise,
+//  the memory pointed to by pPFX->pbData is updated with the encoded bytes
+//  and pPFX->cbData is updated with the encoded byte length.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXExportCertStoreEx(
+    IN     HCERTSTORE      hStore,
+    IN OUT CRYPT_DATA_BLOB *pPFX,
+    IN     LPCWSTR         szPassword,
+    IN     void            *pvReserved,
+    IN     DWORD           dwFlags
+    );
+
+// dwFlags definitions for PFXExportCertStoreEx
+#define REPORT_NO_PRIVATE_KEY                   0x0001
+#define REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY   0x0002
+#define EXPORT_PRIVATE_KEYS                     0x0004
+#define PKCS12_INCLUDE_EXTENDED_PROPERTIES      0x0010
+
+//+-------------------------------------------------------------------------
+//      PFXExportCertStore
+//
+//  Export the certificates and private keys referenced in the passed-in store
+//
+//  This is an old API kept for compatibility with IE4 clients. New applications
+//  should call the above PfxExportCertStoreEx for enhanced security.
 //--------------------------------------------------------------------------
 WINCRYPT32API
 BOOL
 WINAPI
 PFXExportCertStore(
     IN     HCERTSTORE      hStore,
-    IN OUT CRYPT_DATA_BLOB *pPFX, 
-    IN     LPCTSTR         szPassword, 
+    IN OUT CRYPT_DATA_BLOB *pPFX,
+    IN     LPCWSTR         szPassword,
     IN     DWORD           dwFlags
     );
 
@@ -11543,6 +11925,9 @@ HCRYPTPROV   CPCAPI_I_CryptGetDefaultCryptProvForEncrypt(
 #endif //UNICODE
 #define PROV_RSA_AES              24
 #define PROV_DSS                  3
+#define PROV_EC_ECDSA_FULL      16
+#define PROV_DSS_DH             13
+#define PROV_RSA_SCHANNEL	12
 typedef struct _DSSSEED {
     DWORD   counter;
     BYTE    seed[20];
@@ -11550,6 +11935,141 @@ typedef struct _DSSSEED {
 #define CALG_AES_128              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_128) 
 #define CALG_AES_192              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_192) 
 #define CALG_AES_256              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_256)
+
+//+=========================================================================
+//  APIs to get a non-blocking, time valid OCSP response for
+//  a server certificate chain.
+//
+//  Normally, this OCSP response will be included along with the server
+//  certificate in a message returned to the client. As a result only the
+//  server should need to contact the OCSP responser for its certificate.
+//==========================================================================
+
+//+-------------------------------------------------------------------------
+//  Server OCSP response handle.
+//--------------------------------------------------------------------------
+typedef VOID *HCERT_SERVER_OCSP_RESPONSE;
+
+//+-------------------------------------------------------------------------
+//  Open a handle to an OCSP response associated with a server certificate
+//  chain. If the end certificate doesn't have an OCSP AIA URL, NULL is
+//  returned with LastError set to CRYPT_E_NOT_IN_REVOCATION_DATABASE. NULL
+//  will also be returned if unable to allocate memory or create system
+//  objects.
+//
+//  This API will try to retrieve an initial OCSP response before returning.
+//  This API will block during the retrieval. If unable to successfully
+//  retrieve the first OCSP response, a non-NULL handle will still be returned
+//  if not one of the error cases mentioned above.
+//
+//  A background thread is created that will pre-fetch time valid
+//  OCSP responses.
+//
+//  The input chain context will be AddRef'ed and not freed until
+//  the returned handle is closed.
+//
+//  CertCloseServerOcspResponse() must be called to close the returned
+//  handle.
+//
+//  dwFlags and pvReserved aren't currently used and must be set to 0
+//  and NULL.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+HCERT_SERVER_OCSP_RESPONSE
+WINAPI
+CertOpenServerOcspResponse(
+    PCCERT_CHAIN_CONTEXT pChainContext,
+    DWORD dwFlags,
+    LPVOID pvReserved
+    );
+
+//TODO
+//+-------------------------------------------------------------------------
+//  AddRef a HCERT_SERVER_OCSP_RESPONSE returned by
+//  CertOpenServerOcspResponse(). Each Open and AddRef requires a
+//  corresponding CertCloseServerOcspResponse().
+//--------------------------------------------------------------------------
+//WINCRYPT32API
+//VOID
+//WINAPI
+//CertAddRefServerOcspResponse(
+//    HCERT_SERVER_OCSP_RESPONSE hServerOcspResponse
+//    );
+
+//+-------------------------------------------------------------------------
+//  Close the handle returned by CertOpenServerOcspResponse() or AddRef'ed
+//  by CertAddRefServerOcspResponse().
+//
+//  dwFlags isn't currently used and must be set to 0.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+VOID
+WINAPI
+CertCloseServerOcspResponse(
+    HCERT_SERVER_OCSP_RESPONSE hServerOcspResponse,
+    DWORD dwFlags
+    );
+
+
+//+-------------------------------------------------------------------------
+//  Server OCSP response context.
+//--------------------------------------------------------------------------
+typedef struct _CERT_SERVER_OCSP_RESPONSE_CONTEXT
+    CERT_SERVER_OCSP_RESPONSE_CONTEXT,
+    *PCERT_SERVER_OCSP_RESPONSE_CONTEXT;
+typedef const CERT_SERVER_OCSP_RESPONSE_CONTEXT
+    *PCCERT_SERVER_OCSP_RESPONSE_CONTEXT;
+
+struct _CERT_SERVER_OCSP_RESPONSE_CONTEXT {
+    DWORD       cbSize;
+    BYTE        *pbEncodedOcspResponse;
+    DWORD       cbEncodedOcspResponse;
+};
+
+//+-------------------------------------------------------------------------
+//  Get a time valid OCSP response context for the handle created for
+//  the server certificate chain.
+//
+//  This API won't block to retrieve the OCSP response. It will return
+//  the current pre-fetched OCSP response. If a time valid OCSP response
+//  isn't available, NULL will be returned with LAST_ERROR set to
+//  CRYPT_E_REVOCATION_OFFLINE.
+//
+//  CertFreeServerOcspResponseContext() must be called to free the
+//  returned OCSP response context.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+PCCERT_SERVER_OCSP_RESPONSE_CONTEXT
+WINAPI
+CertGetServerOcspResponseContext(
+    HCERT_SERVER_OCSP_RESPONSE hServerOcspResponse,
+    DWORD dwFlags,
+    LPVOID pvReserved
+    );
+
+//TODO
+//+-------------------------------------------------------------------------
+//  AddRef a PCCERT_SERVER_OCSP_RESPONSE_CONTEXT returned by
+//  CertGetServerOcspResponseContext(). Each Get and AddRef requires a
+//  corresponding CertFreeServerOcspResponseContext().
+//--------------------------------------------------------------------------
+//WINCRYPT32API
+//VOID
+//WINAPI
+//CertAddRefServerOcspResponseContext(
+//    PCCERT_SERVER_OCSP_RESPONSE_CONTEXT pServerOcspResponseContext
+//    );
+
+//+-------------------------------------------------------------------------
+//  Free the OCSP response context returned by
+//  CertGetServerOcspResponseContext().
+//--------------------------------------------------------------------------
+WINCRYPT32API
+VOID
+WINAPI
+CertFreeServerOcspResponseContext(
+    PCCERT_SERVER_OCSP_RESPONSE_CONTEXT pServerOcspResponseContext
+    );
 
 #ifdef __cplusplus
 }
