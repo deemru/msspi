@@ -55,10 +55,11 @@ extern "C" {
 #include <schannel.h>
 #include <sspi.h>
 #else
-#   include "CSP_WinDef.h"
-#   include "CSP_WinCrypt.h"
-#   include "CSP_Sspi.h"
-#   include "CSP_SChannel.h"
+#define LEGACY_FORMAT_MESSAGE_IMPL
+#include "CSP_WinDef.h"
+#include "CSP_WinCrypt.h"
+#include "CSP_Sspi.h"
+#include "CSP_SChannel.h"
 #include <dlfcn.h>
 #include <sys/time.h>
 
