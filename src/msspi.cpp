@@ -415,6 +415,7 @@ struct MSSPI
         cert_cb = NULL;
         certstore = "MY";
         peercert = NULL;
+        grbitEnabledProtocols = 0;
     }
 
     ~MSSPI()
@@ -451,18 +452,21 @@ struct MSSPI
     std::string hostname;
     std::string cachestring;
     std::string alpn;
+    DWORD grbitEnabledProtocols;
+    std::vector<ALG_ID> ciphers;
     SecPkgContext_CipherInfo cipherinfo;
     PCCERT_CONTEXT peercert;
     std::string peercert_subject;
     std::string peercert_issuer;
     std::vector<std::string> peercerts;
+    std::vector<std::string> peerchain;
     std::vector<std::string> issuerlist;
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
     std::vector<PCCERT_CONTEXT> certs;
     std::string certstore;
-    std::string cred_record;
+    std::string credstring;
 
     int in_len;
     int dec_len;
@@ -493,7 +497,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
     ZeroMemory( &SchannelCred, sizeof( SchannelCred ) );
 
     SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-    SchannelCred.grbitEnabledProtocols = 0;
+    SchannelCred.grbitEnabledProtocols = h->grbitEnabledProtocols;
     if( h->is.client )
     {
         usage = SECPKG_CRED_OUTBOUND;
@@ -511,6 +515,12 @@ static char credentials_acquire( MSSPI_HANDLE h )
     {
         SchannelCred.cCreds = (DWORD)h->certs.size();
         SchannelCred.paCred = &h->certs[0];
+    }
+
+    if( h->ciphers.size() )
+    {
+        SchannelCred.cSupportedAlgs = (DWORD)h->ciphers.size();
+        SchannelCred.palgSupportedAlgs = &h->ciphers[0];
     }
 
     SECURITY_STATUS scRet;
@@ -538,16 +548,34 @@ static void credentials_release( MSSPI_HANDLE h )
     h->cred = NULL;
 }
 
+static std::string credstring( MSSPI_HANDLE h )
+{
+    std::string credstring;
+    credstring = h->hostname.length() ? h->hostname : "**";
+    credstring += "::";
+    credstring += std::to_string( h->is.peerauth );
+    credstring += "::";
+    credstring += std::to_string( h->grbitEnabledProtocols );
+    credstring += "::";
+    if( h->ciphers.size() )
+    {
+        for( size_t i = 0; i < h->ciphers.size(); i++ )
+            credstring += std::to_string( h->ciphers[i] ) + ":";
+        credstring += ":";
+    }
+    else
+        credstring += "**::";
+    credstring += h->cachestring.length() ? h->cachestring : "**";
+    return credstring;
+}
+
 static char credentials_api( MSSPI_HANDLE h, bool just_find )
 {
     CREDENTIALS_DB::iterator it;
     DWORD dwNow = GetTickCount();
 
-    if( h->cred_record.length() == 0 )
-    {
-        h->cred_record = h->hostname.length() ? h->hostname + "::" : "**::";
-        h->cred_record += h->cachestring.length() ? h->cachestring : "**";
-    }
+    if( h->credstring.length() == 0 )
+        h->credstring = credstring( h );
 
     UNIQUE_LOCK( g_mtx );
 
@@ -569,7 +597,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
     }
 
     // credentials_db for records with certs only
-    it = credentials_db.find( h->cred_record );
+    it = credentials_db.find( h->credstring );
 
     // dereference or ping found
     if( it != credentials_db.end() )
@@ -588,7 +616,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
     {
         if( credentials_acquire( h ) )
         {
-            credentials_db.insert( it, CREDENTIALS_DB::value_type( h->cred_record, h->cred ) );
+            credentials_db.insert( it, CREDENTIALS_DB::value_type( h->credstring, h->cred ) );
             return 1;
         }
     }
@@ -1575,6 +1603,65 @@ void msspi_set_client( MSSPI_HANDLE h )
     MSSPIEHCATCH_0;
 }
 
+void msspi_set_version( MSSPI_HANDLE h, int min, int max )
+{
+    MSSPIEHTRY;
+
+    h->grbitEnabledProtocols = 0;
+
+    if( ( !min || min <= TLS1_VERSION ) && ( !max || TLS1_VERSION <= max ) )
+        h->grbitEnabledProtocols |= SP_PROT_TLS1;
+    if( ( !min || min <= TLS1_1_VERSION ) && ( !max || TLS1_1_VERSION <= max ) )
+        h->grbitEnabledProtocols |= SP_PROT_TLS1_1;
+    if( ( !min || min <= TLS1_2_VERSION ) && ( !max || TLS1_2_VERSION <= max ) )
+        h->grbitEnabledProtocols |= SP_PROT_TLS1_2;
+
+    MSSPIEHCATCH_0;
+}
+
+#ifndef ALG_TYPE_CIPHER_SUITE
+#define ALG_TYPE_CIPHER_SUITE (15 << 9)
+#endif
+
+void msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
+{
+    MSSPIEHTRY;
+
+    h->ciphers.clear();
+
+    char c;
+    ALG_ID cipher = 0;
+
+    while( 0 != ( c = *cipherlist++ ) )
+    {
+        if( !c )
+            break;
+
+        if( C2B_IS_SKIP( c ) )
+        {
+            if( cipher )
+            {
+                h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | cipher );
+                cipher = 0;
+            }
+
+            continue;
+        }
+
+        c = C2B_VALUE( c );
+
+        if( c == -1 )
+            break;
+
+        cipher = ( cipher << 4 ) | c;
+    }
+
+    if( cipher )
+        h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | cipher );
+
+    MSSPIEHCATCH_0;
+}
+
 #ifndef _UN
 #ifdef _WIN32
 #define _UN
@@ -1726,31 +1813,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 {
     MSSPIEHTRY;
 
-    HCERTSTORE hStore = 0;
-    PCCERT_CONTEXT certfound = NULL;
     PCCERT_CONTEXT certprobe = NULL;
-    bool is_append = can_append && h->cred_record.length() != 0;
-    std::string saved_cred_record;
-
-    if( is_append )
-    {
-        saved_cred_record = h->cred_record;
-    }
-    else
-    {
-        h->cred_record = h->hostname.length() ? h->hostname + "::" : "**::";
-        h->cred_record += h->cachestring.length() ? h->cachestring : "**";
-    }
-
-    h->cred_record += "::cert::";
-
-    if( len )
-        h->cred_record.append( clientCert, (unsigned)len );
-    else
-        h->cred_record.append( clientCert );
-
-    if( credentials_api( h, true ) )
-        return 1;
 
     if( len )
     {
@@ -1770,10 +1833,27 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
     }
 
     if( len && !certprobe )
-    {
-        h->cred_record = saved_cred_record;
         return 0;
-    }
+
+    HCERTSTORE hStore = 0;
+    PCCERT_CONTEXT certfound = NULL;
+    bool is_append = can_append && h->credstring.length() != 0;
+    std::string saved_credstring;
+
+    if( is_append )
+        saved_credstring = h->credstring;
+    else
+        h->credstring = credstring( h );
+
+    h->credstring += "::cert::";
+
+    if( len )
+        h->credstring.append( clientCert, (unsigned)len );
+    else
+        h->credstring.append( clientCert );
+
+    if( credentials_api( h, true ) )
+        return 1;
 
     DWORD dwStoreFlags[2] = {
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
@@ -1896,7 +1976,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 
     }
 
-    h->cred_record = saved_cred_record;
+    h->credstring = saved_credstring;
     return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
@@ -2097,6 +2177,72 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     {
         bufs[i] = h->peercerts[i].data();
         lens[i] = (int)h->peercerts[i].size();
+    }
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int * lens, size_t * count )
+{
+    MSSPIEHTRY;
+
+    if( !h->peerchain.size() )
+    {
+        if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+            return 0;
+
+        PCCERT_CHAIN_CONTEXT PeerChain;
+        CERT_CHAIN_PARA ChainPara;
+        memset( &ChainPara, 0, sizeof( ChainPara ) );
+        ChainPara.cbSize = sizeof( ChainPara );
+
+        if( CertGetCertificateChain(
+            NULL,
+            h->peercert,
+            NULL,
+            h->peercert->hCertStore,
+            &ChainPara,
+            CERT_CHAIN_CACHE_END_CERT | ( online ? 0 : CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL ),
+            NULL,
+            &PeerChain ) )
+        {
+            if( PeerChain->cChain > 0 )
+                for( DWORD i = 0; i < PeerChain->rgpChain[0]->cElement; i++ )
+                {
+                    PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[i]->pCertContext;
+                    h->peerchain.push_back( std::string( (char *)cert->pbCertEncoded, cert->cbCertEncoded ) );
+                }
+
+            CertFreeCertificateChain( PeerChain );
+        }
+    }
+
+    if( !h->peerchain.size() )
+        return 0;
+
+    if( !count && !bufs )
+        return 1;
+
+    if( !count )
+        return 0;
+
+    if( !bufs )
+    {
+        *count = h->peerchain.size();
+        return 1;
+    }
+
+    if( *count < h->peerchain.size() )
+        return 0;
+
+    *count = h->peerchain.size();
+
+    for( size_t i = 0; i < h->peerchain.size(); i++ )
+    {
+        bufs[i] = h->peerchain[i].data();
+        lens[i] = (int)h->peerchain[i].size();
     }
 
     return 1;

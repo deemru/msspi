@@ -1,6 +1,10 @@
 #ifndef _MSSPI_H_INCLUDED_
 #define _MSSPI_H_INCLUDED_
 
+#define TLS1_VERSION    0x0301
+#define TLS1_1_VERSION  0x0302
+#define TLS1_2_VERSION  0x0303
+
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1
 
 #define SECPKGCONTEXT_CIPHERINFO_V1 1
@@ -57,6 +61,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth );
 void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb );
 void msspi_set_client( MSSPI_HANDLE h );
+void msspi_set_version( MSSPI_HANDLE h, int min, int max );
+void msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist );
 
 int msspi_connect( MSSPI_HANDLE h );
 int msspi_accept( MSSPI_HANDLE h );
@@ -85,6 +91,7 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h );
 const char * msspi_get_version( MSSPI_HANDLE h );
 char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len );
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
+char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int * lens, size_t * count );
 char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, const char ** issuer, size_t * ilen );
 char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 const char * msspi_get_alpn( MSSPI_HANDLE h );
