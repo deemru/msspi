@@ -549,24 +549,40 @@ static void credentials_release( MSSPI_HANDLE h )
     h->cred = NULL;
 }
 
+#define B2C_VALUE( b ) ( (char)( ( 0 <= ( b ) && ( b ) <= 9 ) ? ( ( b ) + '0' ) : ( ( b ) + 'A' - 10 ) ) )
+
+static std::string val_to_str( uint32_t val )
+{
+    std::string str( "00000000" );
+    int i = str.length();
+
+    while( val )
+    {
+        str[--i] = B2C_VALUE( val & 0x0F );
+        val >>= 4;
+    }
+
+    return str;
+}
+
 static std::string credstring( MSSPI_HANDLE h )
 {
     std::string credstring;
     credstring = h->hostname.length() ? h->hostname : "**";
     credstring += "::";
-    credstring += std::to_string( h->is.peerauth );
-    credstring += "::";
-    credstring += std::to_string( h->grbitEnabledProtocols );
-    credstring += "::";
-    if( h->ciphers.size() )
-    {
-        for( size_t i = 0; i < h->ciphers.size(); i++ )
-            credstring += std::to_string( h->ciphers[i] ) + ":";
-        credstring += ":";
-    }
-    else
-        credstring += "**::";
     credstring += h->cachestring.length() ? h->cachestring : "**";
+    credstring += "::";
+    credstring += val_to_str( h->is.peerauth );
+    credstring += "::";
+    credstring += val_to_str( h->grbitEnabledProtocols );
+    credstring += "::";
+
+    if( h->ciphers.size() )
+        for( size_t i = 0; i < h->ciphers.size(); i++ )
+            credstring += val_to_str( h->ciphers[i] );
+    else
+        credstring += "**";
+
     return credstring;
 }
 
