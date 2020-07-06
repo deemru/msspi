@@ -558,16 +558,17 @@ static void credentials_release( MSSPI_HANDLE h )
     h->cred = NULL;
 }
 
-#define B2C_VALUE( b ) ( (char)( ( 0 <= ( b ) && ( b ) <= 9 ) ? ( ( b ) + '0' ) : ( ( b ) + 'A' - 10 ) ) )
+#define B2C_VALUE( b ) ( ( ( b ) < 10 ) ? '0' + ( b ) : 'A' - 10 + ( b ) )
 
 static std::string to_hex_string( uint32_t val )
 {
     std::string str( "00000000" );
-    int i = str.length();
+    size_t i = str.length();
 
     while( val )
     {
-        str[--i] = B2C_VALUE( val & 0x0F );
+        uint8_t b = val & 0x0F;
+        str[--i] = B2C_VALUE( b );
         val >>= 4;
     }
 
@@ -2230,7 +2231,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | ( online ? 0 : CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL ),
+            CERT_CHAIN_CACHE_END_CERT | ( online ? (DWORD)0 : CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL ),
             NULL,
             &PeerChain ) )
         {
