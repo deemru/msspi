@@ -1,6 +1,7 @@
 // microsspi
 
 #ifdef _WIN32
+#ifndef __MINGW32__
 #   pragma warning( disable:4820 )
 #   pragma warning( disable:4710 )
 #   pragma warning( disable:4668 )
@@ -10,7 +11,8 @@
 #   pragma warning( disable:5026 )
 #   pragma warning( disable:5027 )
 #   pragma warning( disable:4774 )
-#   include <Windows.h>
+#endif // __MINGW32__
+#include <Windows.h>
 #endif
 
 #if defined( __cplusplus )
@@ -20,6 +22,7 @@ extern "C" {
 #define LIBLOAD( name ) LoadLibraryA( name )
 #define LIBFUNC( lib, name ) (UINT_PTR)GetProcAddress( lib, name )
 #else
+#include <dlfcn.h>
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
 #define LIBFUNC( lib, name ) dlsym( lib, name )
 #endif
@@ -52,15 +55,21 @@ extern "C" {
 #include <string.h>
 #define SECURITY_WIN32
 #ifdef _WIN32
+#ifdef __MINGW32__
+#include "CSP_WinDef.h"
+#include "CSP_WinCrypt.h"
+#include "CSP_Sspi.h"
+#include "CSP_SChannel.h"
+#else
 #include <schannel.h>
 #include <sspi.h>
+#endif
 #else
 #define LEGACY_FORMAT_MESSAGE_IMPL
 #include "CSP_WinDef.h"
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
 #include "CSP_SChannel.h"
-#include <dlfcn.h>
 #include <sys/time.h>
 
 static DWORD GetTickCount()
@@ -1541,12 +1550,12 @@ char msspi_set_cachestring( MSSPI_HANDLE h, const char * cachestring )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-char msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, unsigned len )
+char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, unsigned len )
 {
     MSSPIEHTRY;
 
     if( alpn && len )
-        h->alpn.assign( (const char *)alpn, len );
+        h->alpn.assign( alpn, len );
 
     return 1;
 
@@ -2387,7 +2396,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
     if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
-        return 0;
+        return dwVerify;
 
     for( ;; )
     {
