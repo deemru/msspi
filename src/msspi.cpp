@@ -2423,7 +2423,10 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         polHttps.dwAuthType = (DWORD)( h->is.client ? AUTHTYPE_SERVER : AUTHTYPE_CLIENT );
         if( h->is.client && h->hostname.length() )
         {
-            whost.assign( h->hostname.begin(), h->hostname.end() );
+            whost.resize( h->hostname.length() );
+            for ( size_t i = 0; i < whost.length(); ++i )
+                whost[i] = (WCHAR)h->hostname[i];
+
             polHttps.pwszServerName = (WCHAR *)whost.data();
         }
 
