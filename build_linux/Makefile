@@ -22,4 +22,4 @@ libmsspi.so: msspi.o
 	g++ -shared -o libmsspi.so msspi.o
 
 clean:
-	rm -f libmsspi.so libmsspi.a libmsspi-capix.a msspi.o
+	rm -f libmsspi.so libmsspi.a libmsspi-capix.a msspi.o msspi-capix.o
