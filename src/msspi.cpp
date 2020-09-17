@@ -1840,30 +1840,6 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 {
     MSSPIEHTRY;
 
-    PCCERT_CONTEXT certprobe = NULL;
-
-    if( len )
-    {
-        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
-
-        if( !certprobe )
-        {
-            std::vector<BYTE> clientCertDer;
-            DWORD dwData;
-            if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
-            {
-                clientCertDer.resize( dwData );
-                if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
-                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
-            }
-        }
-    }
-
-    if( len && !certprobe )
-        return 0;
-
-    HCERTSTORE hStore = 0;
-    PCCERT_CONTEXT certfound = NULL;
     bool is_append = can_append && h->credstring.length() != 0;
     std::string saved_credstring;
 
@@ -1881,6 +1857,34 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 
     if( credentials_api( h, true ) )
         return 1;
+
+    PCCERT_CONTEXT certprobe = NULL;
+
+    if( len )
+    {
+        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
+
+        if( !certprobe )
+        {
+            std::vector<BYTE> clientCertDer;
+            DWORD dwData;
+            if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+            {
+                clientCertDer.resize( dwData );
+                if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
+                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
+            }
+
+            if( !certprobe )
+            {
+                h->credstring = saved_credstring;
+                return 0;
+            }
+        }
+    }
+
+    HCERTSTORE hStore = 0;
+    PCCERT_CONTEXT certfound = NULL;
 
     DWORD dwStoreFlags[2] = {
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
