@@ -2434,6 +2434,10 @@ unsigned msspi_verify( MSSPI_HANDLE h )
             polHttps.pwszServerName = (WCHAR *)whost.data();
         }
 
+        // mitigate capilite CN validation without hostname
+        if( polHttps.dwAuthType == AUTHTYPE_SERVER && !polHttps.pwszServerName )
+            polHttps.fdwChecks |= 0x00001000; // SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+
         CERT_CHAIN_POLICY_PARA PolicyPara;
         memset( &PolicyPara, 0, sizeof( PolicyPara ) );
         PolicyPara.cbSize = sizeof( PolicyPara );
