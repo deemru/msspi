@@ -1750,6 +1750,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
         if( selftest )
         {
+            UNIQUE_LOCK( g_mtx ); // serialize selftests
             BYTE bbPK[1024/*MAX_PUBKEY_LEN*/];
             DWORD dwPK = sizeof( bbPK );
             HCRYPTKEY hUserKey = 0;
@@ -1771,7 +1772,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                     break;
 
-                if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, ( provinfo->dwFlags & ~CERT_SET_KEY_CONTEXT_PROP_ID ) ) )
+                if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, provinfo->dwFlags | CERT_SET_KEY_CONTEXT_PROP_ID ) )
                     break;
 
                 if( provinfo->rgProvParam && !CryptSetProvParam( hProv, provinfo->rgProvParam->dwParam, provinfo->rgProvParam->pbData, provinfo->rgProvParam->dwFlags ) )
@@ -1983,6 +1984,16 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 
             if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                 break;
+
+            CRYPT_KEY_PROV_PARAM pinparam;
+
+            pinparam.dwParam = PP_KEYEXCHANGE_PIN;
+            pinparam.dwFlags = 0;
+            pinparam.pbData = NULL; // force default pin
+            pinparam.cbData = 0;
+
+            provinfo->cProvParam = 1;
+            provinfo->rgProvParam = &pinparam;
 
             if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
