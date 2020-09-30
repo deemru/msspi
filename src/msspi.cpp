@@ -99,6 +99,9 @@ static DWORD GetTickCount()
 #elif defined( __APPLE__ )
 #define SECURITY_DLL_NAME "/opt/cprocsp/lib/libssp.dylib"
 #include <TargetConditionals.h>
+#ifdef TARGET_OS_IPHONE
+#define IOS
+#endif
 #else // other LINUX
 #if defined( __mips__ ) // archs
     #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -121,6 +124,7 @@ static DWORD GetTickCount()
 #endif // SECURITY_DLL_NAME
 
 #include "msspi.h"
+#include "WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
 #include "capix.hpp"
