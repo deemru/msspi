@@ -24,7 +24,7 @@
 #ifndef _WINDEF_
 #define _WINDEF_
 
-#ifdef HAVE_CPRO_CONFIG_H
+#ifdef HAVE_CONFIG_H
 #include "common.h"
 #endif
 
@@ -479,8 +479,8 @@ FormatMessage(
 #else
 
 #if defined (_MSC_VER) || defined (__GNUC__)
-#  if defined (__cplusplus) && !defined (IGNORE_LEGACY_FORMAT_MESSAGE_MSG)
-#    if !(defined(PROCESSOR_TYPE) && (PROCESSOR_TYPE == PROC_TYPE_E2K32 || PROCESSOR_TYPE == PROC_TYPE_E2K64))
+#  if defined (__cplusplus) && !defined (IGNORE_LEGACY_FORMAT_MESSAGE_MSG) && !defined (__APPLE__)
+#    if !(defined(PROCESSOR_TYPE) && (PROCESSOR_TYPE == PROC_TYPE_E2K32 || PROCESSOR_TYPE == PROC_TYPE_E2K64 || PROCESSOR_TYPE == PROC_TYPE_MIPS32 || PROCESSOR_TYPE == PROC_TYPE_ARM64))
 #      pragma message ("Your application will require at least CryptoPro CSP 4.0 R3. You can use LEGACY_FORMAT_MESSAGE_IMPL to support older versions.")
 #    endif
 #  endif

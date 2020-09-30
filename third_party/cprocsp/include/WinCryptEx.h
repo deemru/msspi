@@ -29,11 +29,26 @@
 
 #ifndef _WINCRYPTEX_USE_EXTERNAL_TYPES
 
-#if defined UNIX || defined CSP_LITE
-#include "CSP_WinCrypt.h"
-#else // UNIX
-#include <wincrypt.h>
-#endif // UNIX
+#  ifndef HAVE_CONFIG_H
+#    ifdef __APPLE__
+#      ifndef UNIX
+#        define UNIX
+#      endif /*UNIX*/
+#      ifndef SIZEOF_VOID_P
+#        ifdef __LP64__
+#          define SIZEOF_VOID_P 8
+#        else /*__LP64__*/
+#          define SIZEOF_VOID_P 4
+#        endif /*__LP64__*/
+#      endif /*SIZEOF_VOID_P*/
+#    endif /*__APPLE__*/
+#  endif 
+
+# if defined UNIX || defined CSP_LITE
+#   include "CSP_WinCrypt.h"
+# else // UNIX
+#   include <wincrypt.h>
+# endif // UNIX
 
 #endif // _WINCRYPTEX_USE_EXTERNAL_TYPES
 
@@ -255,7 +270,7 @@ extern "C" {
 
 /* Типы контейнера */
 /* Container Types */
-#define KEY_CARRIER_VERSION_V1 1
+#define KEY_CARRIER_VERSION_V1 1 /* не поддерживается с 3 марта 2020 года */
 #define KEY_CARRIER_VERSION_V2 2
 #define KEY_CARRIER_VERSION_V3 3 /* FKC-1. unused in 5.0 */
 #define KEY_CARRIER_VERSION_V4 4 /* FKC-2. */
@@ -271,6 +286,10 @@ extern "C" {
 /* Дополнительные свойства контекстов сертификатов */
 /* CRYPT_DATA_BLOB, содержащий отпечаток shadow-сертификата, который должен быть использован для создания Schannel Credential */
 #define CP_CERT_SHADOW_CERT_PROP_ID		0x0000FF00
+/* CRYPT_DATA_BLOB, содержащий отпечаток сертификата, который должен быть использован для создания серверного удостоверения с несколькими сертификатами в IIS [http.sys]*/
+#define CP_CERT_LINKED_CERT_PROP_ID		0x0000FF01
+
+#define CERT_URL_OBJECT_CACHE_DATA_PROP_ID	0x00008001
 
 /* 
  * Дополнительные флаги AcquireContext. Глобальные установки криптопровайдера.
@@ -294,9 +313,12 @@ extern "C" {
  * Addional PFXImportCertStore flags
  */
 #ifndef PKCS12_IMPORT_SILENT
-    #define PKCS12_IMPORT_SILENT        0x00000040
+    #define PKCS12_IMPORT_SILENT                0x00000040
 #endif
 
+#ifndef CRYPT_USER_PROTECTED_STRONG
+    #define CRYPT_USER_PROTECTED_STRONG         0x00100000
+#endif
 
 /* 
  * Дополнительные флаги PFXExportCertStoreEx
@@ -382,6 +404,14 @@ extern "C" {
 /* флаг форсирования Diffie-Hellman */
 #define CP_FORCE_GOST_DH	  0x00008000
 
+/* Флаг предназначен для работы с ImportKey и ExportKey только с использованием Diffie-Hellman.
+   Обеспечивает работу с блобом без ASN.1 структуры с информацией об открытом ключе. */
+#define CP_PRIMITIVE_PUBLICKEYBLOB 0x00000020
+
+/* Флаг предназначен для работы ExportKey и ImportKey при экспорте/импорте симметричных ключей в MGM (CALG_MGM_EXPORT_M/K).
+   Отключает вычисление и проверку тэга аутентификации. */
+#define CP_AUTH_TAG_DISABLED	   0x10000000
+
 /* Дополнительные режимы дополнения блока открытого текста до кратности размера блока шифрования*/
 #define ISO10126_PADDING 4
 #define ANSI_X923_PADDING 5
@@ -399,6 +429,7 @@ extern "C" {
 #define CP_CONTANER_AFFECTED_SIGNATURE			(0x00000010)
 #define CP_ECC_PLAIN_SIGNATURE_CNG_REVERSED		(0x00000020) // формат подписи (s|r) в LittleEndian
 #define CP_PSEUDO_RANDOM_K_ONLY				(0x00000040) // отключает новый формат выработки k
+#define CRYPT_RSA_PSS					(0x00000080) // подпись с PSS-паддингом
 
 #define CMS_BLOCKLEN_TAG			'B'
 
@@ -425,6 +456,8 @@ extern "C" {
 #define ALG_SID_PRO12_EXP			33
 #define ALG_SID_KEXP_2015_M			36
 #define ALG_SID_KEXP_2015_K			37
+#define ALG_SID_MGM_EXPORT_M			41
+#define ALG_SID_MGM_EXPORT_K			42
 /* GR3412 sub_ids*/
 #define ALG_SID_GR3412_2015_M			48
 #define ALG_SID_GR3412_2015_K			49
@@ -464,6 +497,7 @@ extern "C" {
 #define ALG_SID_GR3411_PRFKEYMAT		74
 #define ALG_SID_GR3411_2012_256_PRFKEYMAT	75
 #define ALG_SID_GR3411_2012_512_PRFKEYMAT	76
+#define ALG_SID_FOREIGN_PRFKEYMAT		83
 
 /* GOST R 34.13-2015 hash sub ids */
 #define ALG_SID_GR3413_2015_M_IMIT		60
@@ -473,6 +507,7 @@ extern "C" {
 #define ALG_SID_PBKDF2				63
 #define ALG_SID_MGM_AUTH			65
 #define ALG_SID_ANSI_X9_19_MAC			66
+#define ALG_SID_KDF_TREE_HMAC_SHA_256		67
 
 #define ALG_SID_HASH_VALUE_STORAGE		81
 
@@ -582,6 +617,8 @@ extern "C" {
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_GR3411_2012_256_PRFKEYMAT)
 #define CALG_GR3411_2012_512_PRFKEYMAT \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_GR3411_2012_512_PRFKEYMAT)
+#define CALG_FOREIGN_PRFKEYMAT \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_FOREIGN_PRFKEYMAT)
 
 #define CALG_G28147_MAC \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_G28147_MAC)
@@ -694,6 +731,12 @@ extern "C" {
 #define CALG_KEXP_2015_K \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KEXP_2015_K)
 
+#define CALG_MGM_EXPORT_M \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_MGM_EXPORT_M)
+
+#define CALG_MGM_EXPORT_K \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_MGM_EXPORT_K)
+
 #define CALG_TLS1PRF_2012_256 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_TLS1PRF_2012_256)
 
@@ -748,6 +791,8 @@ extern "C" {
 
 #define CALG_KDF_TREE_GOSTR3411_2012_256 \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KDF_TREE_GOSTR3411_2012_256)
+#define CALG_KDF_TREE_HMAC_SHA_256 \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KDF_TREE_HMAC_SHA_256)
 
 #define CALG_ANSI_X963_KDF \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_ANSI_X963_KDF)
@@ -758,6 +803,11 @@ extern "C" {
     #endif
     #define CALG_ECDSA              (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_ECDSA)
 #endif
+
+// Some DSS sub-ids
+#define ALG_SID_EDDSA                   32
+
+#define CALG_EDDSA		    (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_EDDSA)
 
 #ifndef CALG_ECDH
     #ifndef ALG_SID_ECDH
@@ -804,6 +854,8 @@ extern "C" {
 #define szOID_EC_DH		    "1.3.132.1.12"
 #define szOID_ECC_CURVE_P192	    "1.2.840.10045.3.1.1"
 #define szOID_ECC_CURVE_P224	    "1.3.132.0.33"
+
+#define szOID_ED25519		    "1.3.101.112"
 
 #ifndef szOID_ECDSA_SHA224
 // iso(1) member-body(2) us(840) 10045 signatures(4) specified(3) 1
@@ -901,6 +953,12 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256 0x003d
 #define TLS_RSA_WITH_AES_128_GCM_SHA256 0x009c
 #define TLS_RSA_WITH_AES_256_GCM_SHA384 0x009d
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA 0xC013
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA 0xC014
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 0xC027
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 0xC028
+#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 0xC02F
+#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 0xC030
 #endif
 
 #define TLS_LEGACY_SUITE_CNAME                                      "TLS_GOST_R_3410_WITH_28147_LEGACY"
@@ -918,6 +976,12 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_CNAME                 "TLS_RSA_WITH_AES_256_CBC_SHA256"
 #define TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME                 "TLS_RSA_WITH_AES_128_GCM_SHA256"
 #define TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME                 "TLS_RSA_WITH_AES_256_GCM_SHA384"
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME		    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_CNAME		    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384"
+#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
 
 #define TLS_LEGACY_SUITE_NAME                                       L"" TLS_LEGACY_SUITE_CNAME
 #define TLS_CIPHER_94_SUITE_NAME                                    L"" TLS_CIPHER_94_SUITE_CNAME
@@ -934,6 +998,12 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_NAME                  L"" TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_CNAME
 #define TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_NAME                  L"" TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME
 #define TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_NAME                  L"" TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME
+#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME
 
 #define ALG_TYPE_CIPHER_SUITE                   (15 << 9)
 
@@ -986,6 +1056,7 @@ extern "C" {
 #define RSA_CKM_CONCATENATE_DATA_AND_BASE   0x4
 #define RSA_CKM_XOR_BASE_AND_DATA           0x5
 #define RSA_CKM_SHA1_KEY_DERIVATION         0x11
+#define RSA_CKM_AES_ENCRYPT_DATA            0x12
 
 /* Дополнительные параметры криптопровайдера */
 #if !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 36) 
@@ -1089,11 +1160,6 @@ extern "C" {
 #define PHYSICAL_MEMORY_USED 4
 #define PHYSICAL_MEMORY_USED_BY_CURRENT_PROC 5
 
-
-#define PP_WND_READER_INFO 214
-#define PP_WND_ENUM_READERS 215
-#define PP_WND_READER_ICON 216
-
 #define PP_CARRIER_TYPES 217
 
 #define PP_AUTH_INFO 218
@@ -1104,12 +1170,11 @@ extern "C" {
 #define PP_CARRIER_FLAGS 223
 #define PP_ENUMRANDOMS 224
 #define PP_HARDWARE_STORE_FLAGS 225
-#define PP_WND_MESSAGE_AUTO 226
 
 #define PP_EXTERNAL_CONTAINER_LINK 227
 #define PP_UNIQUE_FILTER 228
 #define PP_CARRIER_FREE_SPACE 229
-#define PP_CARRIER_CLIENT_CLEANUP 230
+#define PP_MEDIA_TYPE 231
 
 /* Флаг, используемый при перечислении для получения свойств контейнера через
     поле property_flags. Возможные значения CRYPT_PROPERTY* приведены ниже. */
@@ -1182,6 +1247,12 @@ extern "C" {
 #define ERR_CRYPT_MEDIA_INVALID "INVALID_MEDIA"
 
 #define CARRIER_CLIENT_IDENTIFIER_SIZE 8
+
+/*Максимально допустимая длина строки для PP_UNIQUE_FILTER*/
+#define CARRIER_MAX_UNIQUE_FILTER_LEN 255
+
+/*Максимально допусимая длина строки для PP_MEDIA_TYPE*/
+#define CARRIER_MAX_MEDIA_TYPE_LEN 255
 
 /* Дополнительные параметры объекта хэша */
 #define HP_HASHSTARTVECT 0x0008
@@ -1723,6 +1794,8 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 */
 #define KEXP15_MAGIC			0x374a51ff
 
+#define EDDSA_MAGIC			0x374a5200
+
 /*! \ingroup ProCSPData
  *  \brief Текущее значение версии ключевого блоба
  */
@@ -2226,7 +2299,7 @@ typedef struct _CRYPT_PUBKEYPARAM {
  *
  * \brief Структура CRYPT_PUBKEY_INFO_HEADER содержит заголовок
  * блоба открытого ключа или блоба ключевой пары
- * по ГОСТ Р 34.10-2001.
+ * по ГОСТ Р 34.10-2001 или ГОСТ Р 34.10-2012.
  *
  * \req_wincryptex
  * \sa _PUBLICKEYSTRUC
@@ -2238,11 +2311,12 @@ typedef struct _CRYPT_PUBKEY_INFO_HEADER {
     BLOBHEADER BlobHeader;
                     /*!< Общий заголовок ключевого блоба. Определяет его тип и алгоритм ключа
                      * находящегося в ключевом блобе. Для открытых ключей алгоритм
-                     * ключа всегда, либо CALG_GR3410, либо CALG_GR3410EL. Для ключевых
+                     * ключа всегда CALG_GR3410, CALG_GR3410EL, CALG_GR3410_12_256
+		     * или CALG_GR3410_12_512. Для ключевых
                      * пар алгоритм отражает её назначение. См. \ref _PUBLICKEYSTRUC.
                      */
     CRYPT_PUBKEYPARAM KeyParam;
-                    /*!< Основной признак и длина ключей ГОСТ Р 34.10-2001.
+                    /*!< Основной признак и длина ключей ГОСТ Р 34.10-2001 и ГОСТ Р 34.10-2012.
                      */
 } CRYPT_PUBKEY_INFO_HEADER;
 
@@ -2263,14 +2337,24 @@ typedef struct _CRYPT_PUBLICKEYBLOB {
                      */
     BYTE    bASN1GostR3410_2001_PublicKeyParameters[1/*псевдомассив*/];
                     /*!< Содержит ASN1 структуру в DER кодировке, определяющую
-                     * параметры открытого ключа, как описано типом
-                     * GostR3410-2001-PublicKeyParameters
+                     * параметры открытого ключа.
+		     * Для ключей ГОСТ Р 34.10-2001 параметры описаны
+                     * типом GostR3410-2001-PublicKeyParameters
                      * CPPK [RFC 4491] и CPALGS [RFC 4357].
+		     * Для ключей ГОСТ Р 34.10-2012 параметры описаны
+		     * типом GostR3410-2012-PublicKeyParameters
+		     * в соответствии со структурой, описанной в п. 5.2.1.2
+		     * Р 1323565.1.023-2018.
                      */
     BYTE    bPublicKey[1/*псевдомассив*/];
-                    /*!< Содержит открытый ключ в сетевом представлении (ASN1 DER)
-                     * как описано типом GostR3410-2001-PublicKey
+                    /*!< Содержит открытый ключ.
+                     * Для ключей ГОСТ Р 34.10-2001, как описано типом GostR3410-2001-PublicKey
                      * CPPK [RFC 4491].
+		     * Для ключей ГОСТ Р 34.10-2012 с длиной ключа 256 бит, как описано
+		     * типом GostR3410-2012-256-PublicKey, с длиной ключа 512 бит, как описано
+		     * типом GostR3410-2012-512-PublicKey,
+		     * в соответствии с описанием в п. 5.2.2
+		     * Р 1323565.1.023-2018.
                      * Длина массива равна tPublicKeyParam.KeyParam.BitLen/8.
                      */
 }   CRYPT_PUBLICKEYBLOB, *PCRYPT_PUBLICKEYBLOB;
@@ -3035,16 +3119,6 @@ typedef struct _CRYPT_CONTAINER_PARAM {
 * \sa CPSetProvParam
 */
 
-#define ENABLE_CARRIER_TYPE_CSP 0x01   // обычный криптоконтейнер (CSP 3.6 - CSP 4.0)
-#define ENABLE_CARRIER_TYPE_FKC_NO_SM 0x02  // ФКН без SM (Рутокен ЭЦП, еТокен ГОСТ и т.п.)
-#define ENABLE_CARRIER_TYPE_FKC_SM 0x04 // ФКН с SM (SESPAKE)
-#define ENABLE_ANY_CARRIER_TYPE (ENABLE_CARRIER_TYPE_CSP|ENABLE_CARRIER_TYPE_FKC_NO_SM|ENABLE_CARRIER_TYPE_FKC_SM)
-
-#define DISABLE_EVERY_CARRIER_OPERATION 0x00  // запрещенные виды носителей полностью запрещены
-#define ENABLE_CARRIER_OPEN_ENUM 0x01   // на запрещенных видах носителей можно открывать и перечислять контейнеры
-#define ENABLE_CARRIER_CREATE 0x02  // на запрещенных видах носителей можно создавать контейнеры
-#define ENABLE_ANY_OPERATION (ENABLE_CARRIER_OPEN_ENUM|ENABLE_CARRIER_CREATE)
-
 typedef struct _CRYPT_CARRIER_TYPES {
     DWORD enabled_types; /*!< Разрешенные виды носителей. */
     DWORD enabled_operations; /*!< Разрешенные операции для запрещенных носителей. */
@@ -3053,20 +3127,108 @@ typedef struct _CRYPT_CARRIER_TYPES {
 /*!
 * \ingroup ProCSPData
 *
-* \brief Флаги, возвращаем через CryptGetProvParam(PP_ENUMREADERS, CRYPT_MEDIA) и CryptGetProvParam(PP_CARRIER_FLAGS)
+* \defgroup CarrierTypeFlags Флаги, используемые в параметрах PP_CARRIER_TYPES.
 *
 * \req_wincryptex
 * \sa CPGetProvParam
+* \sa CPSetProvParam
+*
+* \{
 */
 
-#define CARRIER_FLAG_REMOVABLE 1                  /* признак отчуждаемости носителя (установлен у смарт-карт и флеш-накопителей) */
-#define CARRIER_FLAG_UNIQUE 2                     /* признак наличия уникального номера (установлен у смарт-карт и флеш-накопителей) */
-#define CARRIER_FLAG_PROTECTED 4                  /* признак носителя, защищенного шифрованием на другом контейнере (установлен у HSM) */
-#define CARRIER_FLAG_FUNCTIONAL_CARRIER 8         /* признак ФКН-носителя (носителя с неизвлекаемыми ключами) */
-#define CARRIER_FLAG_SECURE_MESSAGING 16          /* признак ФКН-носителя с поддержкой защищенного обмена сообщениями и протокола SESPAKE */
-#define CARRIER_FLAG_ABLE_SET_KEY 32		  /* признак возможности установки закрытого ключа на ФКН-носитель */
-#define CARRIER_FLAG_ABLE_VISUALISE_SIGNATURE 64  /* признак возможности считывателя запрашивать подтверждение подписи (SafeTouch, Рутокен ПинПад) */
-#define CARRIER_FLAG_VIRTUAL 128                  /* признак виртуального считывателя (для разделения и сборки ключей) */
+/*!
+ *  \brief Разрешить использование носителей обычных пассивных криптоконтейнеров (CSP 3.6 - CSP 4.0).
+ */
+#define ENABLE_CARRIER_TYPE_CSP 0x01
+
+/*!
+ *  \brief Разрешить использование ФКН без SM (Рутокен ЭЦП, JaCarta ГОСТ и т.п.).
+ */
+#define ENABLE_CARRIER_TYPE_FKC_NO_SM 0x02
+
+/*!
+ *  \brief Разрешить использование ФКН с SM (SESPAKE).
+ */
+#define ENABLE_CARRIER_TYPE_FKC_SM 0x04
+
+/*!
+ *  \brief Разрешить использование всех видов носителей.
+ */
+#define ENABLE_ANY_CARRIER_TYPE (ENABLE_CARRIER_TYPE_CSP|ENABLE_CARRIER_TYPE_FKC_NO_SM|ENABLE_CARRIER_TYPE_FKC_SM)
+
+/*!
+ *  \brief На запрещенных видах носителей не разрешать никаких операций
+ */
+#define DISABLE_EVERY_CARRIER_OPERATION 0x00
+
+/*!
+ *  \brief На запрещенных видах носителей разрешить только открытие и перечисление контейнеров.
+ */
+#define ENABLE_CARRIER_OPEN_ENUM 0x01
+
+/*!
+ *  \brief На запрещенных видах носителей разрешить только создание контейнеров.
+ */
+#define ENABLE_CARRIER_CREATE 0x02
+
+/*!
+ *  \brief На запрещенных видах носителей разрешить все операции.
+ */
+#define ENABLE_ANY_OPERATION (ENABLE_CARRIER_OPEN_ENUM|ENABLE_CARRIER_CREATE)
+
+/*! \} */
+
+/*!
+* \ingroup ProCSPData
+*
+* \defgroup CarrierFlags Флаги, возвращаемые через CryptGetProvParam(PP_ENUMREADERS, CRYPT_MEDIA) и CryptGetProvParam(PP_CARRIER_FLAGS)
+*
+* \req_wincryptex
+* \sa CPGetProvParam
+*
+* \{
+*/
+
+/*!
+ *  \brief Признак отчуждаемости носителя (установлен у смарт-карт и флеш-накопителей)
+ */
+#define CARRIER_FLAG_REMOVABLE 1
+
+/*!
+ *  \brief Признак наличия уникального номера (установлен у смарт-карт и флеш-накопителей)
+ */
+#define CARRIER_FLAG_UNIQUE 2
+/*!
+ *  \brief Признак носителя, защищенного шифрованием на другом контейнере (установлен у HSM)
+ */
+#define CARRIER_FLAG_PROTECTED 4
+
+/*!
+ *  \brief Признак ФКН-носителя (носителя с неизвлекаемыми ключами)
+ */
+#define CARRIER_FLAG_FUNCTIONAL_CARRIER 8
+
+/*!
+ *  \brief Признак ФКН-носителя с поддержкой защищенного обмена сообщениями и протокола SESPAKE
+ */
+#define CARRIER_FLAG_SECURE_MESSAGING 16
+
+/*!
+ *  \brief Признак возможности установки закрытого ключа на ФКН-носитель
+ */
+#define CARRIER_FLAG_ABLE_SET_KEY 32
+
+/*!
+ *  \brief Признак возможности считывателя запрашивать подтверждение подписи (SafeTouch, Рутокен ПинПад)
+ */
+#define CARRIER_FLAG_ABLE_VISUALISE_SIGNATURE 64
+
+/*!
+ *  \brief Признак виртуального считывателя (для разделения и сборки ключей)
+ */
+#define CARRIER_FLAG_VIRTUAL 128
+
+/*! \} */
 
 /*!
 * \ingroup ProCSPData
@@ -3086,7 +3248,7 @@ typedef struct _CRYPT_ENUMREADER_INFO {
 /*!
 * \ingroup ProCSPData
 *
-* \brief Блоб с информацией о считывателе, представляющий собой
+* \brief Блоб с информацией о режиме работы / апплете, представляющий собой
 * сериализованную псевдоструктуру.
 *
 * \req_wincryptex
@@ -3101,23 +3263,23 @@ typedef struct _CRYPT_ENUMREADER_INFO_MEDIA {
          * <tr><td>
          * NO_MEDIA
          * </td><td>
-         *      Карта не вставлена
+         *      Карта не вставлена в считыватель или носитель не поддерживается.
          * </td></tr><tr><td>
          * NO_UNIQUE
          * </td><td>
-         *      Носитель не поддерживает UNIQUE (NB: для USB-Flash-устройств на Unix не будет UNIQUE, а на Windows – будет)
+         *      Носитель не поддерживает UNIQUE.
          * </td></tr><tr><td>
          * INVALID_MEDIA
          * </td><td>
-         *      При работе с носителем возникли ошибки
+         *      При работе с носителем возникли ошибки. С CSP 5.0 не возвращается.
          * </td></tr><tr><td>
          * IS_FKC
          * </td><td>
-         *      ФКН-носитель в не-ФКН-провайдере
+         *      ФКН-носитель в не-ФКН-провайдере. С CSP 5.0 не возвращается.
          * </td></tr><tr><td>
          * NO_FKC
          * </td><td>
-         *      Не-ФКН-носитель в ФКН-провайдере
+         *      Не-ФКН-носитель в ФКН-провайдере. С CSP 5.0 не возвращается.
          * </td></tr><tr><td>
          * GEM_35000030CFE53C70
          * </td><td>
@@ -3140,7 +3302,7 @@ typedef struct _CRYPT_ENUMREADER_INFO_MEDIA {
          *      Пример UNIQUE-имени
          * </td></tr></table>
     	 */
-    BYTE   Flags; /*!< Флаги считывателя. */
+    BYTE   Flags; /*!< Флаги считывателя. \sa CarrierFlags */
 } CRYPT_ENUMREADER_INFO_MEDIA;
 
 /*!
@@ -3940,6 +4102,14 @@ typedef struct _CPC_FAST_CODE {
  */
 #define CSP_FAST_CODE_SHA1 (1<<26)
 
+ /*!
+  * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+  * Используется как флаг для проверки, какой код
+  * применяется в функции аутентификации MGM.
+  * Равен 1 в случае быстрого кода данной функции,
+  * и 0 иначе.
+  */
+#define CSP_FAST_CODE_MGM_AUTH (1<<29)
 
 /*!
  *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
@@ -3971,7 +4141,7 @@ typedef struct _CPC_FAST_CODE {
  *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций шифрования.
  */
-#define CSP_FAST_CODE_ALL_CRYPT (CSP_FAST_CODE_ALL_ENCRYPT|CSP_FAST_CODE_ALL_DECRYPT|CSP_FAST_CODE_MD_ECB|CSP_FAST_CODE_IMIT|CSP_FAST_CODE_IMIT_2015)
+#define CSP_FAST_CODE_ALL_CRYPT (CSP_FAST_CODE_ALL_ENCRYPT|CSP_FAST_CODE_ALL_DECRYPT|CSP_FAST_CODE_MD_ECB|CSP_FAST_CODE_IMIT|CSP_FAST_CODE_IMIT_2015|CSP_FAST_CODE_MGM_AUTH)
 
 /*!
  *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
@@ -4049,10 +4219,11 @@ typedef struct _CPC_FAST_CODE {
  *  \brief Возможное значение аргумента op_type функции \ref CPC_Kernel_Fpu_Begin_Callback.
  *  Означает, что запрос захвата FPU произошел в функции распараллеливаемого шифрования.
  *  Также задает значение идентификатора набора функций распараллеливаемого шифрования,
- *  использующих расширения MMX, SSE2, SSSE3 и AVX.
+ *  использующих расширения MMX, SSE2, SSSE3, AVX и CLMUL.
  *  В режиме ядра x64 MMX расширение не используется.
+ *  В режиме ядра CLMUL расширение не используется.
  */
-#define CSP_OPERATION_CIPHER2	(CSP_FAST_CODE_E_ECB | CSP_FAST_CODE_E_CNT | CSP_FAST_CODE_E_OFB | CSP_FAST_CODE_E_CTR | CSP_FAST_CODE_D_ECB | CSP_FAST_CODE_D_CBC | CSP_FAST_CODE_D_CNT | CSP_FAST_CODE_D_OFB | CSP_FAST_CODE_D_CTR | CSP_FAST_CODE_D_CFB | CSP_FAST_CODE_MD_ECB)
+#define CSP_OPERATION_CIPHER2	(CSP_FAST_CODE_E_ECB | CSP_FAST_CODE_E_CNT | CSP_FAST_CODE_E_OFB | CSP_FAST_CODE_E_CTR | CSP_FAST_CODE_D_ECB | CSP_FAST_CODE_D_CBC | CSP_FAST_CODE_D_CNT | CSP_FAST_CODE_D_OFB | CSP_FAST_CODE_D_CTR | CSP_FAST_CODE_D_CFB | CSP_FAST_CODE_MD_ECB | CSP_FAST_CODE_MGM_AUTH)
 
 
 /*!
@@ -4079,6 +4250,14 @@ typedef struct _CPC_FAST_CODE {
  *  использующих расширения MMX и SSE2. Применяется только в пользовательском режиме.
  */
 #define CSP_OPERATION_MULT	(CSP_FAST_CODE_ALL_MULT)
+
+ /*!
+  *  \brief Битовая маска для включения/выключения быстрого кода функции MGM_Auth режима MGM.
+  *  Задает значение логической суммы всех идентификаторов наборов функций,
+  *  использующих расширения SSSE3 + CLMUL.
+  *  В режиме ядра расширения не используются.
+  */
+#define CSP_OPERATION_MGM_AUTH	(CSP_FAST_CODE_MGM_AUTH)
 
 /*!
  *  \brief Битовая маска для включения/выключения быстрого кода для функции GHASH режима GCM зарубежной криптографии.
@@ -4229,6 +4408,7 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>CALG_GR3412_2015_M</td><td>Идентификатор алгоритма шифрования по ГОСТ Р 34.12-2015 Магма. </td></tr>
  * <tr><td>CALG_GR3412_2015_K</td><td>Идентификатор алгоритма шифрования по ГОСТ Р 34.12-2015 Кузнечик. </td></tr>
  * <tr><td>CALG_SYMMETRIC_512</td><td>Идентификатор алгоритма выработки ключа парной связи по Диффи-Хеллману с длиной выхода 512 бит.</td></tr>
+ * <tr><td>CALG_GOST_GENERIC_SECRET</td><td>Идентификатор алгоритма ключа произвольной длины.</td></tr>
  * <tr><td>CALG_DH_EL_SF </td><td>Идентификатор алгоритма обмена ключей по Диффи-Хеллману на базе закрытого ключа пользователя. Открытый ключ получается по ГОСТ Р 34.10 2001.</td></tr>
  * <tr><td>CALG_DH_EL_EPHEM</td><td> Идентификатор алгоритма обмена ключей по Диффи-Хеллману на базе закрытого ключа эфемерной пары. Открытый ключ получается по ГОСТ Р 34.10 2001.</td></tr>
  * <tr><td>CALG_DH_GR3410_12_256_SF</td><td>Идентификатор алгоритма обмена ключей по Диффи-Хеллману на базе закрытого ключа пользователя. Открытый ключ получается по ГОСТ Р 34.10 2012 (256 бит).</td></tr>
@@ -4275,7 +4455,7 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>PP_SIGNATUREOID</td><td>Получает и/или устанавливает заданный в контейнере OID параметров цифровой подписи - в зависимости от типа провайдера </td></tr>
  * <tr><td>PP_DHOID</td><td>Получает и/или устанавливает заданный в контейнере OID параметров алгоритма Диффи-Хеллмана в зависимости от типа провайдера </td></tr>
  * <tr><td>PP_CHECKPUBLIC </td><td>Флаг контроля открытого ключа. Если флаг установлен, осуществляется проверка алгебраических свойств открытого ключа </td></tr>
- * <tr><td>PP_RANDOM</td><td>Получает и/или устанавливает блоб типа SIMPLEBLOB для инициализации ДСЧ в драйвере шифрования</td></tr>
+ * <tr><td>PP_RANDOM</td><td>Получает или устанавливает последовательность случайных чисел для инициализации программного ДСЧ</td></tr>
  * <tr><td>PP_DRVCONTAINER </td><td>Получает указатель (handle) контейнера в драйвере</td></tr>
  * <tr><td>PP_MUTEX_ARG</td><td>Инициализирует синхронизацию потоков криптопровайдера в драйверном исполнении</td></tr>
  * <tr><td>PP_ENUM_HASHOID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с функцией хэширования ГОСТ Р 34.11-94 </td></tr>
@@ -4601,8 +4781,10 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * </td></tr>
  * </table> 
  *
- * При шифровании пакетов поддерживаются режимы шифрования: CRYPT_MODE_CNT, CRYPT_MODE_CFB, CRYPT_MODE_CBCSTRICT.
- * Во всех режимах шифрования могут быть использованы флаги: CRYPT_PROMIX_MODE, CRYPT_SIMPLEMIX_MODE.
+ * При шифровании пакетов поддерживаются режимы шифрования: CRYPT_MODE_CNT, CRYPT_MODE_CFB, CRYPT_MODE_CBCSTRICT, CRYPT_MODE_CTR, CRYPT_MODE_MGM.
+ * Во всех режимах шифрования может быть использован флаг CRYPT_SIMPLEMIX_MODE.
+ * В режимах шифрования CRYPT_MODE_CNT, CRYPT_MODE_CFB, CRYPT_MODE_CBCSTRICT может быть использован флаг CRYPT_PROMIX_MODE.
+ * В режиме шифрования CRYPT_MODE_CTR может быть использован флаг CRYPT_ACPKM_MODE.
  *
  * В пакетном режиме шифрования длина пакетов остаётся неизменной.
  *
@@ -5317,6 +5499,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_REUSABLE_HMAC		(0x4)
 #define CP_MULTI_HASH_FLAG		(0x8)
 #define CP_IMIT_NO_KEY_LOAD             (0x10)
+#define CP_HASH_ITER_NUMBER		(0x20)
 
 #define MIN_MULTI_HASH_COUNT		(0x01)
 #define MAX_MULTI_HASH_COUNT		(0x40)
@@ -5451,6 +5634,10 @@ typedef  struct CSP_Multipacket_DEC_ {
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_DEC_RES(p,n) (((CSP_Multipacket_DEC*)p)[n].dwDecResult)
+
+// Константа, используемая в CertEnumPhysicalStore при добавлении Windows-хранилищ к
+// Capilite-хранилищам. Аналогична CERT_PHYSICAL_STORE_DEFAULT_NAME и сходным константам.
+#define CERT_PHYSICAL_STORE_WINDOWS_NAME L".Windows"
 
 #endif /* _WINCRYPTEX_H_INCLUDED */
 /** \endcond */

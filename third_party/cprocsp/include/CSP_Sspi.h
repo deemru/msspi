@@ -1249,6 +1249,44 @@ typedef SECURITY_STATUS
 #  define SET_CONTEXT_ATTRIBUTES_FN SET_CONTEXT_ATTRIBUTES_FN_A
 #endif // !UNICODE
 
+SECURITY_STATUS SEC_ENTRY
+SetCredentialsAttributesW(
+    PCredHandle phCredential,                // Credential to Set
+    unsigned long ulAttribute,               // Attribute to Set
+    void* pBuffer,			     // Buffer for attributes
+    unsigned long cbBuffer                   // Size (in bytes) of Buffer
+);
+
+typedef SECURITY_STATUS
+(SEC_ENTRY* SET_CREDENTIALS_ATTRIBUTES_FN_W)(
+    PCredHandle,
+    unsigned long,
+    void*,
+    unsigned long);
+
+SECURITY_STATUS SEC_ENTRY
+SetCredentialsAttributesA(
+    PCredHandle phCredential,                // Credential to Set
+    unsigned long ulAttribute,               // Attribute to Set
+    void* pBuffer,                          // Buffer for attributes
+    unsigned long cbBuffer                   // Size (in bytes) of Buffer
+);
+
+typedef SECURITY_STATUS
+(SEC_ENTRY* SET_CREDENTIALS_ATTRIBUTES_FN_A)(
+    PCredHandle,
+    unsigned long,
+    void*,
+    unsigned long);
+
+#ifdef UNICODE
+#  define SetCredentialsAttributes SetCredentialsAttributesW            // ntifs
+#  define SET_CREDENTIALS_ATTRIBUTES_FN SET_CREDENTIALS_ATTRIBUTES_FN_W // ntifs
+#else
+#  define SetCredentialsAttributes SetCredentialsAttributesA
+#  define SET_CREDENTIALS_ATTRIBUTES_FN SET_CREDENTIALS_ATTRIBUTES_FN_A
+#endif // !UNICODE
+
 // begin_ntifs
 
 SECURITY_STATUS SEC_ENTRY
@@ -1675,6 +1713,7 @@ typedef struct _SECURITY_FUNCTION_TABLE_W {
     ENCRYPT_MESSAGE_FN                  EncryptMessage;
     DECRYPT_MESSAGE_FN                  DecryptMessage;
     SET_CONTEXT_ATTRIBUTES_FN_W         SetContextAttributesW;
+    SET_CREDENTIALS_ATTRIBUTES_FN_W     SetCredentialsAttributesW;
 } SecurityFunctionTableW, SEC_FAR * PSecurityFunctionTableW;
 
 // end_ntifs
@@ -1712,6 +1751,7 @@ typedef struct _SECURITY_FUNCTION_TABLE_A {
     ENCRYPT_MESSAGE_FN                  EncryptMessage;
     DECRYPT_MESSAGE_FN                  DecryptMessage;
     SET_CONTEXT_ATTRIBUTES_FN_A         SetContextAttributesA;
+    SET_CREDENTIALS_ATTRIBUTES_FN_A     SetCredentialsAttributesA;
 } SecurityFunctionTableA, SEC_FAR * PSecurityFunctionTableA;
 
 #ifdef UNICODE
@@ -1729,6 +1769,15 @@ typedef struct _SECURITY_FUNCTION_TABLE_A {
 
 // Function table has all routines through SetContextAttributes
 #define SECURITY_SUPPORT_PROVIDER_INTERFACE_VERSION_2   2   // ntifs
+
+// Function table has all routines through SetCredentialsAttributes
+#define SECURITY_SUPPORT_PROVIDER_INTERFACE_VERSION_3   3   // ntifs
+
+// Function table has all routines through ChangeAccountPassword
+#define SECURITY_SUPPORT_PROVIDER_INTERFACE_VERSION_4   4   // ntifs
+
+// Function table has all routines through QueryCredentialsAttributesEx
+#define SECURITY_SUPPORT_PROVIDER_INTERFACE_VERSION_5   5   // ntifs
 
 
 PSecurityFunctionTableA SEC_ENTRY
