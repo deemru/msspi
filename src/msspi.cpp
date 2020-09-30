@@ -1775,7 +1775,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, provinfo->dwFlags | CERT_SET_KEY_CONTEXT_PROP_ID ) )
                     break;
 
-                if( provinfo->rgProvParam && !CryptSetProvParam( hProv, provinfo->rgProvParam->dwParam, provinfo->rgProvParam->pbData, provinfo->rgProvParam->dwFlags ) )
+                PCRYPT_KEY_PROV_PARAM param = provinfo->cProvParam ? provinfo->rgProvParam : NULL;
+                if( param && !CryptSetProvParam( hProv, param->dwParam, param->cbData ? param->pbData : NULL, param->dwFlags ) )
                     break;
 
                 if( provinfo->dwProvType != PROV_GOST_2001_DH &&
@@ -1845,9 +1846,24 @@ static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password
         wpassword[i] = (WCHAR)password[i];
 
     CRYPT_DATA_BLOB pfxBlob = { (DWORD)len, (BYTE *)pfx };
-    HCERTSTORE hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), CRYPT_USER_KEYSET | PKCS12_IMPORT_SILENT | PKCS12_NO_PERSIST_KEY );
+    HCERTSTORE hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), PKCS12_NO_PERSIST_KEY );
     if( !hStore )
-        return NULL;
+    {
+        std::vector<BYTE> PFXDer;
+        DWORD dwData;
+        if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+        {
+            PFXDer.resize( dwData );
+            if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, &PFXDer[0], &dwData, NULL, NULL ) )
+            {
+                pfxBlob = { dwData, &PFXDer[0] };
+                hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), PKCS12_NO_PERSIST_KEY );
+            }
+        }
+
+        if( !hStore )
+            return NULL;
+    }
 
     PCCERT_CONTEXT pfxcert, prevcert = NULL;
     for( ;; )
@@ -1898,7 +1914,7 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
 
             pinparam.dwParam = PP_KEYEXCHANGE_PIN;
             pinparam.dwFlags = 0;
-            pinparam.pbData = NULL; // force default pin
+            pinparam.pbData = (PBYTE)""; // force default pin
             pinparam.cbData = 0;
 
             provinfo->cProvParam = 1;
