@@ -1771,7 +1771,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                     break;
 
-                if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, provinfo->dwFlags | CERT_SET_KEY_CONTEXT_PROP_ID ) )
+                if( !CryptAcquireContextW( &hProv, provinfo->pwszContainerName, provinfo->pwszProvName, provinfo->dwProvType, provinfo->dwFlags ) )
                     break;
 
                 PCRYPT_KEY_PROV_PARAM param = provinfo->cProvParam ? provinfo->rgProvParam : NULL;
@@ -1918,6 +1918,7 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
             pinparam.pbData = (BYTE*)&pinParam;
             pinparam.cbData = sizeof( CRYPT_PIN_PARAM );
 
+            provinfo->dwFlags |= CERT_SET_KEY_CONTEXT_PROP_ID;
             provinfo->cProvParam = 1;
             provinfo->rgProvParam = &pinparam;
 
