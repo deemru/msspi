@@ -1837,146 +1837,55 @@ void msspi_set_certstore( MSSPI_HANDLE h, const char * certstore )
     MSSPIEHCATCH_0;
 }
 
-static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, int len, bool can_append )
+static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password )
 {
-    MSSPIEHTRY;
+    std::wstring wpassword;
+    wpassword.resize( strlen( password ) );
+    for( size_t i = 0; i < wpassword.length(); ++i )
+        wpassword[i] = (WCHAR)password[i];
 
-    bool is_append = can_append && h->credstring.length() != 0;
-    std::string saved_credstring;
+    CRYPT_DATA_BLOB pfxBlob = { (DWORD)len, (BYTE *)pfx };
+    HCERTSTORE hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), CRYPT_USER_KEYSET | PKCS12_IMPORT_SILENT | PKCS12_NO_PERSIST_KEY );
+    if( !hStore )
+        return NULL;
 
-    if( is_append )
-        saved_credstring = h->credstring;
-    else
-        h->credstring = credstring( h );
-
-    h->credstring += "::cert::";
-
-    if( len )
-        h->credstring.append( clientCert, (unsigned)len );
-    else
-        h->credstring.append( clientCert );
-
-    if( credentials_api( h, true ) )
-        return 1;
-
-    PCCERT_CONTEXT certprobe = NULL;
-
-    if( len )
+    PCCERT_CONTEXT pfxcert, prevcert = NULL;
+    for( ;; )
     {
-        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)clientCert, (DWORD)len );
+        pfxcert = CertEnumCertificatesInStore( hStore, prevcert );
+        if( !pfxcert )
+            break;
 
-        if( !certprobe )
-        {
-            std::vector<BYTE> clientCertDer;
-            DWORD dwData;
-            if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
-            {
-                clientCertDer.resize( dwData );
-                if( CryptStringToBinaryA( clientCert, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
-                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
-            }
+        DWORD dw = 0;
+        if( CertGetCertificateContextProperty( pfxcert, CERT_KEY_CONTEXT_PROP_ID, NULL, &dw ) )
+            break;
 
-            if( !certprobe )
-            {
-                h->credstring = saved_credstring;
-                return 0;
-            }
-        }
+        prevcert = pfxcert;
     }
 
-    HCERTSTORE hStore = 0;
-    PCCERT_CONTEXT certfound = NULL;
+    CertCloseStore( hStore, 0 );
+    return pfxcert;
+}
 
-    DWORD dwStoreFlags[2] = {
-        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
-        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_LOCAL_MACHINE,
-    };
+static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound, bool pfx, bool can_append )
+{
+    bool isOK = false;
+    PCCERT_CONTEXT cleancert = NULL;
+    PCRYPT_KEY_PROV_INFO provinfo = NULL;
+    DWORD dw = 0;
 
-    for( size_t i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
+    for( ;; )
     {
-        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], h->certstore.data() );
-
-        if( !hStore )
-            continue;
-
-        if( certprobe )
-        {
-            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
-
-            if( certfound )
-                break;
-        }
+        if( pfx )
+            cleancert = CertDuplicateCertificateContext( certfound );
         else
-        {
-            BYTE bb[64/*MAX_OID_LEN*/];
-            int bblen = sizeof( bb );
-            int sslen = (int)strlen( clientCert );
-
-            if( sslen < bblen * 2 )
-            {
-                bblen = str2bin( clientCert, (char *)bb );
-
-                if( bblen != -1 )
-                {
-                    CERT_ID id;
-
-                    id.dwIdChoice = CERT_ID_SHA1_HASH;
-                    id._UN HashId.pbData = bb;
-                    id._UN HashId.cbData = (DWORD)bblen;
-
-                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
-
-                    if( certfound )
-                        break;
-
-                    id.dwIdChoice = CERT_ID_KEY_IDENTIFIER;
-                    id._UN KeyId.pbData = bb;
-                    id._UN KeyId.cbData = (DWORD)bblen;
-
-                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
-
-                    if( certfound )
-                        break;
-                }
-            }
-
-            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, clientCert, NULL );
-
-            if( certfound )
-                break;
-        }
-
-        CertCloseStore( hStore, 0 );
-        hStore = 0;
-    }
-
-    if( hStore )
-        CertCloseStore( hStore, 0 );
-
-    if( certprobe )
-        CertFreeCertificateContext( certprobe );
-
-    if( h->certs.size() && !can_append )
-    {
-        for( size_t i = 0; i < h->certs.size(); i++ )
-            CertFreeCertificateContext( h->certs[i] );
-        h->certs.clear();
-    }
-
-    if( certfound )
-    {
-        bool isOK = false;
-        PCCERT_CONTEXT cleancert = NULL;
-        PCRYPT_KEY_PROV_INFO provinfo = NULL;
-        DWORD dw;
-
-        for( ;; )
-        {
             cleancert = CertCreateCertificateContext( X509_ASN_ENCODING, certfound->pbCertEncoded, certfound->cbCertEncoded );
 
-            if( !cleancert )
-                break;
+        if( !cleancert )
+            break;
 
+        if( !pfx )
+        {
             if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
                 break;
 
@@ -1997,41 +1906,189 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * clientCert, in
 
             if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
-
-            isOK = true;
-            break;
         }
 
-        CertFreeCertificateContext( certfound );
-
-        if( provinfo )
-            delete[]( char * )provinfo;
-
-        if( isOK )
-        {
-            h->certs.push_back( cleancert );
-            h->is.can_append = (unsigned)can_append;
-            return 1;
-        }
-        else if( cleancert )
-            CertFreeCertificateContext( cleancert );
-
+        isOK = true;
+        break;
     }
 
-    h->credstring = saved_credstring;
-    return 0;
+    if( provinfo )
+        delete[]( char * )provinfo;
+
+    if( isOK )
+    {
+        if( h->certs.size() && !can_append )
+        {
+            for( size_t i = 0; i < h->certs.size(); i++ )
+                CertFreeCertificateContext( h->certs[i] );
+            h->certs.clear();
+        }
+
+        h->certs.push_back( cleancert );
+    }
+    else if( cleancert )
+        CertFreeCertificateContext( cleancert );
+
+    return isOK;
+}
+
+static PCCERT_CONTEXT findcert( const char * certData, int len, const char * certstore )
+{
+    PCCERT_CONTEXT certprobe = NULL;
+
+    if( len )
+    {
+        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)certData, (DWORD)len );
+        if( !certprobe )
+        {
+            std::vector<BYTE> clientCertDer;
+            DWORD dwData;
+            if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+            {
+                clientCertDer.resize( dwData );
+                if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
+                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
+            }
+
+            if( !certprobe )
+                return NULL;
+        }
+    }
+
+    PCCERT_CONTEXT certfound = NULL;
+    HCERTSTORE hStore = 0;
+
+    DWORD dwStoreFlags[2] = {
+        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_CURRENT_USER,
+        CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_LOCAL_MACHINE,
+    };
+
+    for( size_t i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
+    {
+        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], certstore );
+
+        if( !hStore )
+            continue;
+
+        if( certprobe )
+        {
+            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
+            if( certfound )
+                break;
+        }
+        else
+        {
+            BYTE bb[64/*MAX_OID_LEN*/];
+            int bblen = sizeof( bb );
+            int sslen = (int)strlen( certData );
+
+            if( sslen < bblen * 2 )
+            {
+                bblen = str2bin( certData, (char *)bb );
+                if( bblen != -1 )
+                {
+                    CERT_ID id;
+
+                    id.dwIdChoice = CERT_ID_SHA1_HASH;
+                    id._UN HashId.pbData = bb;
+                    id._UN HashId.cbData = (DWORD)bblen;
+
+                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                    if( certfound )
+                        break;
+
+                    id.dwIdChoice = CERT_ID_KEY_IDENTIFIER;
+                    id._UN KeyId.pbData = bb;
+                    id._UN KeyId.cbData = (DWORD)bblen;
+
+                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                    if( certfound )
+                        break;
+                }
+            }
+
+            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, certData, NULL );
+            if( certfound )
+                break;
+        }
+
+        CertCloseStore( hStore, 0 );
+        hStore = 0;
+    }
+
+    if( hStore )
+        CertCloseStore( hStore, 0 );
+
+    if( certprobe )
+        CertFreeCertificateContext( certprobe );
+
+    return certfound;
+}
+
+static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int len, const char * password, bool pfx, bool can_append )
+{
+    MSSPIEHTRY;
+
+    bool is_append = can_append && h->credstring.length() != 0;
+    std::string saved_credstring;
+
+    if( is_append )
+        saved_credstring = h->credstring;
+    else
+        h->credstring = credstring( h );
+
+    h->credstring += pfx ? "::pfx::" : "::cert::";
+
+    if( len )
+        h->credstring.append( certData, (unsigned)len );
+    else
+        h->credstring.append( certData );
+
+    if( credentials_api( h, true ) )
+        return 1;
+
+    char isOK = 0;
+    PCCERT_CONTEXT cert = NULL;
+
+    if( pfx )
+        cert = pfx2cert( certData, len, password );
+    else
+        cert = findcert( certData, len, h->certstore.data() );
+
+    if( cert )
+    {
+        isOK = msspi_set_mycert_finalize( h, cert, pfx, can_append );
+        CertFreeCertificateContext( cert );
+    }
+
+    if( isOK )
+        h->is.can_append = (unsigned)can_append;
+    else
+        h->credstring = saved_credstring;
+
+    return isOK;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
-    return msspi_set_mycert_common( h, clientCert, len, false );
+    return msspi_set_mycert_common( h, clientCert, len, NULL, false, false );
 }
 
 char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
 {
-    return msspi_set_mycert_common( h, clientCert, len, true );
+    return msspi_set_mycert_common( h, clientCert, len, NULL, false, true );
+}
+
+char msspi_set_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password )
+{
+    return msspi_set_mycert_common( h, pfx, len, password, true, false );
+}
+
+char msspi_add_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password )
+{
+    return msspi_set_mycert_common( h, pfx, len, password, true, true );
 }
 
 void msspi_close( MSSPI_HANDLE h )

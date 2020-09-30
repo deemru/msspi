@@ -57,6 +57,8 @@ char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, unsigned len );
 void msspi_set_certstore( MSSPI_HANDLE h, const char * store );
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
 char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
+char msspi_set_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password );
+char msspi_add_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password );
 char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest );
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth );
 void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb );
