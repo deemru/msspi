@@ -60,6 +60,7 @@ extern "C" {
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
 #include "CSP_SChannel.h"
+#define UNIX
 #else
 #include <schannel.h>
 #include <sspi.h>
@@ -80,7 +81,9 @@ static DWORD GetTickCount()
 
     return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
 }
+#define UNIX
 #endif // _WIN32
+#include "WinCryptEx.h"
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
@@ -253,13 +256,6 @@ typedef struct _SecPkgContext_ApplicationProtocol
 } SecPkgContext_ApplicationProtocol, *PSecPkgContext_ApplicationProtocol;
 
 #endif /*SECBUFFER_APPLICATION_PROTOCOLS*/
-
-#ifndef PROV_GOST_2001_DH
-#define PROV_GOST_2001_DH 75
-#define PROV_GOST_2012_256 80
-#define PROV_GOST_2012_512 81
-#define CALG_G28147 0x661E
-#endif
 
 // credentials_api
 #ifdef USE_BOOST
@@ -1911,11 +1907,13 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
                 break;
 
             CRYPT_KEY_PROV_PARAM pinparam;
-
-            pinparam.dwParam = PP_KEYEXCHANGE_PIN;
+            CRYPT_PIN_PARAM pinParam = { 0 };
+            pinParam.type = CRYPT_PIN_CLEAR;
+            pinParam.dest.passwd = NULL;
+            pinparam.dwParam = PP_SET_PIN;
             pinparam.dwFlags = 0;
-            pinparam.pbData = (PBYTE)""; // force default pin
-            pinparam.cbData = 0;
+            pinparam.pbData = (BYTE*)&pinParam;
+            pinparam.cbData = sizeof( CRYPT_PIN_PARAM );
 
             provinfo->cProvParam = 1;
             provinfo->rgProvParam = &pinparam;
