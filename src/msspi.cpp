@@ -83,7 +83,6 @@ static DWORD GetTickCount()
 }
 #define UNIX
 #endif // _WIN32
-#include "WinCryptEx.h"
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
