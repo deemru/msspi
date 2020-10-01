@@ -123,6 +123,8 @@ static DWORD GetTickCount()
 #endif // SECURITY_DLL_NAME
 
 #include "msspi.h"
+
+#include "common.h"
 #include "WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
