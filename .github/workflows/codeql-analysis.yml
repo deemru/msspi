@@ -52,7 +52,7 @@ jobs:
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
     - name: Build
-    - run: cd build_linux && make
+      run: cd build_linux && make
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
