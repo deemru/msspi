@@ -478,6 +478,7 @@ struct MSSPI
     std::vector<PCCERT_CONTEXT> certs;
     std::string certstore;
     std::string credstring;
+    std::string credprovider;
 
     int in_len;
     int dec_len;
@@ -535,11 +536,17 @@ static char credentials_acquire( MSSPI_HANDLE h )
     }
 
     SECURITY_STATUS scRet;
+    const char * credprovider;
+    if( h->credprovider.length() )
+        credprovider = h->credprovider.data();
+    else
 #if TARGET_OS_IPHONE
-    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)"Crypto Provider", usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
+        credprovider = "Crypto Provider";
 #else
-    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)UNISP_NAME_A, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
+        credprovider = UNISP_NAME_A;
 #endif
+
+    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)credprovider, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
@@ -1651,7 +1658,7 @@ void msspi_set_version( MSSPI_HANDLE h, int min, int max )
 #define ALG_TYPE_CIPHER_SUITE (15 << 9)
 #endif
 
-void msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
+char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
 {
     MSSPIEHTRY;
 
@@ -1687,7 +1694,21 @@ void msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
     if( cipher )
         h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | cipher );
 
-    MSSPIEHCATCH_0;
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
+char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
+{
+    MSSPIEHTRY;
+
+    if( credprovider )
+        h->credprovider = credprovider;
+
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
 }
 
 #ifndef _UN
