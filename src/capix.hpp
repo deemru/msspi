@@ -317,6 +317,10 @@ DECLARE_CAPI20X_FUNCTION( PCCRL_CONTEXT, CertEnumCRLsInStore,
     ( HCERTSTORE hCertStore, PCCRL_CONTEXT pPrevCrlContext ),
     ( hCertStore, pPrevCrlContext ), NULL )
 
+DECLARE_CAPI20X_FUNCTION( HCERTSTORE, PFXImportCertStore,
+    ( CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, DWORD dwFlags ),  
+    ( pPFX, szPassword, dwFlags ), 0 )
+
 DECLARE_RDRSUPX_FUNCTION( int, WideCharToMultiByte,
     ( UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar ),
     ( CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar ), 0 )
