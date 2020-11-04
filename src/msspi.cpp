@@ -754,6 +754,8 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( i != 1 )
             return i;
+
+        return msspi_read( h, buf, len );
     }
 
     if( h->in_len == 0 )
