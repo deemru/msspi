@@ -729,7 +729,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
     {
         if( buf == NULL )
             return 0;
-        
+
         int decrypted = h->dec_len;
 
         if( decrypted > len )
@@ -2516,7 +2516,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
 
     if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
         return dwVerify;
-    
+
     if( !h->peercert )
         return dwVerify;
 
