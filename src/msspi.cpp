@@ -1883,7 +1883,8 @@ static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password
             PFXDer.resize( dwData );
             if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, &PFXDer[0], &dwData, NULL, NULL ) )
             {
-                pfxBlob = { dwData, &PFXDer[0] };
+                pfxBlob.cbData = dwData;
+                pfxBlob.pbData = &PFXDer[0];
                 hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), PKCS12_NO_PERSIST_KEY );
             }
         }
