@@ -1754,6 +1754,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
         if( silent )
         {
             provinfo->dwFlags |= CRYPT_SILENT;
+            provinfo->cProvParam = 0;
+            provinfo->rgProvParam = NULL;
 
             if( !CertSetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
                 break;
