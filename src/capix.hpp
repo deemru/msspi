@@ -318,12 +318,24 @@ DECLARE_CAPI20X_FUNCTION( PCCRL_CONTEXT, CertEnumCRLsInStore,
     ( hCertStore, pPrevCrlContext ), NULL )
 
 DECLARE_CAPI20X_FUNCTION( HCERTSTORE, PFXImportCertStore,
-    ( CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, DWORD dwFlags ),  
+    ( CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, DWORD dwFlags ),
     ( pPFX, szPassword, dwFlags ), 0 )
+
+DECLARE_CAPI20X_FUNCTION( PCCRYPT_OID_INFO, CryptFindOIDInfo,
+    ( DWORD dwKeyType, void * pvKey, DWORD dwGroupId ),
+    ( dwKeyType, pvKey, dwGroupId ), NULL )
+
+DECLARE_CAPI20X_FUNCTION( DWORD, CertGetPublicKeyLength,
+    ( DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pPublicKey ),
+    ( dwCertEncodingType, pPublicKey ), 0 )
 
 DECLARE_RDRSUPX_FUNCTION( int, WideCharToMultiByte,
     ( UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar ),
     ( CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar ), 0 )
+
+DECLARE_RDRSUPX_FUNCTION( BOOL, FileTimeToSystemTime,
+    ( const FILETIME * lpFileTime, LPSYSTEMTIME lpSystemTime ),
+    ( lpFileTime, lpSystemTime ), FALSE )
 
 DECLARE_RDRSUPX_FUNCTION( DWORD, GetLastError,
     ( ),
