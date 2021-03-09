@@ -285,8 +285,10 @@ static void credentials_release( MSSPI_HANDLE h );
 // sspi
 static PSecurityFunctionTableA sspi = NULL;
 
-static char msspi_sspi_init( void )
+static char msspi_init_sspi( void )
 {
+    UNIQUE_LOCK( g_mtx ); // serialize init
+
     if( sspi )
         return 1;
 
@@ -1529,7 +1531,7 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
 {
     MSSPIEHTRY;
 
-    if( !msspi_sspi_init() )
+    if( !msspi_init_sspi() )
         return NULL;
 
     if( !read_cb || !write_cb )
