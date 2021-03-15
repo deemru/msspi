@@ -2400,13 +2400,13 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-static std::string certname( PCERT_NAME_BLOB name )
+static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, NULL, 0 );
+    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, &w_str[0], dwLen );
+        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), &w_str[0], dwLen );
         if( dwLen == w_str.size() )
         {
             dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
@@ -2845,11 +2845,11 @@ void msspi_cert_close( MSSPI_CERT_HANDLE ch )
     MSSPIEHCATCH_0;
 }
 
-char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
 {
     MSSPIEHTRY;
 
-    ch->subject = certname( &ch->cert->pCertInfo->Subject ).c_str();
+    ch->subject = certname( &ch->cert->pCertInfo->Subject, quotes != 0 ).c_str();
     if( !ch->subject.length() )
         return 0;
 
@@ -2860,11 +2860,11 @@ char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
     MSSPIEHCATCH_RET( 0 );
 }
 
-char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
 {
     MSSPIEHTRY;
 
-    ch->issuer = certname( &ch->cert->pCertInfo->Issuer ).c_str();
+    ch->issuer = certname( &ch->cert->pCertInfo->Issuer, quotes != 0 ).c_str();
     if( !ch->issuer.length() )
         return 0;
 

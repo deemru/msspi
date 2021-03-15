@@ -137,8 +137,8 @@ typedef struct MSSPI_CERT * MSSPI_CERT_HANDLE;
 MSSPI_CERT_HANDLE msspi_cert_open( const char * cert, size_t len );
 MSSPI_CERT_HANDLE msspi_cert_next( MSSPI_CERT_HANDLE h );
 
-char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len );
-char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len );
+char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes );
+char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes );
 char msspi_cert_serial( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len );
 char msspi_cert_keyid( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len );
 char msspi_cert_sha1( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len );
