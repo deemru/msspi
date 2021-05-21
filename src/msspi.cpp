@@ -2400,13 +2400,13 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-static std::string certname( PCERT_NAME_BLOB name )
+static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, NULL, 0 );
+    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR, &w_str[0], dwLen );
+        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), &w_str[0], dwLen );
         if( dwLen == w_str.size() )
         {
             dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
@@ -2416,7 +2416,7 @@ static std::string certname( PCERT_NAME_BLOB name )
                 c_str.resize( dwLen );
                 dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, &c_str[0], (int)dwLen, NULL, NULL );
                 if( dwLen == c_str.size() )
-                    return c_str;
+                    return c_str.c_str();
             }
         }
     }
@@ -2669,3 +2669,352 @@ char msspi_random( void * buf, int len, char safe )
     MSSPIEHCATCH_RET( 0 );
 }
 
+#ifndef NO_MSSPI_CERT
+
+#define B2C( b ) ( ( ( b ) < 10 ? '0' : 'A' - 10 ) + ( b ) )
+
+static std::string to_hex_string( const uint8_t * bytes, size_t len )
+{
+    std::string c_str;
+    for( size_t i = 0; i < len; i++ )
+    {
+        uint8_t b = bytes[i];
+        c_str += B2C( b >> 4 );
+        c_str += B2C( b & 15 );
+    }
+    return c_str;
+}
+
+static std::string to_hex_string( std::string b )
+{
+    return to_hex_string( (const uint8_t *)&b[0], b.length() );
+}
+
+static std::string to_string( LPCWSTR w_str )
+{
+    DWORD dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, w_str, -1, NULL, 0, NULL, NULL );
+    if( dwLen )
+    {
+        std::string c_str;
+        c_str.resize( dwLen );
+        dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, w_str, -1, &c_str[0], (int)dwLen, NULL, NULL );
+        if( dwLen == c_str.size() )
+            return c_str.c_str();
+    }
+
+    return "";
+}
+
+static std::string certprop( PCCERT_CONTEXT cert, DWORD id )
+{
+    std::string prop;
+
+    DWORD dw;
+    if( CertGetCertificateContextProperty( cert, id, NULL, &dw ) )
+    {
+        prop.resize( dw );
+        if( CertGetCertificateContextProperty( cert, id, &prop[0], &dw ) )
+        {
+            if( dw < prop.length() )
+                prop.resize( dw );
+        }
+    }
+
+    return prop;
+}
+
+static std::string algstr( LPSTR oid )
+{
+    std::string keyalg;
+
+    PCCRYPT_OID_INFO pInfo;
+    pInfo = CryptFindOIDInfo( CRYPT_OID_INFO_OID_KEY, (void *)oid, 0 );
+    if( !pInfo )
+        keyalg = oid;
+    else
+        keyalg = to_string( pInfo->pwszName );
+
+    return keyalg;
+}
+
+static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
+{
+    std::string keylen;
+
+    DWORD dwPublicKeyLength = CertGetPublicKeyLength( X509_ASN_ENCODING, keyinfo );
+    if( dwPublicKeyLength )
+        keylen = std::to_string( (int)dwPublicKeyLength );
+
+    return keylen;
+}
+
+struct MSSPI_CERT
+{
+    PCCERT_CONTEXT cert;
+    std::string subject;
+    std::string issuer;
+    std::string serial;
+    std::string keyid;
+    std::string sha1;
+    std::string alg_sig;
+    std::string alg_key;
+
+    MSSPI_CERT( PCCERT_CONTEXT certin )
+    {
+        cert = certin;
+    }
+
+    ~MSSPI_CERT()
+    {
+        if( cert )
+            CertFreeCertificateContext( cert );
+    }
+};
+
+MSSPI_CERT_HANDLE msspi_cert_open( const char * certbuf, size_t len )
+{
+    MSSPIEHTRY;
+
+    PCCERT_CONTEXT cert = NULL;
+
+    if( !len )
+        return NULL;
+
+    cert = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)certbuf, (DWORD)len );
+    if( !cert )
+    {
+        std::vector<BYTE> certbufder;
+        DWORD dwData;
+        if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+        {
+            certbufder.resize( dwData );
+            if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, &certbufder[0], &dwData, NULL, NULL ) )
+                cert = CertCreateCertificateContext( X509_ASN_ENCODING, &certbufder[0], dwData );
+        }
+
+        if( !cert )
+            return NULL;
+    }
+
+    return new MSSPI_CERT( cert );
+
+    MSSPIEHCATCH_RET( NULL );
+}
+
+MSSPI_CERT_HANDLE msspi_cert_next( MSSPI_CERT_HANDLE ch )
+{
+    MSSPIEHTRY;
+
+    MSSPI_CERT_HANDLE ch_next = NULL;
+
+    PCCERT_CHAIN_CONTEXT PeerChain;
+    CERT_CHAIN_PARA ChainPara;
+    memset( &ChainPara, 0, sizeof( ChainPara ) );
+    ChainPara.cbSize = sizeof( ChainPara );
+
+    if( CertGetCertificateChain(
+        NULL,
+        ch->cert,
+        NULL,
+        ch->cert->hCertStore,
+        &ChainPara,
+        CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL,
+        NULL,
+        &PeerChain ) )
+    {
+        if( PeerChain->cChain > 0 && PeerChain->rgpChain[0]->cElement > 1 )
+        {
+            PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[1]->pCertContext;
+            ch_next = msspi_cert_open( (const char *)cert->pbCertEncoded, (size_t)cert->cbCertEncoded );
+        }
+
+        CertFreeCertificateChain( PeerChain );
+    }
+
+    return ch_next;
+
+    MSSPIEHCATCH_RET( NULL );
+}
+
+void msspi_cert_close( MSSPI_CERT_HANDLE ch )
+{
+    MSSPIEHTRY;
+
+    delete ch;
+
+    MSSPIEHCATCH_0;
+}
+
+char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
+{
+    MSSPIEHTRY;
+
+    ch->subject = certname( &ch->cert->pCertInfo->Subject, quotes != 0 ).c_str();
+    if( !ch->subject.length() )
+        return 0;
+
+    *buf = ch->subject.c_str();
+    *len = ch->subject.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
+{
+    MSSPIEHTRY;
+
+    ch->issuer = certname( &ch->cert->pCertInfo->Issuer, quotes != 0 ).c_str();
+    if( !ch->issuer.length() )
+        return 0;
+
+    *buf = ch->issuer.c_str();
+    *len = ch->issuer.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_serial( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+{
+    MSSPIEHTRY;
+
+    if( !ch->cert->pCertInfo->SerialNumber.pbData || !ch->cert->pCertInfo->SerialNumber.cbData )
+        return 0;
+
+    ch->serial = to_hex_string( ch->cert->pCertInfo->SerialNumber.pbData, ch->cert->pCertInfo->SerialNumber.cbData );
+    if( !ch->serial.length() )
+        return 0;
+
+    *buf = ch->serial.c_str();
+    *len = ch->serial.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_keyid( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+{
+    MSSPIEHTRY;
+
+    std::string prop = certprop( ch->cert, CERT_KEY_IDENTIFIER_PROP_ID );
+    if( !prop.length() )
+        return 0;
+
+    ch->keyid = to_hex_string( prop );
+    if( !ch->keyid.length() )
+        return 0;
+
+    *buf = ch->keyid.c_str();
+    *len = ch->keyid.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_sha1( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+{
+    MSSPIEHTRY;
+
+    std::string prop = certprop( ch->cert, CERT_SHA1_HASH_PROP_ID );
+    if( !prop.length() )
+        return 0;
+
+    ch->sha1 = to_hex_string( prop );
+    if( !ch->sha1.length() )
+        return 0;
+
+    *buf = ch->sha1.c_str();
+    *len = ch->sha1.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_alg_sig( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+{
+    MSSPIEHTRY;
+
+    if( !ch->cert->pCertInfo->SignatureAlgorithm.pszObjId )
+        return 0;
+
+    ch->alg_sig = algstr( ch->cert->pCertInfo->SignatureAlgorithm.pszObjId );
+    if( !ch->alg_sig.length() )
+        return 0;
+
+    *buf = ch->alg_sig.c_str();
+    *len = ch->alg_sig.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_alg_key( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
+{
+    MSSPIEHTRY;
+
+    if( !ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId )
+        return 0;
+
+    ch->alg_key = algstr( ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId );
+    if( !ch->alg_key.length() )
+        return 0;
+
+    std::string bitlen = alglenstr( &ch->cert->pCertInfo->SubjectPublicKeyInfo );
+    if( bitlen.length() > 0 )
+        ch->alg_key += " (" + bitlen + " бит)";
+
+    *buf = ch->alg_key.c_str();
+    *len = ch->alg_key.length();
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_time_issued( MSSPI_CERT_HANDLE ch, struct tm * time )
+{
+    MSSPIEHTRY;
+
+    SYSTEMTIME stime;
+    if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotBefore, &stime ) )
+        return 0;
+
+    time->tm_year = stime.wYear;
+    time->tm_mon = stime.wMonth;
+    time->tm_mday = stime.wDay;
+    time->tm_hour = stime.wHour;
+    time->tm_min = stime.wMinute;
+    time->tm_sec = stime.wSecond;
+    time->tm_wday = -1;
+    time->tm_yday = -1;
+    time->tm_isdst = -1;
+
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+char msspi_cert_time_expired( MSSPI_CERT_HANDLE ch, struct tm * time )
+{
+    MSSPIEHTRY;
+
+    SYSTEMTIME stime;
+    if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotAfter, &stime ) )
+        return 0;
+
+    time->tm_year = stime.wYear;
+    time->tm_mon = stime.wMonth;
+    time->tm_mday = stime.wDay;
+    time->tm_hour = stime.wHour;
+    time->tm_min = stime.wMinute;
+    time->tm_sec = stime.wSecond;
+    time->tm_wday = -1;
+    time->tm_yday = -1;
+    time->tm_isdst = -1;
+
+    return 1;
+
+    MSSPIEHCATCH_RET( 0 );
+}
+
+#endif /* NO_MSSPI_CERT */
