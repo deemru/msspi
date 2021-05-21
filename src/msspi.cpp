@@ -1861,7 +1861,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
                     if( CryptCreateHash( hProv, hashAlgid, 0, 0, &hTestHash ) &&
                         CryptHashData( hTestHash, (const BYTE *)"\01\00\00\00\03\03", 6, 0 ) &&
-                        CryptSignHash( hTestHash, provinfo->dwKeySpec, NULL, 0, 0, &dwLen ) )
+                        CryptSignHashW( hTestHash, provinfo->dwKeySpec, NULL, 0, 0, &dwLen ) )
                         selftest = 1;
                 }
 
@@ -2441,7 +2441,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
 static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), NULL, 0 );
+    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? (int)0 : CERT_NAME_STR_NO_QUOTING_FLAG ), NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
