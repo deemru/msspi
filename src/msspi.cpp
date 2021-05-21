@@ -1726,6 +1726,22 @@ char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
 #endif // _WIN32
 #endif // _UN
 
+static BOOL is_cert_oid( PCCERT_CONTEXT pcert, const char * oid )
+{
+    DWORD ekuLength = 0;
+    BOOL result = CertGetEnhancedKeyUsage( pcert, 0, NULL, &ekuLength );
+    if( result && ekuLength > 0 )
+    {
+        std::vector<BYTE> ekuListBuffer(ekuLength);
+        PCERT_ENHKEY_USAGE ekuList = (PCERT_ENHKEY_USAGE)&ekuListBuffer[0];
+        if( CertGetEnhancedKeyUsage( pcert, 0, ekuList, &ekuLength ) )
+            for( DWORD i = 0; i < ekuList->cUsageIdentifier; i++ )
+                if( 0 == strcmp( ekuList->rgpszUsageIdentifier[i], oid ) )
+                    return TRUE;
+    }
+    return FALSE;
+}
+
 char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest )
 {
     MSSPIEHTRY;
@@ -1782,10 +1798,10 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
         if( selftest )
         {
             UNIQUE_LOCK( g_mtx ); // serialize selftests
-            BYTE bbPK[1024/*MAX_PUBKEY_LEN*/];
-            DWORD dwPK = sizeof( bbPK );
+
             HCRYPTKEY hUserKey = 0;
             HCRYPTKEY hTestKey = 0;
+            HCRYPTHASH hTestHash = 0;
             HCRYPTPROV hProv = 0;
 
             selftest = 0;
@@ -1818,17 +1834,37 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                     break;
                 }
 
-                DWORD dwAlgid = CALG_G28147;
+                if( is_cert_oid( cert, szOID_PKIX_KP_SERVER_AUTH ) )
+                {
+                    BYTE bbPK[1024/*MAX_PUBKEY_LEN*/];
+                    DWORD dwPK = sizeof( bbPK );
+                    DWORD dwAlgid = CALG_G28147;
 
-                // CryptImportKey - checks PIN
-                if( !CryptGetUserKey( hProv, provinfo->dwKeySpec, &hUserKey ) ||
-                    !CryptExportKey( hUserKey, 0, PUBLICKEYBLOB, 0, bbPK, &dwPK ) ||
-                    !CryptImportKey( hProv, bbPK, dwPK, hUserKey, 0, &hTestKey ) || // check PIN
-                    !CryptSetKeyParam( hTestKey, KP_ALGID, (BYTE *)&dwAlgid, 0 ) ||
-                    !CryptEncrypt( hTestKey, 0, TRUE, 0, 0, &dwPK, dwPK ) ) // check LICENSE
-                    break;
+                    // CryptImportKey - checks PIN
+                    if( CryptGetUserKey( hProv, provinfo->dwKeySpec, &hUserKey ) &&
+                        CryptExportKey( hUserKey, 0, PUBLICKEYBLOB, 0, bbPK, &dwPK ) &&
+                        CryptImportKey( hProv, bbPK, dwPK, hUserKey, 0, &hTestKey ) && // check PIN
+                        CryptSetKeyParam( hTestKey, KP_ALGID, (BYTE*)&dwAlgid, 0 ) &&
+                        CryptEncrypt( hTestKey, 0, TRUE, 0, 0, &dwPK, dwPK ) ) // check LICENSE
+                        selftest = 1;
+                }
+                else // szOID_PKIX_KP_CLIENT_AUTH
+                {
+                    DWORD dwLen = 0;
+                    DWORD hashAlgid;
+                    if( provinfo->dwProvType == PROV_GOST_2001_DH )
+                        hashAlgid = CALG_GR3411;
+                    else if( provinfo->dwProvType == PROV_GOST_2012_256 )
+                        hashAlgid = CALG_GR3411_2012_256;
+                    else // if( provinfo->dwProvType == PROV_GOST_2012_512 )
+                        hashAlgid = CALG_GR3411_2012_512;
 
-                selftest = 1;
+                    if( CryptCreateHash( hProv, hashAlgid, 0, 0, &hTestHash ) &&
+                        CryptHashData( hTestHash, (const BYTE *)"\01\00\00\00\03\03", 6, 0 ) &&
+                        CryptSignHash( hTestHash, provinfo->dwKeySpec, NULL, 0, 0, &dwLen ) )
+                        selftest = 1;
+                }
+
                 break;
             }
 
@@ -1837,6 +1873,9 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
             if( hTestKey )
                 CryptDestroyKey( hTestKey );
+
+            if( hTestHash )
+                CryptDestroyHash( hTestHash );
 
             if( hProv )
                 CryptReleaseContext( hProv, 0 );

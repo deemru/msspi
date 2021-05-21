@@ -193,6 +193,10 @@ DECLARE_CAPI10X_FUNCTION( BOOL, CryptHashData,
     ( HCRYPTHASH hHash, const BYTE * pbData, DWORD dwDataLen, DWORD dwFlags ),
     ( hHash, pbData, dwDataLen, dwFlags ), FALSE )
 
+DECLARE_CAPI10X_FUNCTION( BOOL, CryptSignHash,
+    ( HCRYPTHASH hHash, DWORD dwKeySpec, LPCWSTR szDescription, DWORD dwFlags, BYTE * pbSignature, DWORD * pdwSigLen ),
+    ( hHash, dwKeySpec, szDescription, dwFlags, pbSignature, pdwSigLen ), FALSE )
+
 DECLARE_CAPI10X_FUNCTION( BOOL, CryptGetProvParam,
     ( HCRYPTPROV hProv, DWORD dwParam, BYTE * pbData, DWORD * pdwDataLen, DWORD dwFlags ),
     ( hProv, dwParam, pbData, pdwDataLen, dwFlags ), FALSE )
