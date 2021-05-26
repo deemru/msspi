@@ -2441,11 +2441,11 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
 static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? (int)0 : CERT_NAME_STR_NO_QUOTING_FLAG ), NULL, 0 );
+    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, (DWORD)( CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ) ), NULL, 0 );
     if( dwLen > 1 )
     {
         std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ), &w_str[0], dwLen );
+        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, (DWORD)( CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ) ), &w_str[0], dwLen );
         if( dwLen == w_str.size() )
         {
             dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
