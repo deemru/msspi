@@ -1836,7 +1836,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
                 if( is_cert_oid( cert, szOID_PKIX_KP_SERVER_AUTH ) )
                 {
-                    BYTE bbPK[1024/*MAX_PUBKEY_LEN*/];
+                    BYTE bbPK[256/*MAX_PUBLICKEYBLOB_LEN*/];
                     DWORD dwPK = sizeof( bbPK );
                     DWORD dwAlgid = CALG_G28147;
 
@@ -1850,7 +1850,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 }
                 else // szOID_PKIX_KP_CLIENT_AUTH
                 {
-                    DWORD dwLen = 0;
+                    BYTE bbSig[128/*MAX_SIG_LEN*/];
+                    DWORD dwSig = sizeof( bbSig );
                     DWORD hashAlgid;
                     if( provinfo->dwProvType == PROV_GOST_2001_DH )
                         hashAlgid = CALG_GR3411;
@@ -1861,7 +1862,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
                     if( CryptCreateHash( hProv, hashAlgid, 0, 0, &hTestHash ) &&
                         CryptHashData( hTestHash, (const BYTE *)"\01\00\00\00\03\03", 6, 0 ) &&
-                        CryptSignHashW( hTestHash, provinfo->dwKeySpec, NULL, 0, 0, &dwLen ) )
+                        CryptSignHashW( hTestHash, provinfo->dwKeySpec, NULL, 0, bbSig, &dwSig ) )
                         selftest = 1;
                 }
 
