@@ -924,6 +924,7 @@ extern "C" {
 #define szOID_NIST_AES256_CFB		    "2.16.840.1.101.3.4.1.44"
 #endif
 
+#ifndef __MINGW32__
 // Algorithm is only implemented in CNG.
 #define CALG_OID_INFO_CNG_ONLY                   0xFFFFFFFF
 // Algorithm is defined in the encoded parameters. Only supported
@@ -931,6 +932,7 @@ extern "C" {
 #define CALG_OID_INFO_PARAMETERS                 0xFFFFFFFE
 // Macro to check for a special ALG_ID used in CRYPT_OID_INFO
 #define IS_SPECIAL_OID_INFO_ALGID(Algid)        (Algid >= CALG_OID_INFO_PARAMETERS)
+#endif // __MINGW32__
 
 #define SSL3_CK_GVO				0x0031
 #define SSL3_CK_GVO_KB2				0x0032

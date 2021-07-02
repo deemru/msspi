@@ -124,7 +124,9 @@ static DWORD GetTickCount()
 
 #include "msspi.h"
 
+#ifndef __MINGW32__
 #include "common.h"
+#endif // __MINGW32__
 #include "WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
