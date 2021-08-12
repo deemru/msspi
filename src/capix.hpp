@@ -15,55 +15,51 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-#define LIBCAPI10_PATH ""
-#define LIBCAPI20_PATH ""
-#define LIBRDRSUP_PATH ""
+#define CPROLIBS_PATH ""
+#elif defined( __APPLE__ )
+#define CPROLIBS_PATH "/opt/cprocsp/lib/"
+#include <TargetConditionals.h>
+#ifdef TARGET_OS_IPHONE
+#define IOS
+#endif
+#else // other LINUX
+#if defined( __mips__ ) // archs
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/mipsel/"
+#else // __BYTE_ORDER__
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/mips/"
+#endif // __BYTE_ORDER__
+#elif defined( __arm__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/arm/"
+#elif defined( __aarch64__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/aarch64/"
+#elif defined( __e2k__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/lib64/"
+#elif defined( __PPC64__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/lib64/"
+#elif defined( __i386__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/ia32/"
+#else // archs
+#define CPROLIBS_PATH "/opt/cprocsp/lib/amd64/"
+#endif // archs
+#endif // CPROLIBS_PATH
+
+#ifdef _WIN32
 #define LIBCAPI10_NAME "capi10_win.dll"
 #define LIBCAPI20_NAME "capi20_win.dll"
 #define LIBRDRSUP_NAME "cpsuprt.dll"
 #elif defined( __APPLE__ )
-#define LIBCAPI10_PATH "/opt/cprocsp/lib/"
-#define LIBCAPI20_PATH "/opt/cprocsp/lib/"
-#define LIBRDRSUP_PATH "/opt/cprocsp/lib/"
 #define LIBCAPI10_NAME "libcapi10.dylib"
 #define LIBCAPI20_NAME "libcapi20.dylib"
 #define LIBRDRSUP_NAME "librdrsup.dylib"
-#include <TargetConditionals.h>
 #else // other LINUX
-#if defined( __mips__ ) // archs
-    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        #define LIBCAPI10_PATH "/opt/cprocsp/lib/mipsel/"
-        #define LIBCAPI20_PATH "/opt/cprocsp/lib/mipsel/"
-        #define LIBRDRSUP_PATH "/opt/cprocsp/lib/mipsel/"
-    #else // byte order
-        #define LIBCAPI10_PATH "/opt/cprocsp/lib/mips/"
-        #define LIBCAPI20_PATH "/opt/cprocsp/lib/mips/"
-        #define LIBRDRSUP_PATH "/opt/cprocsp/lib/mips/"
-    #endif // byte order
-#elif defined( __arm__ )
-    #define LIBCAPI10_PATH "/opt/cprocsp/lib/arm/"
-    #define LIBCAPI20_PATH "/opt/cprocsp/lib/arm/"
-    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/arm/"
-#elif defined( __aarch64__ ) // archs
-    #define LIBCAPI10_PATH "/opt/cprocsp/lib/aarch64/"
-    #define LIBCAPI20_PATH "/opt/cprocsp/lib/aarch64/"
-    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/aarch64/"
-#elif defined( __i386__ ) // archs
-    #define LIBCAPI10_PATH "/opt/cprocsp/lib/ia32/"
-    #define LIBCAPI20_PATH "/opt/cprocsp/lib/ia32/"
-    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/ia32/"
-#else // archs
-#define LIBCAPI10_PATH "/opt/cprocsp/lib/amd64/"
-#define LIBCAPI20_PATH "/opt/cprocsp/lib/amd64/"
-#define LIBRDRSUP_PATH "/opt/cprocsp/lib/amd64/"
-#endif // archs
 #define LIBCAPI10_NAME "libcapi10.so"
 #define LIBCAPI20_NAME "libcapi20.so"
 #define LIBRDRSUP_NAME "librdrsup.so"
-#endif // _WIN32 or __APPLE__ or LINUX
-#define LIBCAPI10_PATH_NAME LIBCAPI10_PATH LIBCAPI10_NAME
-#define LIBCAPI20_PATH_NAME LIBCAPI20_PATH LIBCAPI20_NAME
-#define LIBRDRSUP_PATH_NAME LIBRDRSUP_PATH LIBRDRSUP_NAME
+#endif // LIBXXXXXX_NAME
+#define LIBCAPI10_PATH_NAME CPROLIBS_PATH LIBCAPI10_NAME
+#define LIBCAPI20_PATH_NAME CPROLIBS_PATH LIBCAPI20_NAME
+#define LIBRDRSUP_PATH_NAME CPROLIBS_PATH LIBRDRSUP_NAME
 
 #if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
 #define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
@@ -347,7 +343,7 @@ DECLARE_CAPI20X_FUNCTION( PCCRL_CONTEXT, CertEnumCRLsInStore,
 
 DECLARE_CAPI20X_FUNCTION( HCERTSTORE, PFXImportCertStore,
     ( CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, DWORD dwFlags ),
-    ( pPFX, szPassword, dwFlags ), 0 )
+    ( pPFX, szPassword, dwFlags ), NULL )
 
 DECLARE_CAPI20X_FUNCTION( PCCRYPT_OID_INFO, CryptFindOIDInfo,
     ( DWORD dwKeyType, void * pvKey, DWORD dwGroupId ),
@@ -356,6 +352,14 @@ DECLARE_CAPI20X_FUNCTION( PCCRYPT_OID_INFO, CryptFindOIDInfo,
 DECLARE_CAPI20X_FUNCTION( DWORD, CertGetPublicKeyLength,
     ( DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pPublicKey ),
     ( dwCertEncodingType, pPublicKey ), 0 )
+
+DECLARE_CAPI20X_FUNCTION( PCERT_EXTENSION, CertFindExtension,
+    ( LPCSTR pszObjId, DWORD cExtensions, CERT_EXTENSION * rgExtensions ),
+    ( pszObjId, cExtensions, rgExtensions ), NULL )
+
+DECLARE_CAPI20X_FUNCTION( BOOL, CryptDecodeObjectEx,
+    ( DWORD dwCertEncodingType, LPCSTR lpszStructType, const BYTE * pbEncoded, DWORD cbEncoded, DWORD dwFlags, PCRYPT_DECODE_PARA pDecodePara, void * pvStructInfo, DWORD * pcbStructInfo ),
+    ( dwCertEncodingType, lpszStructType, pbEncoded, cbEncoded, dwFlags, pDecodePara, pvStructInfo, pcbStructInfo ), FALSE )
 
 DECLARE_RDRSUPX_FUNCTION( int, WideCharToMultiByte,
     ( UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar ),

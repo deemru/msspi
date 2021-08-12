@@ -93,36 +93,43 @@ static DWORD GetTickCount()
 #define SSPI_BUFFER_SIZE 32896 // 2 * ( 0x4000 + 128 )
 
 #ifdef _WIN32
-#define LIBSSP_PATH ""
-#define LIBSSP_NAME "Security.dll"
+#define CPROLIBS_PATH ""
 #elif defined( __APPLE__ )
-#define LIBSSP_PATH "/opt/cprocsp/lib/"
-#define LIBSSP_NAME "libssp.dylib"
+#define CPROLIBS_PATH "/opt/cprocsp/lib/"
 #include <TargetConditionals.h>
 #ifdef TARGET_OS_IPHONE
 #define IOS
 #endif
 #else // other LINUX
 #if defined( __mips__ ) // archs
-    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        #define LIBSSP_PATH "/opt/cprocsp/lib/mipsel/"
-    #else // byte order
-        #define LIBSSP_PATH "/opt/cprocsp/lib/mips/"
-    #endif // byte order
-#elif defined( __arm__ )
-    #define LIBSSP_PATH "/opt/cprocsp/lib/arm/"
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/mipsel/"
+#else // __BYTE_ORDER__
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/mips/"
+#endif // __BYTE_ORDER__
+#elif defined( __arm__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/arm/"
 #elif defined( __aarch64__ ) // archs
-    #define LIBSSP_PATH "/opt/cprocsp/lib/aarch64/"
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/aarch64/"
+#elif defined( __e2k__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/lib64/"
+#elif defined( __PPC64__ ) // archs
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/lib64/"
 #elif defined( __i386__ ) // archs
-    #define LIBSSP_PATH "/opt/cprocsp/lib/ia32/"
-#elif defined( __PPC64__ ) // ppc arch
-    #define LIBSSP_PATH "/opt/cprocsp/lib/lib64/"
+    #define CPROLIBS_PATH "/opt/cprocsp/lib/ia32/"
 #else // archs
-#define LIBSSP_PATH "/opt/cprocsp/lib/amd64/"
+#define CPROLIBS_PATH "/opt/cprocsp/lib/amd64/"
 #endif // archs
+#endif // CPROLIBS_PATH
+
+#ifdef _WIN32
+#define LIBSSP_NAME "Security.dll"
+#elif defined( __APPLE__ )
+#define LIBSSP_NAME "libssp.dylib"
+#else // other LINUX
 #define LIBSSP_NAME "libssp.so"
-#endif // _WIN32 or __APPLE__ or LINUX
-#define LIBSSP_PATH_NAME LIBSSP_PATH LIBSSP_NAME
+#endif // LIBSSP_NAME
+#define LIBSSP_PATH_NAME CPROLIBS_PATH LIBSSP_NAME
 
 #include "msspi.h"
 
