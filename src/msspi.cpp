@@ -92,11 +92,12 @@ static DWORD GetTickCount()
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
 #define SSPI_BUFFER_SIZE 32896 // 2 * ( 0x4000 + 128 )
 
-#ifndef SECURITY_DLL_NAME
 #ifdef _WIN32
-#define SECURITY_DLL_NAME "Security.dll"
+#define LIBSSP_PATH ""
+#define LIBSSP_NAME "Security.dll"
 #elif defined( __APPLE__ )
-#define SECURITY_DLL_NAME "/opt/cprocsp/lib/libssp.dylib"
+#define LIBSSP_PATH "/opt/cprocsp/lib/"
+#define LIBSSP_NAME "libssp.dylib"
 #include <TargetConditionals.h>
 #ifdef TARGET_OS_IPHONE
 #define IOS
@@ -104,23 +105,24 @@ static DWORD GetTickCount()
 #else // other LINUX
 #if defined( __mips__ ) // archs
     #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        #define SECURITY_DLL_NAME "/opt/cprocsp/lib/mipsel/libssp.so"
+        #define LIBSSP_PATH "/opt/cprocsp/lib/mipsel/"
     #else // byte order
-        #define SECURITY_DLL_NAME "/opt/cprocsp/lib/mips/libssp.so"
+        #define LIBSSP_PATH "/opt/cprocsp/lib/mips/"
     #endif // byte order
 #elif defined( __arm__ )
-    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/arm/libssp.so"
+    #define LIBSSP_PATH "/opt/cprocsp/lib/arm/"
 #elif defined( __aarch64__ ) // archs
-    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/aarch64/libssp.so"
+    #define LIBSSP_PATH "/opt/cprocsp/lib/aarch64/"
 #elif defined( __i386__ ) // archs
-    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/ia32/libssp.so"
+    #define LIBSSP_PATH "/opt/cprocsp/lib/ia32/"
 #elif defined( __PPC64__ ) // ppc arch
-    #define SECURITY_DLL_NAME "/opt/cprocsp/lib/lib64/libssp.so"
+    #define LIBSSP_PATH "/opt/cprocsp/lib/lib64/"
 #else // archs
-#define SECURITY_DLL_NAME "/opt/cprocsp/lib/amd64/libssp.so"
+#define LIBSSP_PATH "/opt/cprocsp/lib/amd64/"
 #endif // archs
+#define LIBSSP_NAME "libssp.so"
 #endif // _WIN32 or __APPLE__ or LINUX
-#endif // SECURITY_DLL_NAME
+#define LIBSSP_PATH_NAME LIBSSP_PATH LIBSSP_NAME
 
 #include "msspi.h"
 
@@ -302,7 +304,10 @@ static char msspi_init_sspi( void )
 
 #else
 
-    HMODULE hSecurity = (HMODULE)LIBLOAD( SECURITY_DLL_NAME );
+    HMODULE hSecurity = (HMODULE)LIBLOAD( LIBSSP_PATH_NAME );
+
+    if( hSecurity == NULL )
+        hSecurity = (HMODULE)LIBLOAD( LIBSSP_NAME );
 
     if( hSecurity == NULL )
         return 0;

@@ -15,43 +15,55 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-#define CAPI10_LIB "capi10_win.dll"
-#define CAPI20_LIB "capi20_win.dll"
-#define RDRSUP_LIB "cpsuprt.dll"
+#define LIBCAPI10_PATH ""
+#define LIBCAPI20_PATH ""
+#define LIBRDRSUP_PATH ""
+#define LIBCAPI10_NAME "capi10_win.dll"
+#define LIBCAPI20_NAME "capi20_win.dll"
+#define LIBRDRSUP_NAME "cpsuprt.dll"
 #elif defined( __APPLE__ )
-#define CAPI10_LIB "/opt/cprocsp/lib/libcapi10.dylib"
-#define CAPI20_LIB "/opt/cprocsp/lib/libcapi20.dylib"
-#define RDRSUP_LIB "/opt/cprocsp/lib/librdrsup.dylib"
+#define LIBCAPI10_PATH "/opt/cprocsp/lib/"
+#define LIBCAPI20_PATH "/opt/cprocsp/lib/"
+#define LIBRDRSUP_PATH "/opt/cprocsp/lib/"
+#define LIBCAPI10_NAME "libcapi10.dylib"
+#define LIBCAPI20_NAME "libcapi20.dylib"
+#define LIBRDRSUP_NAME "librdrsup.dylib"
 #include <TargetConditionals.h>
 #else // other LINUX
 #if defined( __mips__ ) // archs
     #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-        #define CAPI10_LIB "/opt/cprocsp/lib/mipsel/libcapi10.so"
-        #define CAPI20_LIB "/opt/cprocsp/lib/mipsel/libcapi20.so"
-        #define RDRSUP_LIB "/opt/cprocsp/lib/mipsel/librdrsup.so"
+        #define LIBCAPI10_PATH "/opt/cprocsp/lib/mipsel/"
+        #define LIBCAPI20_PATH "/opt/cprocsp/lib/mipsel/"
+        #define LIBRDRSUP_PATH "/opt/cprocsp/lib/mipsel/"
     #else // byte order
-        #define CAPI10_LIB "/opt/cprocsp/lib/mips/libcapi10.so"
-        #define CAPI20_LIB "/opt/cprocsp/lib/mips/libcapi20.so"
-        #define RDRSUP_LIB "/opt/cprocsp/lib/mips/librdrsup.so"
+        #define LIBCAPI10_PATH "/opt/cprocsp/lib/mips/"
+        #define LIBCAPI20_PATH "/opt/cprocsp/lib/mips/"
+        #define LIBRDRSUP_PATH "/opt/cprocsp/lib/mips/"
     #endif // byte order
 #elif defined( __arm__ )
-    #define CAPI10_LIB "/opt/cprocsp/lib/arm/libcapi10.so"
-    #define CAPI20_LIB "/opt/cprocsp/lib/arm/libcapi20.so"
-    #define RDRSUP_LIB "/opt/cprocsp/lib/arm/librdrsup.so"
+    #define LIBCAPI10_PATH "/opt/cprocsp/lib/arm/"
+    #define LIBCAPI20_PATH "/opt/cprocsp/lib/arm/"
+    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/arm/"
 #elif defined( __aarch64__ ) // archs
-    #define CAPI10_LIB "/opt/cprocsp/lib/aarch64/libcapi10.so"
-    #define CAPI20_LIB "/opt/cprocsp/lib/aarch64/libcapi20.so"
-    #define RDRSUP_LIB "/opt/cprocsp/lib/aarch64/librdrsup.so"
+    #define LIBCAPI10_PATH "/opt/cprocsp/lib/aarch64/"
+    #define LIBCAPI20_PATH "/opt/cprocsp/lib/aarch64/"
+    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/aarch64/"
 #elif defined( __i386__ ) // archs
-    #define CAPI10_LIB "/opt/cprocsp/lib/ia32/libcapi10.so"
-    #define CAPI20_LIB "/opt/cprocsp/lib/ia32/libcapi20.so"
-    #define RDRSUP_LIB "/opt/cprocsp/lib/ia32/librdrsup.so"
+    #define LIBCAPI10_PATH "/opt/cprocsp/lib/ia32/"
+    #define LIBCAPI20_PATH "/opt/cprocsp/lib/ia32/"
+    #define LIBRDRSUP_PATH "/opt/cprocsp/lib/ia32/"
 #else // archs
-#define CAPI10_LIB "/opt/cprocsp/lib/amd64/libcapi10.so"
-#define CAPI20_LIB "/opt/cprocsp/lib/amd64/libcapi20.so"
-#define RDRSUP_LIB "/opt/cprocsp/lib/amd64/librdrsup.so"
+#define LIBCAPI10_PATH "/opt/cprocsp/lib/amd64/"
+#define LIBCAPI20_PATH "/opt/cprocsp/lib/amd64/"
+#define LIBRDRSUP_PATH "/opt/cprocsp/lib/amd64/"
 #endif // archs
+#define LIBCAPI10_NAME "libcapi10.so"
+#define LIBCAPI20_NAME "libcapi20.so"
+#define LIBRDRSUP_NAME "librdrsup.so"
 #endif // _WIN32 or __APPLE__ or LINUX
+#define LIBCAPI10_PATH_NAME LIBCAPI10_PATH LIBCAPI10_NAME
+#define LIBCAPI20_PATH_NAME LIBCAPI20_PATH LIBCAPI20_NAME
+#define LIBRDRSUP_PATH_NAME LIBRDRSUP_PATH LIBRDRSUP_NAME
 
 #if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
 #define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
@@ -63,7 +75,11 @@ static void * get_capi10x( LPCSTR name )
 {
     static void * capi10 = (void *)(uintptr_t)-1;
     if( capi10 == (void *)(uintptr_t)-1 )
-        capi10 = LIBLOAD( CAPI10_LIB );
+    {
+        capi10 = LIBLOAD( LIBCAPI10_PATH_NAME );
+        if( capi10 == NULL )
+            capi10 = LIBLOAD( LIBCAPI10_NAME );
+    }
     return capi10 ? LIBFUNC( capi10, name ) : NULL;
 }
 
@@ -71,7 +87,11 @@ static void * get_capi20x( LPCSTR name )
 {
     static void * capi20 = (void *)(uintptr_t)-1;
     if( capi20 == (void *)(uintptr_t)-1 )
-        capi20 = LIBLOAD( CAPI20_LIB );
+    {
+        capi20 = LIBLOAD( LIBCAPI20_PATH_NAME );
+        if( capi20 == NULL )
+            capi20 = LIBLOAD( LIBCAPI20_NAME );
+    }
     return capi20 ? LIBFUNC( capi20, name ) : NULL;
 }
 
@@ -79,7 +99,11 @@ static void * get_rdrsupx( LPCSTR name )
 {
     static void * rdrsup = (void *)(uintptr_t)-1;
     if( rdrsup == (void *)(uintptr_t)-1 )
-        rdrsup = LIBLOAD( RDRSUP_LIB );
+    {
+        rdrsup = LIBLOAD( LIBRDRSUP_PATH_NAME );
+        if( rdrsup == NULL )
+            rdrsup = LIBLOAD( LIBRDRSUP_NAME );
+    }
     return rdrsup ? LIBFUNC( rdrsup, name ) : NULL;
 }
 
