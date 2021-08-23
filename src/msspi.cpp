@@ -1671,6 +1671,8 @@ void msspi_set_version( MSSPI_HANDLE h, int min, int max )
         h->grbitEnabledProtocols |= SP_PROT_TLS1_1;
     if( ( !min || min <= TLS1_2_VERSION ) && ( !max || TLS1_2_VERSION <= max ) )
         h->grbitEnabledProtocols |= SP_PROT_TLS1_2;
+    if( ( !min || min <= TLS1_3_VERSION ) && ( !max || TLS1_3_VERSION <= max ) )
+        h->grbitEnabledProtocols |= SP_PROT_TLS1_3;
 
     MSSPIEHCATCH_0;
 }
