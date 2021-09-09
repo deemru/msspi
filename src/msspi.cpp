@@ -1306,6 +1306,20 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
     return 1;
 }
 
+char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
+{
+    MSSPIEHTRY;
+
+    if( h->in_len || len > SSPI_BUFFER_SIZE )
+        return 0;
+
+    memcpy( h->in_buf, buf, len );
+    h->in_len = len;
+    return 1;
+
+    MSSPIEHCATCH_HERRRET( 0 );
+}
+
 int msspi_connect( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
