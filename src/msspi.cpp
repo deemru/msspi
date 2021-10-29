@@ -2288,20 +2288,25 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     {
         switch( h->cipherinfo.dwProtocol )
         {
-            case 0x00000301:
+            case TLS1_VERSION:
             case SP_PROT_TLS1_SERVER:
             case SP_PROT_TLS1_CLIENT:
                 tlsproto = "TLSv1";
                 break;
-            case 0x00000302:
+            case TLS1_1_VERSION:
             case SP_PROT_TLS1_1_SERVER:
             case SP_PROT_TLS1_1_CLIENT:
                 tlsproto = "TLSv1.1";
                 break;
-            case 0x00000303:
+            case TLS1_2_VERSION:
             case SP_PROT_TLS1_2_SERVER:
             case SP_PROT_TLS1_2_CLIENT:
                 tlsproto = "TLSv1.2";
+                break;
+            case TLS1_3_VERSION:
+            case SP_PROT_TLS1_3_SERVER:
+            case SP_PROT_TLS1_3_CLIENT:
+                tlsproto = "TLSv1.3";
                 break;
             default:
                 break;
