@@ -1313,7 +1313,7 @@ char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
     if( h->in_len || len > SSPI_BUFFER_SIZE )
         return 0;
 
-    memcpy( h->in_buf, buf, len );
+    memcpy( h->in_buf, buf, (size_t)len );
     h->in_len = len;
     return 1;
 
