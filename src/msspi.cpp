@@ -605,7 +605,7 @@ static std::string to_dec_string( uint32_t val )
 
     while( val )
     {
-        char c = B2C_VALUE( val % 10 );
+        char c = B2C_VALUE( (char)( val % 10 ) );
         str = c + str;
         val /= 10;
     }
