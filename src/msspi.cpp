@@ -599,6 +599,20 @@ static std::string to_hex_string( uint32_t val )
     return str;
 }
 
+static std::string to_dec_string( uint32_t val )
+{
+    std::string str;
+
+    while( val )
+    {
+        char c = B2C_VALUE( val % 10 );
+        str = c + str;
+        val /= 10;
+    }
+
+    return str;
+}
+
 static std::string credstring( MSSPI_HANDLE h )
 {
     std::string credstring;
@@ -2818,7 +2832,7 @@ static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 
     DWORD dwPublicKeyLength = CertGetPublicKeyLength( X509_ASN_ENCODING, keyinfo );
     if( dwPublicKeyLength )
-        keylen = std::to_string( (int)dwPublicKeyLength );
+        keylen = to_dec_string( (uint32_t)dwPublicKeyLength );
 
     return keylen;
 }
