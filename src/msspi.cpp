@@ -522,10 +522,8 @@ static char credentials_acquire( MSSPI_HANDLE h )
 {
     CredHandle      hCred;
     TimeStamp       tsExpiry;
-    SCHANNEL_CRED   SchannelCred;
+    SCHANNEL_CRED   SchannelCred = { 0 };
     unsigned long   usage;
-
-    ZeroMemory( &SchannelCred, sizeof( SchannelCred ) );
 
     SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
     SchannelCred.grbitEnabledProtocols = h->grbitEnabledProtocols;
@@ -555,17 +553,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
     }
 
     SECURITY_STATUS scRet;
-    const char * credprovider;
-    if( h->credprovider.length() )
-        credprovider = h->credprovider.data();
-    else
-#if TARGET_OS_IPHONE
-        credprovider = "Crypto Provider";
-#else
-        credprovider = UNISP_NAME_A;
-#endif
-
-    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)credprovider, usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
+    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)h->credprovider.data(), usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
@@ -682,6 +670,28 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
     // new record
     else if( !just_find )
     {
+        if( !h->credprovider.length() )
+        {
+            const char * credprovider;
+
+            // default (no detours)
+            credprovider = DEFAULT_TLS_SSP_NAME_A;
+            if( msspi_set_credprovider( h, credprovider ) && credentials_acquire( h ) )
+            {
+                credentials_db.insert( it, CREDENTIALS_DB::value_type( h->credstring, h->cred ) );
+                return 1;
+            }
+
+            // legacy default
+#if TARGET_OS_IPHONE
+            credprovider = "Crypto Provider";
+#else
+            credprovider = UNISP_NAME_A;
+#endif
+            if( !msspi_set_credprovider( h, credprovider ) )
+                return 0;
+        }
+
         if( credentials_acquire( h ) )
         {
             credentials_db.insert( it, CREDENTIALS_DB::value_type( h->credstring, h->cred ) );
