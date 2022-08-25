@@ -46,7 +46,9 @@ extern "C" {
 
 #if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
 #if __has_attribute( no_sanitize )
+#if __cplusplus >= 201103L
 #define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
+#endif
 #endif
 #endif
 #ifndef EXTERCALL
