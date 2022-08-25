@@ -2347,6 +2347,34 @@ const char * msspi_get_version( MSSPI_HANDLE h )
     MSSPIEHCATCH_HERRRET( tlsproto );
 }
 
+char msspi_is_version_supported( int version )
+{
+    MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
+    if( !h )
+        return 0;
+
+    msspi_set_client( h );
+    msspi_set_version( h, version, version );
+    char supported = h->grbitEnabledProtocols == 0 ? 0 : credentials_api( h );
+    msspi_close( h );
+
+    return supported;
+}
+
+char msspi_is_cipher_supported( int cipher )
+{
+    MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
+    if( !h )
+        return 0;
+
+    msspi_set_client( h );
+    h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | cipher );
+    char supported = credentials_api( h );
+    msspi_close( h );
+
+    return supported;
+}
+
 char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
 {
     MSSPIEHTRY;

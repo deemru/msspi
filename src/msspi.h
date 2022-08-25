@@ -76,6 +76,8 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len );
 int msspi_shutdown( MSSPI_HANDLE h );
 
 char msspi_random( void * buf, int len, char safe );
+char msspi_is_version_supported( int version );
+char msspi_is_cipher_supported( int cipher );
 
 #define MSSPI_OK    ( 0 )
 #define MSSPI_ERROR ( 1 << 31 )
