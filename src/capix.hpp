@@ -61,10 +61,17 @@ extern "C" {
 #define LIBCAPI20_PATH_NAME CPROLIBS_PATH LIBCAPI20_NAME
 #define LIBRDRSUP_PATH_NAME CPROLIBS_PATH LIBRDRSUP_NAME
 
+#ifndef EXTERCALL
 #if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
+#if __has_attribute( no_sanitize )
+#if __cplusplus >= 201103L
 #define EXTERCALL( call ) [&]()__attribute__((no_sanitize("cfi-icall"))){ call; }()
-#else
+#endif
+#endif
+#endif
+#ifndef EXTERCALL
 #define EXTERCALL( call ) call
+#endif
 #endif
 
 static void * get_capi10x( LPCSTR name )

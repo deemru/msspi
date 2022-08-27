@@ -44,6 +44,7 @@ extern "C" {
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
 #endif // EXCEPTIONS
 
+#ifndef EXTERCALL
 #if defined( __clang__ ) && defined( __has_attribute ) // NOCFI
 #if __has_attribute( no_sanitize )
 #if __cplusplus >= 201103L
@@ -53,6 +54,7 @@ extern "C" {
 #endif
 #ifndef EXTERCALL
 #define EXTERCALL( call ) call
+#endif
 #endif
 
 #include <stdio.h>
