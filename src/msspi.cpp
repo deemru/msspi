@@ -301,10 +301,13 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
 
 // sspi
-static PSecurityFunctionTableA sspi = NULL;
+static volatile PSecurityFunctionTableA sspi = NULL;
 
 static char msspi_init_sspi( void )
 {
+    if( sspi ) // fast ret no-lock
+        return 1;
+
     UNIQUE_LOCK( g_mtx ); // serialize init
 
     if( sspi )
