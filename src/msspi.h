@@ -64,6 +64,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth );
 void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb );
 void msspi_set_client( MSSPI_HANDLE h );
+void msspi_set_pin_cache( MSSPI_HANDLE h );
 void msspi_set_version( MSSPI_HANDLE h, int min, int max );
 char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist );
 char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider );

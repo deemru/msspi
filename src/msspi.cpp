@@ -432,6 +432,7 @@ struct MSSPI
         is.alpn = 0;
         is.can_append = 0;
         is.names = 0;
+        is.pin_cache = 0;
         state = MSSPI_OK;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
@@ -480,6 +481,7 @@ struct MSSPI
         unsigned alpn : 1;
         unsigned can_append : 1;
         unsigned names : 1;
+        unsigned pin_cache : 1;
     } is;
 
     int state;
@@ -1704,6 +1706,15 @@ void msspi_set_client( MSSPI_HANDLE h )
     MSSPIEHCATCH_0;
 }
 
+void msspi_set_pin_cache( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY;
+
+    h->is.pin_cache = 1;
+
+    MSSPIEHCATCH_0;
+}
+
 void msspi_set_version( MSSPI_HANDLE h, int min, int max )
 {
     MSSPIEHTRY;
@@ -2043,21 +2054,33 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
             if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                 break;
 
-            CRYPT_KEY_PROV_PARAM pinparam;
-            CRYPT_PIN_PARAM pinParam = { 0 };
-            pinParam.type = CRYPT_PIN_CLEAR;
-            pinParam.dest.passwd = NULL;
-            pinparam.dwParam = PP_SET_PIN;
-            pinparam.dwFlags = 0;
-            pinparam.pbData = (BYTE*)&pinParam;
-            pinparam.cbData = sizeof( CRYPT_PIN_PARAM );
+            if( !h->is.pin_cache ) // default: reset pin cache in case of different users working
+            {
+                CRYPT_KEY_PROV_PARAM pinparam;
+                CRYPT_PIN_PARAM pinParam = { 0 };
+                pinParam.type = CRYPT_PIN_CLEAR;
+                pinParam.dest.passwd = NULL;
+                pinparam.dwParam = PP_SET_PIN;
+                pinparam.dwFlags = 0;
+                pinparam.pbData = (BYTE*)&pinParam;
+                pinparam.cbData = sizeof( CRYPT_PIN_PARAM );
 
-            provinfo->dwFlags |= CERT_SET_KEY_CONTEXT_PROP_ID;
-            provinfo->cProvParam = 1;
-            provinfo->rgProvParam = &pinparam;
+                provinfo->dwFlags |= CERT_SET_KEY_CONTEXT_PROP_ID;
+                provinfo->cProvParam = 1;
+                provinfo->rgProvParam = &pinparam;
 
-            if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
-                break;
+                if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+                    break;
+            }
+            else // some cases set prov pin outside of msspi
+            {
+                provinfo->dwFlags |= CERT_SET_KEY_CONTEXT_PROP_ID;
+                provinfo->cProvParam = 0;
+                provinfo->rgProvParam = NULL;
+
+                if( !CertSetCertificateContextProperty( cleancert, CERT_KEY_PROV_INFO_PROP_ID, 0, provinfo ) )
+                    break;
+            }
         }
 
         isOK = true;
