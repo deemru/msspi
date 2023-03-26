@@ -2672,10 +2672,8 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-unsigned msspi_verify( MSSPI_HANDLE h )
+static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 {
-    MSSPIEHTRY;
-
     DWORD dwVerify = MSSPI_VERIFY_ERROR;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
@@ -2697,7 +2695,7 @@ unsigned msspi_verify( MSSPI_HANDLE h )
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_REVOCATION_CHECK_CHAIN,
+            CERT_CHAIN_CACHE_END_CERT | ( revocation ? CERT_CHAIN_REVOCATION_CHECK_CHAIN : 0 ),
             NULL,
             &PeerChain ) )
             break;
@@ -2748,6 +2746,25 @@ unsigned msspi_verify( MSSPI_HANDLE h )
         CertFreeCertificateChain( PeerChain );
 
     return (unsigned)dwVerify;
+}
+
+unsigned msspi_verify( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY;
+
+    unsigned verify_full;
+    unsigned verify_no_revocation;
+
+    verify_full = msspi_verify_internal( h, true );
+    if( verify_full == MSSPI_VERIFY_OK )
+        return verify_full;
+
+    verify_no_revocation = msspi_verify_internal( h, false );
+    if( verify_no_revocation == MSSPI_VERIFY_OK )
+        return verify_full;
+
+    // mitigate capilite revocation errors priority
+    return verify_no_revocation;
 
     MSSPIEHCATCH_HERRRET( MSSPI_VERIFY_ERROR );
 }
