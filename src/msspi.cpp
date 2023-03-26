@@ -2396,7 +2396,7 @@ char msspi_is_cipher_supported( int cipher )
         return 0;
 
     msspi_set_client( h );
-    h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | cipher );
+    h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | (ALG_ID)cipher );
     char supported = credentials_api( h );
     msspi_close( h );
 
@@ -2695,7 +2695,7 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | ( revocation ? CERT_CHAIN_REVOCATION_CHECK_CHAIN : 0 ),
+            CERT_CHAIN_CACHE_END_CERT | (DWORD)( revocation ? CERT_CHAIN_REVOCATION_CHECK_CHAIN : 0 ),
             NULL,
             &PeerChain ) )
             break;
