@@ -23,8 +23,6 @@
 #ifndef _CSP_WINERROR_
 #define _CSP_WINERROR_
 
-#include "CSP_WinDef.h"
-
 /**/
 /*  Values are 32 bit values layed out as follows:*/
 /**/
@@ -1846,6 +1844,15 @@
 /* The exception %s (0x%08lx) occurred in the application at location 0x%08lx. */
 /**/
 #define ERROR_UNHANDLED_EXCEPTION        574L
+
+/**/
+/* MessageId: ERROR_BUFFER_ALL_ZEROS*/
+/**/
+/* MessageText:*/
+/**/
+/* Specified buffer contains all zeros.*/
+/**/
+#define ERROR_BUFFER_ALL_ZEROS           754L
 
 /**/
 /* MessageId: ERROR_EA_ACCESS_DENIED*/
@@ -18891,6 +18898,15 @@
 #define SEC_E_SECURITY_QOS_FAILED        _HRESULT_TYPEDEF_(0x80090332L)
 
 //
+// MessageId: SEC_E_CRYPTO_SYSTEM_INVALID
+//
+// MessageText:
+//
+// The crypto system or checksum function is invalid because a required function is unavailable.
+//
+#define SEC_E_CRYPTO_SYSTEM_INVALID      _HRESULT_TYPEDEF_(0x80090337L)
+
+//
 // MessageId: SEC_E_INVALID_PARAMETER
 //
 // MessageText:
@@ -18907,6 +18923,15 @@
 // The recipient rejected the renegotiation request.
 //
 #define SEC_I_NO_RENEGOTIATION           _HRESULT_TYPEDEF_(0x00090360L)
+
+//
+// MessageId: SEC_E_APPLICATION_PROTOCOL_MISMATCH
+//
+// MessageText:
+//
+// No common application protocol exists between the client and the server. Application protocol negotiation failed.
+//
+#define SEC_E_APPLICATION_PROTOCOL_MISMATCH _HRESULT_TYPEDEF_(0x80090367L)
 
 /**/
 /* Provided for backwards compatibility*/

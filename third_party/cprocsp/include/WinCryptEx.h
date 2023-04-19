@@ -113,6 +113,13 @@ extern "C" {
 #define CP_RSA_BASE_PROV CP_RSA_BASE_PROV_A
 #endif //!UNICODE
 
+#define CP_EC_CURVE25519_PROV_A "Crypto-Pro Curve25519 and AES CSP"
+#ifdef UNICODE
+#define CP_EC_CURVE25519_PROV CAT_L(CP_EC_CURVE25519_PROV_A)
+#else //!UNICODE
+#define CP_EC_CURVE25519_PROV CP_EC_CURVE25519_PROV_A
+#endif //!UNICODE
+
 #define CP_KC1_GR3410_94_PROV_A "Crypto-Pro GOST R 34.10-94 KC1 CSP"
 #define CP_KC1_GR3410_94_PROV_W L"Crypto-Pro GOST R 34.10-94 KC1 CSP"
 #ifdef UNICODE
@@ -263,6 +270,7 @@ extern "C" {
 #ifndef PROV_RSA_AES
 #define PROV_RSA_AES 24
 #endif /*PROV_RSA_AES*/
+#define PROV_EC_CURVE25519 32
 
 /* Типы контейнера */
 /* Container Types */
@@ -345,6 +353,10 @@ extern "C" {
  * только к текущему контексту провайдера */
 #define CP_CRYPT_CACHE_ONLY 0x00002000
 
+/* Синоним CP_CRYPT_CACHE_ONLY. Указывает, что запрошенная функциональность будет применена
+ * только к текущему контексту контейнера */
+#define CP_CRYPT_CONTAINER_ONLY CP_CRYPT_CACHE_ONLY
+
  /* Флаг, указывающий, что из PP_USER_CERTSTORE/PP_ROOT_CERTSTORE
  * будет возвращено сериализованное store в виде блоба. 
  * Также флаг применим для CryptSetProvParam(PP_ROOT_CERTSTORE)
@@ -379,11 +391,18 @@ extern "C" {
 #define CRYPT_ECCNEGATIVE	0x00000400 
 #define CRYPT_PUBLICCOMPRESS	0x00000800 
 
+/* флаги CryptSetKeyParam KP_ADDX для сложения/вычитания */
+#define EC_PLUS 0
+#define EC_MINUS 1
+
 /* флаг GenKey для разрешения/запрета ДХ для ключей подписи (переопределяем CRYPT_SGCKEY) */
 #define	CP_CRYPT_DH_ALLOWED        0x00002000
 
 /* флаг KP_PERMISSIONS для разрешения/запрета ДХ */
 #define CP_CRYPT_DH_PERMISSION	0x00010000
+
+/* флаг KP_STORE, указывающий, что записываемый в контейнер ключ может быть перезаписан другим вызовом KP_STORE */
+#define CP_CRYPT_REWRITABLE 0x00020000
 
 /* флаг для определения наследования ключом согласования экспортируемости исходного секретного ключа */
 #define CRYPT_KEY_PROTECTION_HIGH 0x00400000
@@ -400,6 +419,18 @@ extern "C" {
 /* флаг форсирования Diffie-Hellman */
 #define CP_FORCE_GOST_DH	  0x00008000
 
+ /* Флаг, указывающий, что при экспорте/импорте pfx
+ * необходимо попытаться установить/извлечь срок действия контейнера
+ * в атрибуты. Используется в функциях CryptExportKey и CryptImportKey.
+ */
+#define CP_CRYPT_PKUP_ATTRIBUTE 0x00800000
+
+/* флаг SetKeyParam для умножения эллиптики на хэндл */
+#define CP_CRYPT_DATA_HANDLE	  0x00000010
+
+/* флаг SetKeyParam для экспортируемости результата KP_ADDX */
+#define CP_MAKE_EXPORTABLE	  0x00000020
+
 /* Флаг предназначен для работы с ImportKey и ExportKey только с использованием Diffie-Hellman.
    Обеспечивает работу с блобом без ASN.1 структуры с информацией об открытом ключе. */
 #define CP_PRIMITIVE_PUBLICKEYBLOB 0x00000020
@@ -412,7 +443,10 @@ extern "C" {
 #define ISO10126_PADDING 4
 #define ANSI_X923_PADDING 5
 #define TLS_1_0_PADDING 6
-#define ISO_IEC_7816_4_PADDING 7 
+#define ISO_IEC_7816_4_PADDING 7
+
+#define TLS_1_0_MAX_PADDING_LENGTH 256
+#define MAX_PADDING_LENGTH TLS_1_0_MAX_PADDING_LENGTH
 
 /* Описатели пользовательских ключей */
 #define USERKEY_KEYEXCHANGE			AT_KEYEXCHANGE
@@ -449,6 +483,8 @@ extern "C" {
 /* Export Key sub_id */
 #define ALG_SID_PRO_EXP				31
 #define ALG_SID_SIMPLE_EXP			32
+#define ALG_SID_SIMPLE_EXP_M			87
+#define ALG_SID_SIMPLE_EXP_K			88
 #define ALG_SID_PRO12_EXP			33
 #define ALG_SID_KEXP_2015_M			36
 #define ALG_SID_KEXP_2015_K			37
@@ -509,6 +545,11 @@ extern "C" {
 
 #define ALG_SID_ANSI_X963_KDF			82
 
+#define ALG_SID_HASH_TO_CURVE			85
+#define ALG_SID_HASH_TO_FIELD			86
+
+#define ALG_SID_NO_HASH				84
+
 /* VKO GOST R 34.10-2012 512-bit outputs sub-id*/
 #define ALG_SID_SYMMETRIC_512			34
 
@@ -537,6 +578,7 @@ extern "C" {
 
 #define ALG_SID_GENERIC_SECRET			21
 #define ALG_SID_GOST_GENERIC_SECRET		22
+#define ALG_SID_HYBRID_SECRET			23
 
 #define ALG_CLASS_UECSYMMETRIC                (6 << 13)
 
@@ -637,6 +679,12 @@ extern "C" {
 #define CALG_ANSI_X9_19_MAC \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_ANSI_X9_19_MAC)
 
+#define CALG_HASH_TO_CURVE \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_HASH_TO_CURVE)
+
+#define CALG_HASH_TO_FIELD \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_HASH_TO_FIELD)
+
 #define CALG_G28147_CHV \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_ANY | ALG_SID_G28147_MAC)
 
@@ -721,6 +769,12 @@ extern "C" {
 #define CALG_SIMPLE_EXPORT \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_SIMPLE_EXP)
 
+#define CALG_SIMPLE_EXPORT_K \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_SIMPLE_EXP_K)
+
+#define CALG_SIMPLE_EXPORT_M \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_SIMPLE_EXP_M)
+
 #define CALG_KEXP_2015_M \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KEXP_2015_M)
 
@@ -766,6 +820,9 @@ extern "C" {
 #define CALG_HASH_VALUE_STORAGE \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_HASH_VALUE_STORAGE)
 
+#define CALG_NO_HASH \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_NO_HASH)
+
 #define CALG_SHAREDKEY_HASH \
     (ALG_CLASS_HASH | ALG_TYPE_SHAREDKEY | ALG_SID_SHAREDKEY_HASH)
 #define CALG_FITTINGKEY_HASH \
@@ -776,6 +833,9 @@ extern "C" {
 
 #define CALG_GOST_GENERIC_SECRET \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_GOST_GENERIC_SECRET)
+
+#define CALG_HYBRID_SECRET \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_HYBRID_SECRET)
 
 #define CALG_PRO_DIVERS \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_PRODIVERS)
@@ -801,9 +861,12 @@ extern "C" {
 #endif
 
 // Some DSS sub-ids
-#define ALG_SID_EDDSA                   32
+#define ALG_SID_ED25519                   32
+#define ALG_SID_X25519_EPHEM              33
 
-#define CALG_EDDSA		    (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_EDDSA)
+#define CALG_ED25519		    (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_ED25519)
+#define CALG_X25519		    (ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_DH | ALG_SID_ED25519)
+#define CALG_X25519_EPHEM	    (ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_DH | ALG_SID_X25519_EPHEM)
 
 #ifndef CALG_ECDH
     #ifndef ALG_SID_ECDH
@@ -845,6 +908,11 @@ extern "C" {
 #ifndef szOID_ECC_CURVE_P384
 // iso(1) identified-organization(3) certicom(132) curve(0) 34
 #define szOID_ECC_CURVE_P384	    "1.3.132.0.34"
+#endif
+
+#ifndef szOID_ECC_CURVE_P521
+// iso(1) identified-organization(3) certicom(132) curve(0) 35
+#define szOID_ECC_CURVE_P521    "1.3.132.0.35"
 #endif
 
 #define szOID_EC_DH		    "1.3.132.1.12"
@@ -924,15 +992,20 @@ extern "C" {
 #define szOID_NIST_AES256_CFB		    "2.16.840.1.101.3.4.1.44"
 #endif
 
-#ifndef __MINGW32__
+// For old SDK
+#ifndef CALG_OID_INFO_CNG_ONLY
 // Algorithm is only implemented in CNG.
-#define CALG_OID_INFO_CNG_ONLY                   0xFFFFFFFF
+#   define CALG_OID_INFO_CNG_ONLY                   0xFFFFFFFF
+#endif /*CALG_OID_INFO_CNG_ONLY*/
+
+// For old SDK
+#ifndef CALG_OID_INFO_PARAMETERS
 // Algorithm is defined in the encoded parameters. Only supported
 // using CNG.
-#define CALG_OID_INFO_PARAMETERS                 0xFFFFFFFE
+#   define CALG_OID_INFO_PARAMETERS                 0xFFFFFFFE
 // Macro to check for a special ALG_ID used in CRYPT_OID_INFO
-#define IS_SPECIAL_OID_INFO_ALGID(Algid)        (Algid >= CALG_OID_INFO_PARAMETERS)
-#endif // __MINGW32__
+#   define IS_SPECIAL_OID_INFO_ALGID(Algid)        (Algid >= CALG_OID_INFO_PARAMETERS)
+#endif /*CALG_OID_INFO_PARAMETERS*/
 
 #define SSL3_CK_GVO				0x0031
 #define SSL3_CK_GVO_KB2				0x0032
@@ -943,6 +1016,11 @@ extern "C" {
 #define TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC 0xC101
 #define TLS_GOSTR341112_256_WITH_28147_CNT_IMIT 0xC102
 
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_L   0xC103
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_L	    0xC104
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_S   0xC105
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_S	    0xC106
+
 #if !defined(TLS_RSA_WITH_AES_128_CBC_SHA) && !defined(IOS)
 #define TLS_RSA_WITH_3DES_EDE_CBC_SHA   0x000a
 #define TLS_RSA_WITH_AES_128_CBC_SHA    0x002f
@@ -951,12 +1029,26 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256 0x003d
 #define TLS_RSA_WITH_AES_128_GCM_SHA256 0x009c
 #define TLS_RSA_WITH_AES_256_GCM_SHA384 0x009d
-#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA 0xC013
-#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA 0xC014
-#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 0xC027
-#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 0xC028
-#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 0xC02F
-#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 0xC030
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA	0xC009
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA	0xC00A
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA	0xC013
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA	0xC014
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256	0xC023
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384	0xC024
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256	0xC027
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384	0xC028
+#define TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 0xC02B
+#define TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 0xC02C
+#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	0xC02F
+#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384	0xC030
+#endif
+
+#if !defined(TLS_AES_128_GCM_SHA256) && !defined(IOS)
+#define TLS_AES_128_GCM_SHA256			0x1301
+#endif
+
+#if !defined(TLS_AES_256_GCM_SHA384) && !defined(IOS)
+#define TLS_AES_256_GCM_SHA384			0x1302
 #endif
 
 #define TLS_LEGACY_SUITE_CNAME                                      "TLS_GOST_R_3410_WITH_28147_LEGACY"
@@ -966,6 +1058,10 @@ extern "C" {
 #define TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC_SUITE_CNAME    "TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC"
 #define TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC_SUITE_CNAME         "TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC"
 #define TLS_CIPHER_2012_SUITE_NAME_IANA_CNAME			    "TLS_GOSTR341112_256_WITH_28147_CNT_IMIT_IANA"
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_L_CNAME		    "TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_L"
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_L_CNAME		    "TLS_GOSTR341112_256_WITH_MAGMA_MGM_L"
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_S_CNAME		    "TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_S"
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_S_CNAME		    "TLS_GOSTR341112_256_WITH_MAGMA_MGM_S"
 
 #define TLS_RSA_WITH_3DES_EDE_CBC_SHA_SUITE_CNAME                   "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
 #define TLS_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME                    "TLS_RSA_WITH_AES_128_CBC_SHA"
@@ -974,12 +1070,20 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_CNAME                 "TLS_RSA_WITH_AES_256_CBC_SHA256"
 #define TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME                 "TLS_RSA_WITH_AES_128_GCM_SHA256"
 #define TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME                 "TLS_RSA_WITH_AES_256_GCM_SHA384"
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA"
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA"
 #define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME		    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
 #define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_CNAME		    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA"
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256"
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"
 #define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
 #define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384"
+#define TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+#define TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME	    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
 #define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
 #define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME	    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+#define TLS_AES_128_GCM_SHA256_SUITE_CNAME			    "TLS_AES_128_GCM_SHA256"
+#define TLS_AES_256_GCM_SHA384_SUITE_CNAME			    "TLS_AES_256_GCM_SHA384"
 
 #define TLS_LEGACY_SUITE_NAME                                       L"" TLS_LEGACY_SUITE_CNAME
 #define TLS_CIPHER_94_SUITE_NAME                                    L"" TLS_CIPHER_94_SUITE_CNAME
@@ -988,6 +1092,10 @@ extern "C" {
 #define TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC_SUITE_NAME     L"" TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC_SUITE_CNAME
 #define TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC_SUITE_NAME          L"" TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC_SUITE_CNAME
 #define TLS_CIPHER_2012_SUITE_NAME_IANA_NAME			    L"" TLS_CIPHER_2012_SUITE_NAME_IANA_CNAME
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_L_NAME		    L"" TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_L_CNAME
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_L_NAME		    L"" TLS_GOSTR341112_256_WITH_MAGMA_MGM_L_CNAME
+#define TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_S_NAME		    L"" TLS_GOSTR341112_256_WITH_KUZNYECHIK_MGM_S_CNAME
+#define TLS_GOSTR341112_256_WITH_MAGMA_MGM_S_NAME		    L"" TLS_GOSTR341112_256_WITH_MAGMA_MGM_S_CNAME
 
 #define TLS_RSA_WITH_3DES_EDE_CBC_SHA_SUITE_NAME                    L"" TLS_RSA_WITH_3DES_EDE_CBC_SHA_SUITE_CNAME
 #define TLS_RSA_WITH_AES_128_CBC_SHA_SUITE_NAME                     L"" TLS_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME
@@ -996,12 +1104,20 @@ extern "C" {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_NAME                  L"" TLS_RSA_WITH_AES_256_CBC_SHA256_SUITE_CNAME
 #define TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_NAME                  L"" TLS_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME
 #define TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_NAME                  L"" TLS_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_NAME		    L"" TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_SUITE_NAME	    L"" TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_SUITE_NAME	    L"" TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE_NAME	    L"" TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME
+#define TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE_NAME	    L"" TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256_SUITE_CNAME
 #define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_NAME	    L"" TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384_SUITE_CNAME
+#define TLS_AES_128_GCM_SHA256_SUITE_NAME			    L"" TLS_AES_128_GCM_SHA256_SUITE_CNAME
+#define TLS_AES_256_GCM_SHA384_SUITE_NAME			    L"" TLS_AES_256_GCM_SHA384_SUITE_CNAME
 
 #define ALG_TYPE_CIPHER_SUITE                   (15 << 9)
 
@@ -1013,10 +1129,14 @@ extern "C" {
 /* KP_PADDING for RSA*/
 #define CRYPT_RSA_PKCS		0x00000050 // по умолчанию
 #define CRYPT_RSA_X_509		0x00000051
+#define CRYPT_RSA_RMASK		0x00000052
 
 /* Максимальная длина ключа GENERIC_SECRET */
 #define MAX_GENERIC_SECRET_KEY_BITLEN   4096
 #define MAX_GENERIC_SECRET_KEYLEN	512
+
+#define HYBRID_SECRET_KEY_BITLEN	512
+#define HYBRID_SECRET_KEYLEN		64
 
 #define MAX_GOST_GENERIC_SECRET_KEY_BITLEN	4096
 #define MAX_GOST_GENERIC_SECRET_KEYLEN		512
@@ -1139,6 +1259,7 @@ extern "C" {
 #define PP_CSP_MODE 170
 #define PP_REFCOUNT 171
 #define PP_RESERVED4         172
+#define PP_RESERVED5         173
 
 #define PP_SIGNATURE_KEY_FP 211
 #define PP_EXCHANGE_KEY_FP 212
@@ -1223,6 +1344,16 @@ extern "C" {
      передача флага CRYPT_PROPERTY_EXPORTABLE. */
 #define CRYPT_PROPERTY_VERSION_1 0x01
 
+/* Флаг, возвращаемый для контейнера из перечисления контейнеров в случае вызова
+    с флагом CRYPT_PROPERTIES. Означает, что что информация о носителе для окна
+    является низкоприоритетной. */
+#define CRYPT_PROPERTY_MINOR_INFO 0x02
+
+/* Флаг, возвращаемый для контейнера из перечисления контейнеров в случае вызова
+    с флагом CRYPT_PROPERTIES. Означает, что в этой версии поддерживается передача
+    флагов CRYPT_PROPERTY_EXPORTABLE и CRYPT_PROPERTY_MINOR_INFO. */
+#define CRYPT_PROPERTY_VERSION_2 0x02
+
 /* Ответ перечисления считывателей, означающий отсутствие носителя в считывателе. 
    Возвращается в виде ASCIIZ-строки. */
 #define ERR_CRYPT_MEDIA_NO_MEDIA "NO_MEDIA"
@@ -1274,6 +1405,12 @@ extern "C" {
 #define HP_PBKDF2_HASH_ALGID 0x0022
 #define HP_PADDING	    0x0023
 #define HP_HASHSTATEBLOB    0x0024
+#define HP_RSA_PSS_SALTLEN  0x0025
+#define HP_HASH_TO_GROUP_HASH_ALGID 0x0026
+#define HP_HASH_TO_GROUP_DST 0x0027
+#define HP_HMAC_VERIFICATION_VALUE 0x0028
+#define HP_SIGN_VERIFICATION_VALUE 0x0029
+#define HP_CERTIFICATE	    0x0030
 
 /* Дополнительные параметры ключа */
 #define KP_START_DATE	43
@@ -1295,7 +1432,11 @@ extern "C" {
 #define KP_MIX_BLOCK_SIZE 111
 #define KP_AUTH_TAG	112
 #define KP_AUTH_DATA	113
+#define KP_OAEP_HASH	114
 
+#define KP_MULX		0x800000f1
+#define KP_ADDX		0x800000f3
+#define KP_INVERSE	0x800000ed
 #define KP_ARANDOM	0x800000ee
 #define KP_KC1EXPORT	0x800000f0
 #define KP_CHECK_VALUE	0x800000fa
@@ -1370,6 +1511,7 @@ extern "C" {
 #define szOID_OGRN "1.2.643.100.1"
 #define szOID_OGRNIP "1.2.643.100.5"
 #define szOID_SNILS "1.2.643.100.3"
+#define szOID_INNLE "1.2.643.100.4"
 #define szOID_INN "1.2.643.3.131.1.1"
 
 /* Signature tool class */
@@ -1472,6 +1614,10 @@ extern "C" {
 #define szOID_CryptoPro_private_keys_extension_container_arandom_state "1.2.643.2.2.37.3.13"
 #define szOID_CryptoPro_private_keys_extension_container_shared_container "1.2.643.2.2.37.3.14"
 
+#define szOID_CryptoPro_private_keys_extension_license "1.2.643.2.2.37.3.15"
+
+#define szOID_CryptoPro_private_keys_extension_container_string_config "1.2.643.2.2.37.3.17"
+
 /* OIDs for certificate and CRL extensions */
 /* Метод сопоставления CRL с сертификатом издателя. */
 #define szOID_CryptoPro_extensions_certificate_and_crl_matching_technique "1.2.643.2.2.49.1"
@@ -1479,6 +1625,8 @@ extern "C" {
 #define szCPOID_SubjectSignTool "1.2.643.100.111"
 /* Средства электронной подписи и УЦ издателя*/
 #define szCPOID_IssuerSignTool "1.2.643.100.112"
+/* Тип идентификации при выдаче сертификата */
+#define szOID_IdentificationKind "1.2.643.100.114"
 
 /* OID для атрибута id-cms-mac-attr в CMS 2015*/
 #define szCPOID_CMS_GR3412_OMAC "1.2.643.7.1.0.6.1.1"
@@ -1617,6 +1765,9 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 #define CP_GOST_R3410EL_DH_ALGORITHM		"GOST R 34.10-2001 256 DH"
 #define CP_GOST_R3410_2012_256_DH_ALGORITHM	"GOST R 34.10-2012 256 DH"
 #define CP_GOST_R3410_2012_512_DH_ALGORITHM	"GOST R 34.10-2012 512 DH"
+#define CP_CHAINING_MODE_CTR			"ChainingModeCTR"
+#define CP_CHAINING_MODE_OMAC_CTR		"ChainingModeOMAC_CTR"
+#define CP_CHAINING_MODE_CNT			"ChainingModeCNT"
 
 #define CP_PRIMITIVE_PROVIDER			L"Crypto-Pro Primitive Provider"
 
@@ -1627,14 +1778,30 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 #define BCRYPT_CP_GOST_28147_ALGORITHM		    CAT_L(CP_GOST_28147_ALG)
 #define BCRYPT_CP_GOST_R3411_2012_256_ALGORITHM	    CAT_L(CP_GOST_R3411_2012_256_ALG)
 #define BCRYPT_CP_GOST_R3411_2012_512_ALGORITHM	    CAT_L(CP_GOST_R3411_2012_512_ALG)
+#define BCRYPT_CP_GOST_R3411_256_ALGORITHM	    L"GR 34.11/256"
+#define BCRYPT_CP_GOST_R3411_512_ALGORITHM	    L"GR 34.11/512"
 #define BCRYPT_CP_GOST_R3410EL_ALGORITHM	    L"GR 34.10-2001"	/*Do not change legacy algs names (PP_ENUMALGS)*/
 #define BCRYPT_CP_GOST_R3410_2012_256_ALGORITHM	    CAT_L(CP_GOST_R3410_2012_256_ALG)
 #define BCRYPT_CP_GOST_R3410_2012_512_ALGORITHM	    CAT_L(CP_GOST_R3410_2012_512_ALG)
+#define BCRYPT_CP_GOST_R3410_256_ALGORITHM	    L"GR 34.10/512"
+#define BCRYPT_CP_GOST_R3410_512_ALGORITHM	    L"GR 34.10/1024"
 #define BCRYPT_CP_GOST_R3410EL_DH_ALGORITHM	    L"GOST " CAT_L(CP_GOST_R3410EL_DH_ALG)
 #define BCRYPT_CP_GOST_R3410_2012_256_DH_ALGORITHM  L"GOST " CAT_L(CP_GOST_R3410_2012_256_DH_ALG)
 #define BCRYPT_CP_GOST_R3410_2012_512_DH_ALGORITHM  L"GOST " CAT_L( CP_GOST_R3410_2012_512_DH_ALG)
 #define BCRYPT_CP_GOST_R3412_M_ALGORITHM	    CAT_L(CP_GOST_R3412_2015_M_ALG)
 #define BCRYPT_CP_GOST_R3412_K_ALGORITHM	    CAT_L(CP_GOST_R3412_2015_K_ALG)
+#define BCRYPT_CP_CHAINING_MODE_CTR		    CAT_L(CP_CHAINING_MODE_CTR)
+#define BCRYPT_CP_CHAINING_MODE_OMAC_CTR	    CAT_L(CP_CHAINING_MODE_OMAC_CTR)
+#define BCRYPT_CP_CHAINING_MODE_CNT		    CAT_L(CP_CHAINING_MODE_CNT)
+#define BCRYPT_ALGID				    L"Algorithm"
+#define BCRYPT_CIPHEROID			    L"CipherOID"
+#define BCRYPT_DHOID				    L"DiffieHellmanOID"
+#define BCRYPT_HASHOID				    L"HashOID"
+
+#define NCRYPT_VERSION_EX_PROPERTY		    L"VersionEx"
+#define NCRYPT_DHOID_PROPERTY			    L"DiffieHellmanOID"
+
+#define KDF_UKM					    0x80000001
 
 /* Режим блочного шифрования с обратной связью на базе ГОСТ 28147-89, шифр-текст блока всегда является IV для следующего.*/
 /*! \ingroup ProCSPData
@@ -1660,40 +1827,24 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 */
 #define CRYPT_MODE_CTR          32
 
-/* Режим аутентифицированного шифрования MGM по draft-smyshlyaev-mgm-02 */
+/* Режим аутентифицированного шифрования MGM согласно рекомендациям по стандартизации Р 1323565.1.026-2019 "Режимы работы блочных шифров, реализующие аутентифицированное шифрование" */
 /*! \ingroup ProCSPData
-*  \brief Режим аутентифицированного шифрования MGM по draft-smyshlyaev-mgm-02
+*  \brief Режим аутентифицированного шифрования MGM согласно рекомендациям по стандартизации Р 1323565.1.026-2019 "Режимы работы блочных шифров, реализующие аутентифицированное шифрование"
 */
 #define CRYPT_MODE_MGM          33
 
-/* Режим аутентифицированного шифрования GCM */
-/*! \ingroup ProCSPData
-*  \brief Режим аутентифицированного шифрования GCM
-*/
 #define CRYPT_MODE_GCM          34
 
-/* Режим аутентифицированного шифрования OMAC CTR */
-/*! \ingroup ProCSPData
-*  \brief Режим аутентифицированного шифрования OMAC CTR
-*/
 #define CRYPT_MODE_OMAC_CTR	35
 
-/* Режим шифрования для упаковки AES-ключей по RFC-3394 */
-/*! \ingroup ProCSPData
-*  \brief Режим шифрования для упаковки AES-ключей по RFC-3394
-*/
 #define CRYPT_MODE_WRAP		36
 
-/* Режим шифрования для упаковки AES-ключей с паддингом по RFC-5649 */
-/*! \ingroup ProCSPData
-*  \brief Режим шифрования для упаковки AES-ключей с паддингом по RFC-5649
-*/
 #define CRYPT_MODE_WRAP_PAD	37
 
 /* Длина секретного ключа для ГОСТ 28147-89, подписи и обмена.*/
 /*! \ingroup ProCSPData
- *  \brief Длина в байтах ключа ГОСТ 28147-89 и закрытых ключей
- * ГОСТ Р 34.10-94 и ГОСТ Р 34.10-2001.
+ *  \brief Длина в байтах ключей ГОСТ 28147-89, ГОСТ Р 34.12-2015 Магма и Кузнечик
+ * и закрытых ключей ГОСТ Р 34.10-2001.
  */
 #define SECRET_KEY_LEN		32
 #define SECRET_KEY_BITLEN	256
@@ -1717,6 +1868,11 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
  *  \brief Длина в байтах имитовставки при импорте/экспорте
  */
 #define EXPORT_IMIT_SIZE		4
+
+/*! \ingroup ProCSPData
+ *  \brief Длина в байтах имитовставки при импорте/экспорте по алгоритму CALG_SIMPLE_EXPORT_K
+ */
+#define SIMPLE_EXPORT_K_IMIT_SIZE	8
 
 /*! \ingroup ProCSPData
  *  \brief Длина в байтах контрольной величины ключа при импорте и получении параметра ключа
@@ -1767,7 +1923,7 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 /* открытого распределения ключей*/
 
 /*! \ingroup ProCSPData
- *  \brief Признак ключей ГОСТ Р 34.10-94 и ГОСТ Р 34.10-2001
+ *  \brief Признак ключа ГОСТ Р 34.10-2001
  */
 #define GR3410_1_MAGIC			0x3147414D
 #define GR3410_2_MAGIC			GR3410_1_MAGIC//0x3145474a
@@ -1793,6 +1949,7 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 #define KEXP15_MAGIC			0x374a51ff
 
 #define EDDSA_MAGIC			0x374a5200
+#define CV25519_MAGIC			EDDSA_MAGIC
 
 /*! \ingroup ProCSPData
  *  \brief Текущее значение версии ключевого блоба
@@ -1804,9 +1961,6 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 */
 #define KEXP15_BLOB_VERSION		(BYTE)0x21
 
-/*! \ingroup ProCSPData
-*  \brief Признак ключевого блоба RSA
-*/
 #define RSA1_MAGIC			0x31415352
 #define RSA2_MAGIC			0x32415352
 
@@ -1815,6 +1969,12 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 */
 #define CP_CRYPT_PUBLICKEY_FROM_CERT	(0x00010000)
 #define CERT_MAGIC			(0xbeef)
+
+/*! \ingroup ProCSPData
+*  \brief Тип блопа симметричного ключа для функций BCrypt(Import/Export)Key
+*/
+#define BCRYPT_SIMPLEBLOB		L"SIMPLEBLOB"
+#define BCRYPT_SIMPLEBLOB_MAGIC		0x374a5201
 
 /* Определения для */
 /*! \ingroup ProCSPData
@@ -1877,6 +2037,12 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 #define VER_ARCH_E2K64	    11
 
 /*! \ingroup ProCSPData
+* \brief Архитектура RISCV64
+*/
+#define VER_ARCH_RISCV64    12
+
+
+/*! \ingroup ProCSPData
 * \brief ОС Windows.
 */
 #define VER_OS_WINDOWS 0
@@ -1927,10 +2093,13 @@ typedef struct _PROV_PP_VERSION_EX {
     DWORD Architecture;	/*!< Аппаратная архитектура: VER_ARCH_IA32, 
 			 * VER_ARCH_IA64, VER_ARCH_SPARC32, VER_ARCH_SPARC64,
 			 * VER_ARCH_AMD64, VER_ARCH_ARM, VER_ARCH_ARM64,
-			 * VER_ARCH_PPC32, VER_ARCH_PPC64.
+			 * VER_ARCH_PPC32, VER_ARCH_PPC64, VER_ARCH_MIPS32,
+			 * VER_ARCH_E2K32, VER_ARCH_E2K64, VER_ARCH_RISCV64.
 			 */
     DWORD OS;		/*!< Тип ОС: VER_OS_WINDOWS, VER_OS_SOLARIS,
-			 * VER_OS_FREEBSD, VER_OS_LINUX, VER_OS_AIX.
+			 * VER_OS_FREEBSD, VER_OS_LINUX, VER_OS_AIX,
+			 * VER_OS_DARWIN, VER_OS_IOS, VER_OS_ANDROID,
+			 * VER_OS_BITVISOR, VER_OS_UCLIBC.
 			 */
 } PROV_PP_VERSION_EX;
 
@@ -2078,6 +2247,53 @@ typedef struct _CRYPT_SIMPLEBLOB {
                      * \endcode
                      */
 }   CRYPT_SIMPLEBLOB, *PCRYPT_SIMPLEBLOB;
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_SIMPLEBLOB_K полностью описывает ключевой блоб
+ * типа SIMPLEBLOB для ключей "КриптоПро CSP",
+ * зашифрованных с использованием ключа ГОСТ Р 34.12-2015 с длиной блока 128 бит ("Кузнечик").
+ *
+ * \req_wincryptex
+ * \sa CRYPT_SIMPLEBLOB_HEADER
+ * \sa CPExportKey
+ * \sa CPGetKeyParam
+ */
+typedef struct _CRYPT_SIMPLEBLOB_K {
+    CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
+    /*!< Общий заголовок ключевого блоба типа SIMPLEBLOB "КриптоПро CSP".
+     */
+    BYTE    bSV[SEANCE_VECTOR_LEN];
+    /*!< Вектор инициализации не используется и всегда заполнен нулевыми байтами.
+     * См. \ref SEANCE_VECTOR_LEN.
+     */
+    BYTE    bEncryptedKey[G28147_KEYLEN];
+    /*!< Зашифрованный ключ ГОСТ 28147-89 или ГОСТ Р 34.12-2015 с длиной блока 128 или 64 бит ("Кузнечик" или "Магма").
+     * См. \ref G28147_KEYLEN.
+     */
+    BYTE    bMacKey[SIMPLE_EXPORT_K_IMIT_SIZE];
+    /*!< Имитовставка длины SIMPLE_EXPORT_K_IMIT_SIZE по ГОСТ Р 34.13-2015 на ключ. Рассчитывается
+     * до зашифрования и проверяется после расшифрования.
+     * См. \ref SIMPLE_EXPORT_K_IMIT_SIZE.
+     */
+    BYTE    bEncryptionParamSet[1];
+    /*!< Содержит ASN1 структуру в DER кодировке, определяющую
+     * параметры алгоритма шифрования зашифрованного ключа:
+     * \code
+     *      encryptionParamSet
+     *          OBJECT IDENTIFIER (
+     *              id-Gost28147-89-TestParamSet |      -- Only for tests use
+     *              id-Gost28147-89-CryptoPro-A-ParamSet |
+     *              id-Gost28147-89-CryptoPro-B-ParamSet |
+     *              id-Gost28147-89-CryptoPro-C-ParamSet |
+     *              id-Gost28147-89-CryptoPro-D-ParamSet |
+     *              id-Gost28147-89-CryptoPro-Simple-A-ParamSet |
+     *              id-Gost28147-89-CryptoPro-Simple-B-ParamSet |
+     *              id-Gost28147-89-CryptoPro-Simple-C-ParamSet |
+     *              id-Gost28147-89-CryptoPro-Simple-D-ParamSet
+     * \endcode
+     */
+}   CRYPT_SIMPLEBLOB_K, * PCRYPT_SIMPLEBLOB_K;
 /*!
 * \ingroup ProCSPData
 *
@@ -2591,10 +2807,13 @@ typedef struct _CRYPT_KEY_EXHAUSTION_INFO {
     ULONGLONG	 ullCommFinal;
 } CRYPT_KEY_EXHAUSTION_INFO, *LPCRYPT_KEY_EXHAUSTION_INFO;
 
+/*! \brief Константы, используемые в окне выбора носителя */
 /*! \brief Максимальное число аплетов на носителе */
 #define CRYPTOAPI_SELECT_READER_MAX_APPLET_COUNT 10
 /*! \brief Максимальное число иконок у считывателя */
 #define CRYPTOAPI_SELECT_READER_ICONS_NUMBER 5
+/*! \brief Максимальное число контекстов считывателей */
+#define CRYPTOAPI_SELECT_READER_MAX_CONTEXT_COUNT 3
 
 /*! \brief Хендл считывателя/носителя */
 typedef ULONGLONG HSELREADER;
@@ -2690,8 +2909,8 @@ typedef struct
     DATA_BLOB password;			/*!<  место хранения пароля */
     struct
     {
-	unsigned once : 1;		/*!<  1, если пароль не сохраняется в кеше, 0, иначе*/
-	unsigned save : 1;		/*!<  1, если требуется сохранить пароль контейнера */
+	unsigned save_in_cache : 1;	/*!<  1, если пароль нужно сохранить в глобальном кэше*/
+	unsigned save_in_system : 1;	/*!<  1, если требуется сохранить пароль в реестре */
     } flags;
     DATA_BLOB   reserved;		    /*!<  здесь передается вторая аутентификация */
 } CRYPT_PIN_WND_SOURCE_PARAM;
@@ -2847,6 +3066,7 @@ typedef struct _CRYPT_PIN_INFO {
  *  CRYPT_PIN_ENCRYPTION - HANDLE контейнера зашифрования.
  *  CRYPT_PIN_NK - получение N, K, имен частей. На эфемерном считывателе в конец массива имен дописывает идентификатор разбиения.
  *  CRYPT_PIN_HARDWARE_PROTECTION - тип защиты определяется аппаратным модулем
+ *  CRYPT_PIN_CLEAR - пароль для аутентентификации не требуется либо установлен по умолчанию
  *  CRYPT_PIN_NK_NONAME - получение N, K, идентификатор разбиения в поле parts.
  */
      CRYPT_PIN_INFO_SOURCE dest; /*!< Данные соответствующего типа */
@@ -3006,7 +3226,7 @@ typedef struct {
 */
 typedef struct {
     DWORD auth_count; /* \brief Число аутентификаций в контексте. */
-    DWORD flags;    /* \brief Флаги набора аутентификаций. Могут быть установлены CRYPT_AUTH_INFO_DEF_ADMIN_SET, CRYPT_AUTH_INFO_DEF_ADMIN_CAN, CRYPT_AUTH_INFO_ADMIN_IS_CONT, CRYPT_AUTH_INFO_ADMIN_IS_PUK */
+    DWORD flags;    /* \brief Флаги набора аутентификаций. Могут быть установлены CRYPT_AUTH_INFO_DEF_ADMIN, CRYPT_AUTH_INFO_ADMIN_IS_CONT, CRYPT_AUTH_INFO_ADMIN_IS_PUK */
     CRYPT_AUTH_INFO_AUTH auth[1]; /* \brief Массив аутентификаций размера auth_count. */
 } CRYPT_AUTH_INFO;
 
@@ -3379,7 +3599,7 @@ typedef struct DSS_AUDIT_INFO_
 #define CPC_FAST_CODE_USER	2
 
 #ifdef UNIX
-    #if defined(__GNUC__) && !defined(IOS) && (!defined (PROCESSOR_TYPE) || (PROCESSOR_TYPE == PROC_TYPE_I386))
+    #if defined(__GNUC__) && !defined(__arm64__) && !defined(IOS) && (!defined (PROCESSOR_TYPE) || (PROCESSOR_TYPE == PROC_TYPE_I386))
 	#define CPCAPI	__attribute__((regparm(0)))
     #else // __GNUC__
 	#define CPCAPI
@@ -3516,9 +3736,9 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
 /*!
  *  \ingroup ProCPCData
  *
- *  \brief Настройки использования расширений процессора: MMX, SSE2, SSSE3, AVX.
+ *  \brief Настройки использования расширений процессора: MMX, SSE2, SSSE3, AVX, AVX2.
  *
- *  На процессорах Intel Pentium 4 и новее можно достичь ускорения алгоритмов
+ *  На процессорах ia-32 и amd64 можно достичь ускорения алгоритмов
  *  шифрования и хэширования за счёт использования инструкций расширений
  *  MMX, SSE2, SSSE3, AVX. Настройка захвата FPU осуществляется с помощью
  *  данной структуры.
@@ -3561,8 +3781,13 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  * </td></tr><tr><td>
  * #CSP_FAST_CODE_DISABLE_AVX
  * </td><td>
- *      Запрет использования командного расширения AVX.
+ *      Запрет использования командного расширения AVX и AVX2.
  * </td></tr><tr><td>
+ * #CSP_FAST_CODE_DISABLE_AVX2
+ * </td><td>
+ *      Запрет использования командного расширения AVX2.
+ * </td></tr><tr><td>
+
  * #CSP_FAST_CODE_RT_TS
  * </td><td>
  *      Захват FPU только на время операции, применяется в случае если
@@ -3571,7 +3796,7 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  * Совокупность выборов универсальных или использующих командные расширения
  * наборов функций будем называть сочетанием наборов. Любое сочетание наборов
  * кодируется в одном 32-битном значении как логическая сумма
- * идентификаторов наборов функций MMX, SSE2, SSSE3 и AVX.
+ * идентификаторов наборов функций MMX, SSE2, SSSE3, AVX и AVX2.
  *
  * В связи с большим разнообразием аппаратных платформ на базе процессоров
  * архитектуры x86 и эмуляций x86 на архитектурах x64 и IA64, нет возможности
@@ -3627,10 +3852,10 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  *
  * При установке некоторого выбираемого пользователем сочетания
  * наборов возможен выбор используемого набора расширений:
- * MMX, SSE2, SSSE3 или AVX.
+ * MMX, SSE2, SSSE3, AVX или AVX2.
  * При установке нового сочетания наборов провайдер в любом
  * случае проверит, возможно ли на данном процессоре использование
- * таких наборов функций MMX/SSE2/SSSE3/AVX,
+ * таких наборов функций MMX/SSE2/SSSE3/AVX/AVX2,
  * и, если возможность есть, установит наборы. В режиме ядра, кроме того,
  * перед вызовом каждой функции, использующей MMX/SSE/SSSE3/AVX, будет
  * осуществлён вызов callback'а захвата FPU, и специализированный код
@@ -4109,6 +4334,12 @@ typedef struct _CPC_FAST_CODE {
   */
 #define CSP_FAST_CODE_MGM_AUTH (1<<29)
 
+  /*!
+   *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+   *  Используется как флаг для проверки, используется ли AVX2 код. Выставлен, если код не используется.
+   */
+#define CSP_FAST_CODE_DISABLE_AVX2 (1<<30)
+
 /*!
  *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций зашифрования.
@@ -4170,7 +4401,7 @@ typedef struct _CPC_FAST_CODE {
  *  Группирует все флаги переключаемых функций
  *  криптопровайдера режима ядра ОС.
  */
-#define CSP_FAST_CODE_ALL_KERNEL_FUNCTIONS (CSP_FAST_CODE_ALL_CRYPT|CSP_FAST_CODE_ALL_HASH|CSP_FAST_CODE_RSA)
+#define CSP_FAST_CODE_ALL_KERNEL_FUNCTIONS (CSP_FAST_CODE_ALL_CRYPT|CSP_FAST_CODE_ALL_HASH|CSP_FAST_CODE_RSA|CSP_FAST_CODE_HASH_FOREIGN)
 
 /*!
  *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
@@ -4217,9 +4448,8 @@ typedef struct _CPC_FAST_CODE {
  *  \brief Возможное значение аргумента op_type функции \ref CPC_Kernel_Fpu_Begin_Callback.
  *  Означает, что запрос захвата FPU произошел в функции распараллеливаемого шифрования.
  *  Также задает значение идентификатора набора функций распараллеливаемого шифрования,
- *  использующих расширения MMX, SSE2, SSSE3, AVX и CLMUL.
+ *  использующих расширения MMX, SSE2, SSSE3, AVX и CLMUL. В режиме x64 дополнительно используется AVX2.
  *  В режиме ядра x64 MMX расширение не используется.
- *  В режиме ядра CLMUL расширение не используется.
  */
 #define CSP_OPERATION_CIPHER2	(CSP_FAST_CODE_E_ECB | CSP_FAST_CODE_E_CNT | CSP_FAST_CODE_E_OFB | CSP_FAST_CODE_E_CTR | CSP_FAST_CODE_D_ECB | CSP_FAST_CODE_D_CBC | CSP_FAST_CODE_D_CNT | CSP_FAST_CODE_D_OFB | CSP_FAST_CODE_D_CTR | CSP_FAST_CODE_D_CFB | CSP_FAST_CODE_MD_ECB | CSP_FAST_CODE_MGM_AUTH)
 
@@ -4252,8 +4482,7 @@ typedef struct _CPC_FAST_CODE {
  /*!
   *  \brief Битовая маска для включения/выключения быстрого кода функции MGM_Auth режима MGM.
   *  Задает значение логической суммы всех идентификаторов наборов функций,
-  *  использующих расширения SSSE3 + CLMUL.
-  *  В режиме ядра расширения не используются.
+  *  использующих расширения SSSE3, AVX и CLMUL. В режиме x64 дополнительно используется AVX2.
   */
 #define CSP_OPERATION_MGM_AUTH	(CSP_FAST_CODE_MGM_AUTH)
 
@@ -4285,7 +4514,6 @@ typedef struct _CPC_FAST_CODE {
  *  \brief Битовая маска для включения/выключения быстрого кода для зарубежного хэширования.
  *  Задает значение логической суммы всех идентификаторов наборов функций,
  *  использующих расширения SSE2, SSSE3, AVX, BMI1, BMI2, SHAExtenson. В режиме x64 дополнительно используется AVX2.
- *  Применяется только в пользовательском режиме.
  */
 #define CSP_OPERATION_HASH_FOREIGN  (CSP_FAST_CODE_SHA1 | CSP_FAST_CODE_SHA2)
 
@@ -4396,6 +4624,8 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>CALG_GR3411_2012_512</td><td>Идентификатор алгоритма хэширования в соответствии с ГОСТ Р 34.11-2012, длина выхода 512 бит.</td></tr>
  * <tr><td>CALG_G28147_MAC</td><td>Идентификатор алгоритма имитозащиты по ГОСТ 28147-89.</td></tr>
  * <tr><td>CALG_G28147_IMIT </td><td>То же самое, что и CALG_G28147_MAC (устаревшая версия).</td></tr>
+ * <tr><td>CALG_GR3413_2015_M_IMIT</td><td>Идентификатор алгоритма имитозащиты в соответствии с ГОСТ Р 34.13-2015 и сессионным ключом CALG_GR3412_2015_M (Магма).</td></tr>
+ * <tr><td>CALG_GR3413_2015_K_IMIT</td><td>Идентификатор алгоритма имитозащиты в соответствии с ГОСТ Р 34.13-2015 и сессионным ключом CALG_GR3412_2015_К (Кузнечик).</td></tr>
  * <tr><td> CALG_GR3410EL </td><td> Идентификатор алгоритма ЭЦП по ГОСТ Р 34.10-2001.</td></tr>
  * <tr><td> CALG_GR3410_12_256 </td><td> Идентификатор алгоритма ЭЦП по ГОСТ Р 34.10-2012 (256 бит).</td></tr>
  * <tr><td> CALG_GR3410_12_512 </td><td> Идентификатор алгоритма ЭЦП по ГОСТ Р 34.10-2012 (512 бит).</td></tr>
@@ -4415,10 +4645,12 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>CALG_DH_GR3410_12_512_EPHEM</td><td> Идентификатор алгоритма обмена ключей по Диффи-Хеллману на базе закрытого ключа эфемерной пары. Открытый ключ получается по ГОСТ Р 34.10 2012 (512 бит).</td></tr>
  * <tr><td>CALG_PRO_AGREEDKEY_DH</td><td>Идентификатор алгоритма выработки ключа парной связи по Диффи-Хеллману. </td></tr>
  * <tr><td>CALG_PRO_EXPORT </td><td> Идентификатор алгоритма защищённого экспорта ключа.</td></tr>
- * <tr><td>CALG_PRO12_EXPORT </td><td> Идентификатор алгоритма защищённого экспорта ключа по рекомендациям ТК26 (обязателен для использования с ключами ГОСТ Р 34.10-2012).</td></tr>
+ * <tr><td>CALG_PRO12_EXPORT </td><td> Идентификатор алгоритма защищённого экспорта ключа по рекомендациям ТК26 (обязателен для экспорта закрытых ключей ГОСТ Р 34.10-2012).</td></tr>
  * <tr><td>CALG_SIMPLE_EXPORT </td><td>Идентификатор алгоритма простого экспорта ключа. </td></tr>
  * <tr><td>CALG_KEXP_2015_M </td><td> Идентификатор алгоритма защищённого экспорта ключа ГОСТ Р 34.12-2015 Магма.</td></tr>
  * <tr><td>CALG_KEXP_2015_K </td><td> Идентификатор алгоритма защищённого экспорта ключа ГОСТ Р 34.12-2015 Кузнечик.</td></tr>
+ * <tr><td>CALG_MGM_EXPORT_M</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Магма в режиме MGM.</td></tr>
+ * <tr><td>CALG_MGM_EXPORT_K</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Кузнечик в режиме MGM.</td></tr>
  * <tr><td> CALG_TLS1PRF</td><td>Идентификатор алгоритма "производящей функции" (PRF) протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-94.</td></tr>
  * <tr><td> СALG_TLS1PRF_2012_256</td><td>Идентификатор алгоритма "производящей функции" (PRF) протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-2012.</td></tr>
  * <tr><td> CALG_TLS1_MASTER_HASH</td><td>Идентификатор алгоритма выработки объекта MASTER_HASH протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-94.</td></tr>
@@ -4452,13 +4684,10 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>PP_CIPHEROID</td><td>Получает и/или устанавливает заданный в контейнере OID узла замены алгоритма шифрования ГОСТ 28147-89 для наследования криптографическими объектами </td></tr>
  * <tr><td>PP_SIGNATUREOID</td><td>Получает и/или устанавливает заданный в контейнере OID параметров цифровой подписи - в зависимости от типа провайдера </td></tr>
  * <tr><td>PP_DHOID</td><td>Получает и/или устанавливает заданный в контейнере OID параметров алгоритма Диффи-Хеллмана в зависимости от типа провайдера </td></tr>
- * <tr><td>PP_CHECKPUBLIC </td><td>Флаг контроля открытого ключа. Если флаг установлен, осуществляется проверка алгебраических свойств открытого ключа </td></tr>
  * <tr><td>PP_RANDOM</td><td>Получает или устанавливает последовательность случайных чисел для инициализации программного ДСЧ</td></tr>
- * <tr><td>PP_DRVCONTAINER </td><td>Получает указатель (handle) контейнера в драйвере</td></tr>
- * <tr><td>PP_MUTEX_ARG</td><td>Инициализирует синхронизацию потоков криптопровайдера в драйверном исполнении</td></tr>
  * <tr><td>PP_ENUM_HASHOID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с функцией хэширования ГОСТ Р 34.11-94 </td></tr>
  * <tr><td>PP_ENUM_CIPHEROID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с функцией шифрования ГОСТ 28147-89  </td></tr>
- * <tr><td>PP_ENUM_SIGNATUREOID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с функцией цифровой подписи, - PP_ENUM_SIGNATUREOID_256_2001, PP_ENUM_SIGNATUREOID_256_2012 или PP_ENUM_SIGNATUREOID_512 в зависимости от типа провайдера </td></tr>
+ * <tr><td>PP_ENUM_SIGNATUREOID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с функцией цифровой подписи, в зависимости от типа провайдера </td></tr>
  * <tr><td>PP_ENUM_DHOID</td><td>Получает перечень идентификаторов криптографических объектов, связанных с алгоритмом Диффи-Хеллмана, в зависимости от типа провайдера </td></tr>
  *</table>
 */
@@ -4467,30 +4696,9 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <table>
  * <tr><th>Параметр</th><th>Значение параметра</th></tr>
  * <tr><td>DIVERSKEYBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
-    функции CPImportKey в режиме CALG_PRO_EXPORT</td></tr>
+    функции CPImportKey в режиме CALG_PRO_DIVERS, CALG_RIC_DIVERS или CALG_PRO12_DIVERS</td></tr>
  * <tr><td>CRYPT_KDF_TREE_DIVERSBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
     функции CPImportKey в режиме CALG_KDF_TREE_GOSTR3411_2012_256</td></tr>
- *</table>
-*/
-
-/*! \page DP5 Дополнительные параметры объекта хэширования
- * <table>
- * <tr><th>Параметр</th><th>Значение параметра</th></tr>
- * <tr><td>HP_HASHSTARTVECT</td><td>Стартовый вектор функции хэширования, устанавливаемый приложением</td></tr>
- * <tr><td>HP_OID</td><td>Задает узел замены функции хэширования</td></tr>
- *</table>
-*/
-
-/*! \page DP6 Дополнительные параметры ключей
- * <table>
- * <tr><th>Параметр</th><th>Значение параметра</th></tr>
- * <tr><td>KP_IV </td><td>Начальный вектор инициализации алгоритма шифрования ГОСТ 28147-89/ГОСТ Р 34.12-2015</td></tr>
- * <tr><td>KP_MIXMODE</td><td>Определяет использование преобразования ключа после обработки 1КВ информации в режимах шифрования/расшифрования и вычисления имитовставки алгоритма ГОСТ 28147-89 </td></tr>
- * <tr><td>KP_OID</td><td>Задает узел замены функции хэширования</td></tr>
- * <tr><td>KP_HASHOID</td><td>Идентификатор узла замены функции хэширования ГОСТ Р 34.11-94</td></tr>
- * <tr><td>KP_CIPHEROID</td><td>Идентификатор узла замены алгоритма шифрования ГОСТ 28147-89</td></tr>
- * <tr><td>KP_SIGNATUREOID</td><td>Идентификатор параметров цифровой подписи</td></tr>
- * <tr><td>KP_DHOID</td><td>Идентификатор параметров алгоритма Диффи-Хеллмана</td></tr>
  *</table>
 */
 
@@ -4503,18 +4711,15 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>szOID_CP_GOST_R3411</td><td>"1.2.643.2.2.9"</td><td>Функция хэширования ГОСТ Р 34.11-94</td></tr>
  * <tr><td>szOID_CP_GOST_R3411_12_256</td><td>"1.2.643.7.1.1.2.2"</td><td>Функция хэширования ГОСТ Р 34.11-2012, длина выхода 256 бит</td></tr>
  * <tr><td>szOID_CP_GOST_R3411_12_512</td><td>"1.2.643.7.1.1.2.3"</td><td>Функция хэширования ГОСТ Р 34.11-2012, длина выхода 512 бит</td></tr>
- * <tr><td>szOID_CP_GOST_R3410</td><td>"1.2.643.2.2.20"</td><td>Алгоритм ГОСТ Р 34.10-94, используемый при экспорте/импорте ключей</td></tr>
- * <tr><td>szOID_CP_GOST_R3410EL</td><td>"1.2.643.2.2.19"</td><td>Алгоритм ГОСТ Р 34.10-2001, используемый при экспорте/импорте ключей</td></tr>
- * <tr><td>szOID_CP_GOST_R3410_12_256</td><td>"1.2.643.7.1.1.1.1"</td><td>Алгоритм ГОСТ Р 34.10-2012 для ключей длины 256 бит, используемый при экспорте/импорте ключей</td></tr>
- * <tr><td>szOID_CP_GOST_R3410_12_512</td><td>"1.2.643.7.1.1.1.2"</td><td>Алгоритм ГОСТ Р 34.10-2012 для ключей длины 512 бит, используемый при экспорте/импорте ключей</td></tr>
- * <tr><td>szOID_CP_DH_EX</td><td>"1.2.643.2.2.99"</td><td>Алгоритм Диффи-Хеллмана на базе потенциальной функции</td></tr>
+ * <tr><td>szOID_CP_GOST_R3410EL</td><td>"1.2.643.2.2.19"</td><td>Алгоритм ГОСТ Р 34.10-2001</td></tr>
+ * <tr><td>szOID_CP_GOST_R3410_12_256</td><td>"1.2.643.7.1.1.1.1"</td><td>Алгоритм ГОСТ Р 34.10-2012 для ключей длины 256 бит</td></tr>
+ * <tr><td>szOID_CP_GOST_R3410_12_512</td><td>"1.2.643.7.1.1.1.2"</td><td>Алгоритм ГОСТ Р 34.10-2012 для ключей длины 512 бит</td></tr>
  * <tr><td>szOID_CP_DH_EL</td><td>"1.2.643.2.2.98"</td><td>Алгоритм Диффи-Хеллмана на базе эллиптической кривой</td></tr>
  * <tr><td>szOID_CP_DH_12_256</td><td>"1.2.643.7.1.1.6.1"</td><td>Алгоритм Диффи-Хеллмана на базе эллиптической кривой для ключей длины 256 бит</td></tr>
  * <tr><td>szOID_CP_DH_12_512</td><td>"1.2.643.7.1.1.6.2"</td><td>Алгоритм Диффи-Хеллмана на базе эллиптической кривой для ключей длины 512 бит</td></tr>
- * <tr><td>szOID_CP_GOST_R3411_R3410</td><td>"1.2.643.2.2.4"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-94</td></tr>
- * <tr><td>szOID_CP_GOST_R3411_R3410EL</td><td>"1.2.643.2.2.3"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2001</td></tr>
- * <tr><td>szOID_CP_GOST_R3411_12_256_R3410</td><td>"1.2.643.7.1.1.3.2"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 256 бит</td></tr>
- * <tr><td>szOID_CP_GOST_R3411_12_512_R3410</td><td>"1.2.643.7.1.1.3.3"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 512 бит</td></tr>
+ * <tr><td>szOID_CP_GOST_R3411_R3410EL</td><td>"1.2.643.2.2.3"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2001 с алгоритмом хэширования ГОСТ Р 34.11-94</td></tr>
+ * <tr><td>szOID_CP_GOST_R3411_12_256_R3410</td><td>"1.2.643.7.1.1.3.2"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 256 бит с алгоритмом хэширования ГОСТ Р 34.11-2012, длина выхода 256 бит</td></tr>
+ * <tr><td>szOID_CP_GOST_R3411_12_512_R3410</td><td>"1.2.643.7.1.1.3.3"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 512 бит с алгоритмом хэширования ГОСТ Р 34.11-2012, длина выхода 512 бит</td></tr>
  * <tr><td>szOID_KP_TLS_PROXY</td><td>"1.2.643.2.2.34.1"</td><td>Аудит TLS-трафика</td></tr>
  * <tr><td>szOID_KP_RA_CLIENT_AUTH</td><td>"1.2.643.2.2.34.2"</td><td>Идентификация пользователя на центре регистрации</td></tr>
  * <tr><td>szOID_KP_WEB_CONTENT_SIGNING</td><td>"1.2.643.2.2.34.3"</td><td>Подпись содержимого сервера Интернет</td></tr>
@@ -4544,13 +4749,6 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>szOID_Gost28147_89_TC26_E_ParamSet</td><td>"1.2.643.2.2.31.16" </td><td>Узел замены алгоритма шифрования, вариант ТК26 5</td></tr>
  * <tr><td>szOID_Gost28147_89_TC26_F_ParamSet</td><td>"1.2.643.2.2.31.17" </td><td>Узел замены алгоритма шифрования, вариант ТК26 6</td></tr>
  * <tr><td>szOID_Gost28147_89_TC26_Z_ParamSet</td><td>"1.2.643.7.1.2.5.1.1" </td><td>Узел замены алгоритма шифрования, вариант ТК26 Z</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_A_ParamSet</td><td>"1.2.643.2.2.32.2"</td><td>Параметры P, Q, A цифровой подписи ГОСТ Р 34.10-94, вариант "Верба-О". Могут использоваться также в алгоритме Диффи-Хеллмана</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_B_ParamSet</td><td>"1.2.643.2.2.32.3"</td><td>Параметры P, Q, A цифровой подписи ГОСТ Р 34.10-94, вариант 1. Могут использоваться также в алгоритме Диффи-Хеллмана</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_C_ParamSet</td><td>"1.2.643.2.2.32.4"</td><td>Параметры P, Q, A цифровой подписи ГОСТ Р 34.10-94, вариант 2. Могут использоваться также в алгоритме Диффи-Хеллмана</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_D_ParamSet</td><td>"1.2.643.2.2.32.5"</td><td>Параметры P, Q, A цифровой подписи ГОСТ Р 34.10-94, вариант 3. Могут использоваться также в алгоритме Диффи-Хеллмана</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_XchA_ParamSet</td><td>"1.2.643.2.2.33.1" </td><td>Параметры P, Q, A алгоритма Диффи-Хеллмана на базе экспоненциальной функции, вариант 1</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_XchB_ParamSet</td><td>"1.2.643.2.2.33.2" </td><td>Параметры P, Q, A алгоритма Диффи-Хеллмана на базе экспоненциальной функции, вариант 2</td></tr>
- * <tr><td>szOID_GostR3410_94_CryptoPro_XchC_ParamSet</td><td>"1.2.643.2.2.33.3" </td><td>Параметры P, Q, A алгоритма Диффи-Хеллмана на базе экспоненциальной функции, вариант 3</td></tr>
  * <tr><td>szOID_GostR3410_2001_TestParamSet</td><td>"1.2.643.2.2.35.0"</td><td>Тестовые параметры a, b, p, q, (x,y) алгоритма ГОСТ Р 34.10-2001 </td></tr>
  * <tr><td>szOID_GostR3410_2001_CryptoPro_A_ParamSet</td><td>"1.2.643.2.2.35.1"</td><td>Параметры a, b, p, q, (x,y) цифровой подписи и алгоритма Диффи-Хеллмана на базе алгоритма ГОСТ Р 34.10-2001, вариант криптопровайдера </td></tr>
  * <tr><td>szOID_GostR3410_2001_CryptoPro_B_ParamSet</td><td>"1.2.643.2.2.35.2"</td><td>Параметры a, b, p, q, (x,y) цифровой подписи и алгоритма Диффи-Хеллмана на базе алгоритма ГОСТ Р 34.10-2001, вариант карты КриптоРИК</td></tr>
@@ -4754,8 +4952,8 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * </th></tr><tr><td>
  * Предзаголовок пакета (DIVERSBLOB)
  * </td><td>
- *      Опциональное поле, содержащее блоб диверсификации ключа шифрования и хэширования по алгоритму CALG_PRO_DIVERS.
- *      Признак обработки поля - установленный флаг  CP_CHP_STARTMIX.
+ *      Опциональное поле, содержащее блоб диверсификации ключа шифрования и хэширования по алгоритмам CALG_PRO_DIVERS и CALG_PRO12_DIVERS.
+ *      Признак обработки поля - установленный флаг CP_CHP_STARTMIX. Поддерживается только при работе с ГОСТ 28147-89.
  * </td></tr><tr><td>
  * Заголовок пакета (HEADER)
  * </td><td>
@@ -4773,7 +4971,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * </td><td>
  *      Опциональное поле длины не более 254 байт. Не шифруется, хэшируется хэш-функцией hHash.
  * </td></tr><tr><td>
- * Знечение функции хэширования пакета (HASH)
+ * Значение функции хэширования пакета (HASH)
  * </td><td>
  *      Опциональное поле, может быть зашифровано. 
  * </td></tr>
@@ -4795,40 +4993,6 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  *
  * Флаги CP_CHP_IV_CHAIN, CP_CHP_HASH_CHAIN, CP_CHP_HASH_NONE  предназначены для обработки пакетов в потоках,
  * гарантирующих доставку всех пакетов в неизменной последовательности.
- *
- * В следующей таблице приведены условия использовантя режимов ширования пакетов:
- * <table><tr><th>
- * Значение флагов
- * </th><th>
- *      Условия и ограничения режима
- * </th></tr><tr><td>
- * CRYPT_SIMPLEMIX_MODE совместно с CP_CHP_IV_RANDOM, 
- * CRYPT_SIMPLEMIX_MODE совместно с CP_CHP_IV_USER
- * </td><td>
- *	Обработка пакетов может выполняться с установленным флагом Final=FALSE.
- *	Объём данных, обрабатываемых на одном ключе, ограничен 4М. 
- * </td></tr><tr><td>
- * CRYPT_PROMIX_MODE совместно с CP_CHP_IV_RANDOM, 
- * CRYPT_PROMIX_MODE совместно с CP_CHP_IV_USER
- * </td><td>
- *	Обработка пакетов должна выполняться с установленным флагом Final=TRUE.
- *	Объём данных, обрабатываемых на одном ключе,  ограничен 4М либо числом пакетов < 4096.
- * </td></tr><tr><td>
- * CRYPT_SIMPLEMIX_MODE совместно с CP_CHP_IV_CHAIN
- * </td><td>
- *	Обработка пакета с флагом Final=TRUE означает завершение обработки цепочки пакетов.
- * 	Обработка пакета с флагом Final=FALSE означает продолжение обработки цепочки пакетов.
- *	На одном ключе последовательно может быть обработано несколько цепочек пакетов.
- *	Объём данных, обрабатываемых на одном ключе, ограничен 4М.
- * </td></tr><tr><td>
- * CRYPT_PROMIX_MODE совместно с CP_CHP_IV_CHAIN
- * </td><td>
- *	Обработка пакета с флагом Final=TRUE означает завершение обработки цепочки пакетов.
- * 	Обработка пакета с флагом Final=FALSE означает продолжение обработки цепочки пакетов.
- *	На одном ключе может обрабатываться цепочка длины не более 128000М. 
- *	Количество цепочек ограничено 4096.
- * </td></tr>
- * </table>
  * 
  * Во всех режимах объект функции хэширования после завершения обработки пакета 
  * подготовлен для обработки следующего пакета. 
@@ -4852,7 +5016,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * в настоящей версии СКЗИ режим CP_CRYPT_DATA_IOVEC является подрежимом пакетной обработки.
  *
  * В режиме пакетной обработки возможно получение ключа шифрования и имитозащиты пакета диверсификацией 
- * базовых ключей, ассоциированных с hKey и hHash. Диверсификация осуществляется по алгоритму CALG_PRO_DIVERS 
+ * базовых ключей, ассоциированных с hKey и hHash. Диверсификация осуществляется по алгоритму CALG_PRO_DIVERS/CALG_PRO12_DIVERS 
  * с использованием даных CRYPT_DIVERSBLOB, размещённых в предзаголовке пакета. 
  * Если используется представление данных в форме вектора ввода-вывода, 
  * блоб диверсификации должен передаваться в первой координате вектора целиком.
@@ -4860,7 +5024,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * Диверсифицированное значение ключей сохраняется для использования для обработки последующих пакетов.
  * Диверсификация ключей не приводит к изменению значений базовых ключей.
  *
- * В режиме пакетной обработки возможна SIMD параллельная обработка до 16 пакетов при использовании 
+ * В режиме пакетной обработки с использованием алгоритма ГОСТ 28147-89 возможна SIMD параллельная обработка до 16 пакетов при использовании 
  * аппаратной платформы, поддерживающей расширения SSSE3, AVX.
  * Все пакеты обрабатываются на ключах  с одним значением для шифрования и 
  * с обним значением для функции хэшироваия.
@@ -4873,9 +5037,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * См. \ref CryptMultipacket.
  *
  *
- * Флаг CP_CRYPT_NOKEYWLOCK используется для организации шифрования\расшифрования пакетов в
+ * Флаг CP_CRYPT_NOKEYWLOCK используется для организации шифрования\расшифрования пакетов с использованием алгоритма ГОСТ 28147-89 в
  * многопоточном режиме, при этом ключ шифрования\расшифрования блокируется только на чтение.
- * Для обеспечения данного режима работы необходимо заранее создать специальный объект
+ * Для обеспечения данного режима при работе с криптопровайдером уровня ядра ОС необходимо заранее создать специальный объект
  * HCRYPTMODULE с помощью функции CPCGetProvParam() с флагом PP_CREATE_THREAD_CSP; данный объект в дальнейшем
  * следует передавать функциям CPCEncrypt() и CPCDecrypt() в качестве первого параметра.
  *
@@ -4928,11 +5092,11 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  */
 #define CP_CRYPT_HASH_PACKET		(0x80)
 /*!
- *  \brief Флаг определяет порядок обработки данных пакета - хэширование (имитозащита) затем шифрование.
+ *  \brief Флаг определяет порядок обработки данных пакета - хэширование (имитозащита), затем шифрование.
  */
 #define CP_CHP_HASH_ENCRYPT		(0x00)
 /*!
- *  \brief Флаг определяет порядок обработки данных пакета - шифрование затем хэширование (имитозащита).
+ *  \brief Флаг определяет порядок обработки данных пакета - шифрование, затем хэширование (имитозащита).
  */
 #define CP_CHP_ENCRYPT_HASH		(0x10)
 /*!
@@ -4942,6 +5106,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  *  поле dwResult должно быть записано значение 1. В случае ошибок, связанных с проверкой значений имитовставки одного 
  *  или нескольких пакетов (ошибка NTE_BAD_HASH), после выхода из функции в поле dwResult будет 0 только у тех пакетов, 
  *  обработка которых завершилась с успешной проверкой значения имитовставки (значения функции хэширования).
+ *  Мультипакетный режим поддерживается только для алгоритма шифрования ГОСТ 28147-89.
  */
 #define CP_CHP_MULTIPACKET		(0x20)
 /*!
@@ -4951,11 +5116,11 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CRYPT_NOKEYWLOCK		(0x40)
 /*!
  *  \brief Флаг хэширования вектора инициализации (IV). Если установлен, IV следует за заголовком пакета и хэшируется. 
- *	 Если не установлен, IV ,если присутствует в пакете, следует за заголовком пакета, но не хэшируется.
+ *  Если не установлен, IV, если присутствует в пакете, следует за заголовком пакета, но не хэшируется.
  */
 #define CP_CHP_IV_HEADER		(0x08)
 /*!
- *  \brief Флаг диверсификации ключа шифрования и хэширования по алгоритму CALG_PRO_DIVERS. 
+ *  \brief Флаг диверсификации ключа шифрования и хэширования по алгоритму CALG_PRO_DIVERS\CALG_PRO12_DIVERS. 
  *  Если используется представление данных в форме пакета, блоб диверсификации должен передаваться 
  *  в составе пакета в его начале.
  *  Если используется представление данных в форме вектора ввода-вывода, 
@@ -4965,12 +5130,6 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  *  на диверсифицированных ключах шифрования и имитозащиты.
  */
 #define CP_CHP_STARTMIX			(0x04)
- /*!
- *  \brief Флаг - признак пакета, содержащего запись протокола TLS.
- *   При использовании этого флага будет производиться работа с заголовком пакета в соответствии
- *   с подпротоколом RECORD протокола TLS.
- */
-#define CP_CHP_TLS_PACKET		(0x01)
 /*!
  *  \brief Маска управления IV. Представляет собой поле из 2 зависимых бит. 
  *  Нулевое значение поля соответствует CP_CHP_IV_CHAIN.
@@ -5027,7 +5186,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_HASH_PACKET		(0x800)
 /*!
  *  \brief Маска размера значения хэш-функции в двойных словах (4 октета), устанавливаемого в пакет.
- *  Возможные значения: 1 (для имитозащиты) от 1 до 8 (ддя хэш-функции по ГОСТ Р34.11-94 и HMAC).
+ *  Возможные значения: 1 (для имитозащиты) от 1 до 8 (для хэш-функций и HMAC).
  */
 #define CP_CHP_HASH_SIZE_MASK		(0xF000)
 /*!
@@ -5035,7 +5194,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  *  значение  255 означает: длина трейлера 0, значения хэш-функции в пакете шифруется.
  */
 #define CP_CHP_TRAILER_MASK		(0xFF0000)
-
+/*!
+ *  \brief Флаг, указывающий на шифрование хэш-значения.
+ */
 #define CP_CHP_ENCRYPTED_TRAILER	(CP_CHP_TRAILER_MASK>>CP_CHP_TRAILER_SHIFT)
 
 /*!
@@ -5064,6 +5225,39 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
             (((HashDWordSize)<<CP_CHP_HASH_SIZE_SHIFT)&CP_CHP_HASH_SIZE_MASK)\
         )
 /*! \} */
+
+ /*!
+ *  \brief Флаг - признак пакета, содержащего запись протокола TLS.
+ *   При использовании этого флага будет производиться работа с заголовком пакета в соответствии
+ *   с подпротоколом RECORD протокола TLS.
+ */
+#define CP_CHP_TLS_PACKET		(0x01)
+
+ /*internal
+  *  \brief Сумма указателя со смещением.
+  *      p - указатель
+  *      w - смещение
+  */
+#define _CP_CHP_ADD_(p,w) \
+	    ((void *)(((char *)p) + (w)))
+#define _CP_CHP_SUB_(p,w) \
+	    ((void *)(((char *)p) - (w)))
+
+
+  /*internal
+   *  \brief Проверка границ буфера.
+   *	d - указатель на буфер
+   *      l - длина буфера
+   *      p - результирующий указатель на поле пакета
+   *      w - длина поля
+   */
+#define _CP_CHP_SAFE_CHECK_(d,l,p,w)					\
+	    (NULL != (d) && (size_t)(w) <= (size_t)(l) &&		\
+	     (void *)(d) <= (void *)(p) &&					\
+	     _CP_CHP_ADD_((p),(w)) <= _CP_CHP_ADD_((d),(l))		\
+		? (p)							\
+		: NULL							\
+	    )
 
 /*! \ingroup ProCSPData
  * \defgroup PacketMacros Вспомогательные макросы описания структуры пакета
@@ -5103,7 +5297,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 
 */
 /*!
- *  \brief Размер поля IV в пакете. 
+ *  \brief Размер поля IV для алгоритма ГОСТ 28147-89 в пакете. 
  */
 #define CP_CHP_IV_SIZE(f) (((f)&CP_CHP_IV_MASK)?(SEANCE_VECTOR_LEN):(0))
 
@@ -5111,35 +5305,8 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 *  \brief Размер поля IV переменной длины в пакете.
 */
 #define CP_CHP_IV_BLOB_SIZE(f, ivlen) (((f)&CP_CHP_IV_MASK)?(ivlen):(0))
-
-/*internal
- *  \brief Сумма указателя со смещением.
- *      p - указатель
- *      w - смещение
- */
-#define _CP_CHP_ADD_(p,w) \
-	    ((void *)(((char *)p) + (w)))
-#define _CP_CHP_SUB_(p,w) \
-	    ((void *)(((char *)p) - (w)))
-
-
-/*internal
- *  \brief Проверка границ буфера.
- *	d - указатель на буфер
- *      l - длина буфера
- *      p - результирующий указатель на поле пакета
- *      w - длина поля
- */
-#define _CP_CHP_SAFE_CHECK_(d,l,p,w)					\
-	    (NULL != (d) && (size_t)(w) <= (size_t)(l) &&		\
-	     (void *)(d) <= (void *)(p) &&					\
-	     _CP_CHP_ADD_((p),(w)) <= _CP_CHP_ADD_((d),(l))		\
-		? (p)							\
-		: NULL							\
-	    )
-
 /*!
- *  \brief Указатель на поле IV в пакете. 
+ *  \brief Указатель на поле IV для алгоритма ГОСТ 28147-89 в пакете. 
  */
 #define CP_CHP_IV_DATA(f,d,l) _CP_CHP_SAFE_CHECK_((d),(l),		\
 		_CP_CHP_ADD_((d),					\
@@ -5168,7 +5335,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_HEADER_DATA(f,d,l) _CP_CHP_SAFE_CHECK_((d),(l),		\
 					(d), CP_CHP_PUREHEADER_SIZE(f))
 /*!
- *  \brief Размер поля заголовка пакета. 
+ *  \brief Размер поля заголовка пакета (исключая IV). 
  */
 #define CP_CHP_PUREHEADER_SIZE(f)					\
 			(((f)&CP_CHP_HEADER_MASK)>>CP_CHP_HEADER_SHIFT)
@@ -5180,6 +5347,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 					? CP_CHP_IV_BLOB_SIZE(f, ivlen)	\
 					: 0))
 
+ /*!
+  *  \brief Размер хэшируемого поля заголовка пакета и поля IV (если IV хэшируется) для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_HEADER_SIZE(f) CP_CHP_HEADER_SIZE_INT(f, SEANCE_VECTOR_LEN) 
 
 /*!
@@ -5188,6 +5358,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_REALHEADER_SIZE_INT(f, ivlen)   (CP_CHP_PUREHEADER_SIZE(f) +		\
 					CP_CHP_IV_BLOB_SIZE(f, ivlen))
 
+ /*!
+  *  \brief Суммарный размер поля заголовка пакета и поля IV для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_REALHEADER_SIZE(f) CP_CHP_REALHEADER_SIZE_INT(f, SEANCE_VECTOR_LEN)
 /*  
     HASH
@@ -5250,6 +5423,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 				    CP_CHP_TRAILER_SIZE(f) -		\
 				    CP_CHP_HASH_SIZE(f))
 
+ /*!
+  *  \brief Размер тела пакета для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_PAYLOAD_SIZE(f,l) CP_CHP_PAYLOAD_SIZE_INT(f,l,SEANCE_VECTOR_LEN)
 
 /*!
@@ -5264,6 +5440,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 		    :(CP_CHP_HASH_SIZE(f)))				\
 	    )
 
+ /*!
+  *  \brief Размер шифруемого поля пакета для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_CIPHER_SIZE(f,l) CP_CHP_CIPHER_SIZE_INT(f,l,SEANCE_VECTOR_LEN)
 /*!
  *  \brief Указатель на шифруемое поле пакета. 
@@ -5272,7 +5451,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 		_CP_CHP_ADD_((d), CP_CHP_REALHEADER_SIZE_INT(f,ivlen)),		\
 		CP_CHP_CIPHER_SIZE_INT(f,l,ivlen)					\
 	    )
-
+ /*!
+  *  \brief Указатель на шифруемое поле пакета для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_CIPHER_DATA(f,d,l)  CP_CHP_CIPHER_DATA_INT(f,d,l,SEANCE_VECTOR_LEN)
 
 /*!
@@ -5280,6 +5461,9 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  */
 #define CP_CHP_HASH_DATA_2_INT(f,d,l,ivlen)   CP_CHP_CIPHER_DATA_INT((f),(d),(l),(ivlen))
 
+ /*!
+  *  \brief Указатель на второе хэшируемое поле пакета (в случае, когда поле IV не хэшируется) для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_HASH_DATA_2(f,d,l)   CP_CHP_HASH_DATA_2_INT((f),(d),(l),SEANCE_VECTOR_LEN)
 
 /*!
@@ -5292,9 +5476,11 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 		    :(0))						\
 	    )
 
+ /*!
+  *  \brief Длина второго хэшируемого поля пакета (в случае, когда поле IV не хэшируется) для алгоритма ГОСТ 28147-89.
+  */
 #define CP_CHP_HASH_LEN_2(f,l) CP_CHP_HASH_LEN_2_INT(f,l,SEANCE_VECTOR_LEN)
 /*! \} */
-
 
 /*! \ingroup ProCSPData
  * \defgroup CryptIOvec  Вектор ввода вывода
@@ -5498,6 +5684,8 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_MULTI_HASH_FLAG		(0x8)
 #define CP_IMIT_NO_KEY_LOAD             (0x10)
 #define CP_HASH_ITER_NUMBER		(0x20)
+#define CP_VERIFY_HMAC_FOR_SIGN		(0x40)
+#define	CP_VERIFY_SIGN_FOR_SIGN		(0x80)
 
 #define MIN_MULTI_HASH_COUNT		(0x01)
 #define MAX_MULTI_HASH_COUNT		(0x40)
@@ -5511,6 +5699,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * Функции CPEncrypt(), CPCEncrypt(),CPDecrypt(), CPCDecrypt()
  * допускают мультипакетную обработку по технологии SIMD при использовании 
  * аппаратной платформы, поддерживающей расширения SSSE3, AVX.
+ * Поддерживается только шифрование по ГОСТ 28147-89.
  */
 
 /*! \ingroup CryptMultipacket
@@ -5633,9 +5822,182 @@ typedef  struct CSP_Multipacket_DEC_ {
 */
 #define MultiPacket_DEC_RES(p,n) (((CSP_Multipacket_DEC*)p)[n].dwDecResult)
 
-// Константа, используемая в CertEnumPhysicalStore при добавлении Windows-хранилищ к
-// Capilite-хранилищам. Аналогична CERT_PHYSICAL_STORE_DEFAULT_NAME и сходным константам.
+// Константы, используемые в CertEnumPhysicalStore при добавлении хранилищ ОС к
+// Capilite-хранилищам. Аналогичны CERT_PHYSICAL_STORE_DEFAULT_NAME и сходным константам.
 #define CERT_PHYSICAL_STORE_WINDOWS_NAME L".Windows"
+#define CERT_PHYSICAL_STORE_MACOS_NAME L".macOS"
+
+// CERT_CHAIN_ENGINE_CONFIG с полями, добавленными в Windows 7 и 8:
+// hExclusiveRoot, hExclusiveTrustedPeople, dwExclusiveFlags
+typedef struct _CERT_CHAIN_ENGINE_CONFIG_WIN8 {
+    DWORD       cbSize;
+    HCERTSTORE  hRestrictedRoot;
+    HCERTSTORE  hRestrictedTrust;
+    HCERTSTORE  hRestrictedOther;
+    DWORD       cAdditionalStore;
+    HCERTSTORE* rghAdditionalStore;
+    DWORD       dwFlags;
+    DWORD       dwUrlRetrievalTimeout;      // milliseconds
+    DWORD       MaximumCachedCertificates;
+    DWORD       CycleDetectionModulus;
+    HCERTSTORE  hExclusiveRoot;
+    HCERTSTORE  hExclusiveTrustedPeople;
+    DWORD       dwExclusiveFlags;
+} CERT_CHAIN_ENGINE_CONFIG_WIN8, *PCERT_CHAIN_ENGINE_CONFIG_WIN8;
+
+// колбэки для CertVerifyCertificateChainPolicy
+typedef BOOL (WINAPI VerifyChainPolicyCallback_t)(
+    LPCSTR pszPolicyOID,
+    PCCERT_CHAIN_CONTEXT pChainContext,
+    PCERT_CHAIN_POLICY_PARA pPolicyPara,
+    PCERT_CHAIN_POLICY_STATUS pPolicyStatus);
+
+// колбэки для CryptRetrieveObjectByUrlA
+#define CP_OID_RETRIEVE_OBJECT_BY_URL_A_FUNC "CpDllRetrieveObjectByUrlA"
+
+// колбэки для CryptRetrieveObjectByUrlA
+typedef BOOL (WINAPI RetrieveObjectByUrlACallback_t)(
+    LPCSTR pszUrl,
+    LPCSTR pszObjectOid,
+    DWORD dwRetrievalFlags,
+    DWORD dwTimeout,
+    LPVOID* ppvObject,
+    HCRYPTASYNC hAsyncRetrieve,
+    PCRYPT_CREDENTIALS pCredentials,
+    LPVOID pvVerify,
+    PCRYPT_RETRIEVE_AUX_INFO pAuxInfo);
+
+#define CP_FIELD_PRESENT(ptr, field) \
+    ((char*)(ptr) + (ptr)->cbSize >= (char*)(&(ptr)->field + 1))
+#define CP_FIELD_PRESENT_DWSIZE(ptr, field) \
+    ((char*)(ptr) + (ptr)->dwSize >= (char*)(&(ptr)->field + 1))
+
+// TODO: перенести в CSP_WinCrypt.h после отказа от поддержки Vista/2008
+
+//
+// Time stamp API
+//
+
+#ifndef TIMESTAMP_VERSION
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_REQUEST
+//
+//--------------------------------------------------------------------------
+#define TIMESTAMP_VERSION  1
+
+typedef struct _CRYPT_TIMESTAMP_REQUEST
+{
+    DWORD                       dwVersion;              // v1
+    CRYPT_ALGORITHM_IDENTIFIER  HashAlgorithm;
+    CRYPT_DER_BLOB              HashedMessage;
+    LPSTR                       pszTSAPolicyId;         // OPTIONAL
+    CRYPT_INTEGER_BLOB          Nonce;                  // OPTIONAL
+    BOOL                        fCertReq;               // DEFAULT FALSE
+    DWORD                       cExtension;
+    PCERT_EXTENSION             rgExtension;            // OPTIONAL
+} CRYPT_TIMESTAMP_REQUEST, *PCRYPT_TIMESTAMP_REQUEST;
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_RESPONSE
+//
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_TIMESTAMP_RESPONSE
+{
+    DWORD                       dwStatus;
+    DWORD                       cFreeText;              // OPTIONAL
+    LPWSTR*                     rgFreeText;
+    CRYPT_BIT_BLOB              FailureInfo;            // OPTIONAL
+    CRYPT_DER_BLOB              ContentInfo;            // OPTIONAL
+} CRYPT_TIMESTAMP_RESPONSE, *PCRYPT_TIMESTAMP_RESPONSE;
+
+#define TIMESTAMP_STATUS_GRANTED                        0
+#define TIMESTAMP_STATUS_GRANTED_WITH_MODS              1
+#define TIMESTAMP_STATUS_REJECTED                       2
+#define TIMESTAMP_STATUS_WAITING                        3
+#define TIMESTAMP_STATUS_REVOCATION_WARNING             4
+#define TIMESTAMP_STATUS_REVOKED                        5
+
+#define TIMESTAMP_FAILURE_BAD_ALG                       0
+#define TIMESTAMP_FAILURE_BAD_REQUEST                   2
+#define TIMESTAMP_FAILURE_BAD_FORMAT                    5
+#define TIMESTAMP_FAILURE_TIME_NOT_AVAILABLE            14
+#define TIMESTAMP_FAILURE_POLICY_NOT_SUPPORTED          15
+#define TIMESTAMP_FAILURE_EXTENSION_NOT_SUPPORTED       16
+#define TIMESTAMP_FAILURE_INFO_NOT_AVAILABLE            17
+#define TIMESTAMP_FAILURE_SYSTEM_FAILURE                25
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_ACCURACY
+//
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_TIMESTAMP_ACCURACY
+{
+    DWORD                       dwSeconds;                  // OPTIONAL
+    DWORD                       dwMillis;                   // OPTIONAL
+    DWORD                       dwMicros;                   // OPTIONAL
+} CRYPT_TIMESTAMP_ACCURACY, *PCRYPT_TIMESTAMP_ACCURACY;
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_INFO
+//
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_TIMESTAMP_INFO
+{
+    DWORD                       dwVersion;                  // v1
+    LPSTR                       pszTSAPolicyId;
+    CRYPT_ALGORITHM_IDENTIFIER  HashAlgorithm;
+    CRYPT_DER_BLOB              HashedMessage;
+    CRYPT_INTEGER_BLOB          SerialNumber;
+    FILETIME                    ftTime;
+    PCRYPT_TIMESTAMP_ACCURACY   pvAccuracy;                 // OPTIONAL
+    BOOL                        fOrdering;                  // OPTIONAL
+    CRYPT_DER_BLOB              Nonce;                      // OPTIONAL
+    CRYPT_DER_BLOB              Tsa;                        // OPTIONAL
+    DWORD                       cExtension;
+    PCERT_EXTENSION             rgExtension;                // OPTIONAL
+} CRYPT_TIMESTAMP_INFO, *PCRYPT_TIMESTAMP_INFO;
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_CONTEXT
+//
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_TIMESTAMP_CONTEXT
+{
+    DWORD                       cbEncoded;
+    BYTE                        *pbEncoded;
+    PCRYPT_TIMESTAMP_INFO       pTimeStamp;
+} CRYPT_TIMESTAMP_CONTEXT, *PCRYPT_TIMESTAMP_CONTEXT;
+
+//+-------------------------------------------------------------------------
+//  CRYPT_TIMESTAMP_PARA
+//
+//  pszTSAPolicyId
+//      [optional] Specifies the TSA policy under which the time stamp token
+//      should be provided.
+//
+//  Nonce
+//      [optional] Specifies the nonce value used by the client to verify the
+//      timeliness of the response when no local clock is available.
+//
+//  fCertReq
+//      Specifies whether the TSA must include in response the certificates
+//      used to sign the time stamp token.
+//
+//  rgExtension
+//      [optional]  Specifies Extensions to be included in request.
+
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_TIMESTAMP_PARA
+{
+    LPCSTR                      pszTSAPolicyId;             // OPTIONAL
+    BOOL                        fRequestCerts;              // Default is TRUE
+    CRYPT_INTEGER_BLOB          Nonce;                      // OPTIONAL
+    DWORD                       cExtension;
+    PCERT_EXTENSION             rgExtension;                // OPTIONAL
+} CRYPT_TIMESTAMP_PARA, *PCRYPT_TIMESTAMP_PARA;
+
+#endif // TIMESTAMP_VERSION
 
 #endif /* _WINCRYPTEX_H_INCLUDED */
 /** \endcond */

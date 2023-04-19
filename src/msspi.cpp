@@ -20,7 +20,7 @@ extern "C" {
 #endif
 #ifdef _WIN32
 #define LIBLOAD( name ) LoadLibraryA( name )
-#define LIBFUNC( lib, name ) (UINT_PTR)GetProcAddress( lib, name )
+#define LIBFUNC( lib, name ) (void *)GetProcAddress( (HMODULE)lib, name )
 #else
 #include <dlfcn.h>
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )

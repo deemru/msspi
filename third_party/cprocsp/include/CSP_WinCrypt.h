@@ -22,8 +22,11 @@
 #include <linux/types.h>
 #endif
 #endif
+
+#ifndef _CSP_WINCRYPT_USE_EXTERNAL_TYPES
 #include "CSP_WinDef.h"
 #include "CSP_WinError.h"
+#endif /*_CSP_WINCRYPT_USE_EXTERNAL_TYPES*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -522,6 +525,8 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 // Consistent key usage bits: DIGITAL_SIGNATURE or NON_REPUDIATION
 #define szOID_PKIX_KP_TIMESTAMP_SIGNING "1.3.6.1.5.5.7.3.8"
 
+// OCSP Nonce
+#define szOID_PKIX_OCSP_NONCE		"1.3.6.1.5.5.7.48.1.2"
 
 // IKE (Internet Key Exchange) Intermediate KP for an IPsec end entity.
 // Defined in draft-ietf-ipsec-pki-req-04.txt, December 14, 1999.
@@ -1023,6 +1028,15 @@ CryptDecodeObject(
 #define X509_OBJECT_IDENTIFIER              ((LPCSTR) 73)
 #define X509_ALGORITHM_IDENTIFIER           ((LPCSTR) 74)
 
+#define PKCS_RSA_SSA_PSS_PARAMETERS         ((LPCSTR) 75)
+
+//+-------------------------------------------------------------------------
+//  TIMESTAMP
+//--------------------------------------------------------------------------
+#define TIMESTAMP_REQUEST                  ((LPCSTR) 78)
+#define TIMESTAMP_RESPONSE                 ((LPCSTR) 79)
+#define TIMESTAMP_INFO                     ((LPCSTR) 80)
+
 //+-------------------------------------------------------------------------
 //  Predefined PKCS #7 data structures that can be encoded / decoded.
 //--------------------------------------------------------------------------
@@ -1091,7 +1105,6 @@ typedef struct _RSAPUBKEY {
  * указывает тип ключевого блоба и алгоритм ключа, находящегося в нём.
  * Экземпляр этой структуры находится в начале поля \b pbData каждого ключевого блоба.
  *
- * \req_std
  * \req_include Windows прототип описан в файле Wincrypt.h, Unix - 
  *  CSP_Wincrypt.h
  *
@@ -1219,6 +1232,8 @@ typedef struct _CRYPT_ALGORITHM_IDENTIFIER {
 #define szOID_RSA_SETOAEP_RSA   "1.2.840.113549.1.1.6"
 
 #define szOID_RSAES_OAEP        "1.2.840.113549.1.1.7"
+#define szOID_RSA_MGF1          "1.2.840.113549.1.1.8"
+#define szOID_RSA_SSA_PSS       "1.2.840.113549.1.1.10"
 
 #define szOID_RSA_SHA256RSA     "1.2.840.113549.1.1.11"
 #define szOID_RSA_SHA384RSA     "1.2.840.113549.1.1.12"
@@ -2501,6 +2516,40 @@ typedef struct _CERT_KEY_ATTRIBUTES_INFO {
 #define CERT_DECIPHER_ONLY_KEY_USAGE         0x80
 
 //+-------------------------------------------------------------------------
+//  PKCS_RSA_SSA_PSS_PARAMETERS
+//  szOID_RSA_SSA_PSS
+//
+//  pvStructInfo points to the following CRYPT_RSA_SSA_PSS_PARAMETERS
+//  data structure.
+//
+//  For encoding uses the following defaults if the corresponding field
+//  is set to NULL or 0:
+//      HashAlgorithm.pszObjId : szOID_OIWSEC_sha1
+//      MaskGenAlgorithm.pszObjId : szOID_RSA_MGF1
+//      MaskGenAlgorithm.HashAlgorithm.pszObjId : HashAlgorithm.pszObjId
+//      dwSaltLength: 20
+//      dwTrailerField : PKCS_RSA_SSA_PSS_TRAILER_FIELD_BC
+//
+//  Normally for encoding, only the HashAlgorithm.pszObjId field will
+//  need to be set.
+//
+//  For decoding, all of fields are explicitly set.
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_MASK_GEN_ALGORITHM {
+    LPSTR                       pszObjId;
+    CRYPT_ALGORITHM_IDENTIFIER  HashAlgorithm;
+} CRYPT_MASK_GEN_ALGORITHM, * PCRYPT_MASK_GEN_ALGORITHM;
+
+typedef struct _CRYPT_RSA_SSA_PSS_PARAMETERS {
+    CRYPT_ALGORITHM_IDENTIFIER  HashAlgorithm;
+    CRYPT_MASK_GEN_ALGORITHM    MaskGenAlgorithm;
+    DWORD                       dwSaltLength;
+    DWORD                       dwTrailerField;
+} CRYPT_RSA_SSA_PSS_PARAMETERS, * PCRYPT_RSA_SSA_PSS_PARAMETERS;
+
+#define PKCS_RSA_SSA_PSS_TRAILER_FIELD_BC       1
+
+//+-------------------------------------------------------------------------
 //  Find an extension identified by its Object Identifier.
 //
 //  If found, returns pointer to the extension. Otherwise, returns NULL.
@@ -2702,8 +2751,62 @@ CryptAcquireCertificatePrivateKey(
 #define CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG      0x00040000
 
 //+=========================================================================
+//  Object IDentifier (OID) Installable Functions:  Data Structures and APIs
+//==========================================================================
+
+// OID used for Default OID functions
+#define CRYPT_DEFAULT_OID                   "DEFAULT"
+
+typedef struct _CRYPT_OID_FUNC_ENTRY {
+    LPCSTR  pszOID;
+    void    *pvFuncAddr;
+} CRYPT_OID_FUNC_ENTRY, *PCRYPT_OID_FUNC_ENTRY;
+
+#define CRYPT_INSTALL_OID_FUNC_BEFORE_FLAG  1
+
+//+-------------------------------------------------------------------------
+//  Install a set of callable OID function addresses.
+//
+//  By default the functions are installed at end of the list.
+//  Set CRYPT_INSTALL_OID_FUNC_BEFORE_FLAG to install at beginning of list.
+//
+//  hModule should be updated with the hModule passed to DllMain to prevent
+//  the Dll containing the function addresses from being unloaded by
+//  CryptGetOIDFuncAddress/CryptFreeOIDFunctionAddress. This would be the
+//  case when the Dll has also regsvr32'ed OID functions via
+//  CryptRegisterOIDFunction.
+//
+//  DEFAULT functions are installed by setting rgFuncEntry[].pszOID =
+//  CRYPT_DEFAULT_OID.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptInstallOIDFunctionAddress(
+    IN OPTIONAL HMODULE hModule,         // hModule passed to DllMain
+    IN DWORD dwEncodingType,
+    IN LPCSTR pszFuncName,
+    IN DWORD cFuncEntry,
+    IN const CRYPT_OID_FUNC_ENTRY rgFuncEntry[],
+    IN DWORD dwFlags
+    );
+
+//+=========================================================================
 //  Object IDentifier (OID) Information:  Data Structures and APIs
 //==========================================================================
+
+//+-------------------------------------------------------------------------
+//  Special ALG_ID's used in CRYPT_OID_INFO
+//--------------------------------------------------------------------------
+// Algorithm is only implemented in CNG.
+#define CALG_OID_INFO_CNG_ONLY                   0xFFFFFFFF
+
+// Algorithm is defined in the encoded parameters. Only supported
+// using CNG.
+#define CALG_OID_INFO_PARAMETERS                 0xFFFFFFFE
+
+// Macro to check for a special ALG_ID used in CRYPT_OID_INFO
+#define IS_SPECIAL_OID_INFO_ALGID(Algid)        (Algid >= CALG_OID_INFO_PARAMETERS)
 
 //+-------------------------------------------------------------------------
 //  OID Information
@@ -3021,6 +3124,43 @@ CryptGetOIDFunctionAddress(
     IN DWORD dwFlags,
     OUT void **ppvFuncAddr,
     OUT HCRYPTOIDFUNCADDR *phFuncAddr
+    );
+
+#define CRYPT_GET_INSTALLED_OID_FUNC_FLAG       0x1
+
+//+-------------------------------------------------------------------------
+//  Either: get the first or next installed DEFAULT function OR
+//  load the Dll containing the DEFAULT function.
+//
+//  If pwszDll is NULL, search the list of installed DEFAULT functions.
+//  *phFuncAddr must be set to NULL to get the first installed function.
+//  Successive installed functions are returned by setting *phFuncAddr
+//  to the hFuncAddr returned by the previous call.
+//
+//  If pwszDll is NULL, the input *phFuncAddr
+//  is always CryptFreeOIDFunctionAddress'ed by this function, even for
+//  an error.
+//
+//  If pwszDll isn't NULL, then, attempts to load the Dll and the DEFAULT
+//  function. *phFuncAddr is ignored upon entry and isn't
+//  CryptFreeOIDFunctionAddress'ed.
+//
+//  For success, returns TRUE with *ppvFuncAddr updated with the function's
+//  address and *phFuncAddr updated with the function address's handle.
+//  The function's handle is AddRef'ed. CryptFreeOIDFunctionAddress needs to
+//  be called to release it or CryptGetDefaultOIDFunctionAddress can also
+//  be called for a NULL pwszDll.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptGetDefaultOIDFunctionAddress(
+    IN HCRYPTOIDFUNCSET hFuncSet,
+    IN DWORD dwEncodingType,
+    IN OPTIONAL LPCWSTR pwszDll,
+    IN DWORD dwFlags,
+    OUT void **ppvFuncAddr,
+    IN OUT HCRYPTOIDFUNCADDR *phFuncAddr
     );
 
 //+-------------------------------------------------------------------------
@@ -3967,6 +4107,34 @@ CryptQueryObject(
      CERT_QUERY_FORMAT_FLAG_BASE64_ENCODED | \
      CERT_QUERY_FORMAT_FLAG_ASN_ASCII_HEX_ENCODED)
 
+//
+// Crypt32 Memory Management Routines.  All Crypt32 API which return allocated
+// buffers will do so via CryptMemAlloc, CryptMemRealloc.  Clients can free
+// those buffers using CryptMemFree.  Also included is CryptMemSize
+//
+
+WINCRYPT32API
+LPVOID
+WINAPI
+CryptMemAlloc (
+    IN ULONG cbSize
+    );
+
+WINCRYPT32API
+LPVOID
+WINAPI
+CryptMemRealloc (
+    IN OPTIONAL LPVOID pv,
+    IN ULONG cbSize
+    );
+
+WINCRYPT32API
+VOID
+WINAPI
+CryptMemFree (
+    IN OPTIONAL LPVOID pv
+    );
+
 //+-------------------------------------------------------------------------
 //  OID Installable Certificate Store Provider Data Structures
 //--------------------------------------------------------------------------
@@ -4541,6 +4709,8 @@ CertFindCertificateInStore(
 
 #define CERT_COMPARE_PUBKEY_MD5_HASH 18
 
+#define CERT_COMPARE_HAS_PRIVATE_KEY 21
+
 //+-------------------------------------------------------------------------
 //  dwFindType
 //
@@ -4589,7 +4759,7 @@ CertFindCertificateInStore(
 #define CERT_FIND_PUBKEY_MD5_HASH \
                     (CERT_COMPARE_PUBKEY_MD5_HASH << CERT_COMPARE_SHIFT)
 
-
+#define CERT_FIND_HAS_PRIVATE_KEY (CERT_COMPARE_HAS_PRIVATE_KEY << CERT_COMPARE_SHIFT)
 
 //+-------------------------------------------------------------------------
 //  CERT_FIND_ANY
@@ -7298,6 +7468,7 @@ typedef struct _CERT_CHAIN_ENGINE_CONFIG {
     DWORD       dwUrlRetrievalTimeout;      // milliseconds
     DWORD       MaximumCachedCertificates;
     DWORD       CycleDetectionModulus;
+    // For more fields see CERT_CHAIN_ENGINE_CONFIG_WIN8 in WinCryptEx.h
 
 } CERT_CHAIN_ENGINE_CONFIG, *PCERT_CHAIN_ENGINE_CONFIG;
 
@@ -7318,6 +7489,17 @@ VOID
 WINAPI
 CertFreeCertificateChainEngine (
     IN HCERTCHAINENGINE hChainEngine
+    );
+
+// Resync the certificate chain engine.  This resync's the stores backing
+// the engine and updates the engine caches.
+//
+
+WINCRYPT32API
+BOOL
+WINAPI
+CertResyncCertificateChainEngine(
+    IN OPTIONAL HCERTCHAINENGINE hChainEngine
     );
 
 //
@@ -8218,6 +8400,7 @@ CertNameToStrW(
 #define CERT_NAME_STR_DISABLE_IE4_UTF8_FLAG     0x00010000
 #define CERT_NAME_STR_ENABLE_T61_UNICODE_FLAG   0x00020000
 #define CERT_NAME_STR_ENABLE_UTF8_UNICODE_FLAG  0x00040000
+#define CERT_NAME_STR_FORCE_UTF8_DIR_STR_FLAG   0x00080000
 #define CERT_NAME_STR_ENABLE_PUNYCODE_FLAG      0x00200000
 
 //+-------------------------------------------------------------------------
@@ -8266,6 +8449,12 @@ CertNameToStrW(
 //  to select the CERT_RDN_UTF8_STRING encoded value type instead of
 //  CERT_RDN_UNICODE_STRING.
 //
+//  CERT_NAME_STR_FORCE_UTF8_DIR_STR_FLAG can be or'ed into dwStrType
+//  to force the CERT_RDN_UTF8_STRING encoded value type instead of
+//  allowing CERT_RDN_PRINTABLE_STRING for DirectoryString types.
+//  Applies to the X500 Keys below which allow "Printable, Unicode".
+//  Also, enables CERT_NAME_STR_ENABLE_UTF8_UNICODE_FLAG.
+//
 //  Support the following X500 Keys:
 //
 //  Key         Object Identifier               RDN Value Type(s)
@@ -8288,6 +8477,7 @@ CertNameToStrW(
 //  Initials    szOID_INITIALS                  Printable, Unicode
 //  SN          szOID_SUR_NAME                  Printable, Unicode
 //  DC          szOID_DOMAIN_COMPONENT          IA5, UTF8
+//  SERIALNUMBER szOID_DEVICE_SERIAL_NUMBER     Only Printable
 //
 //  Note, T61 is selected instead of Unicode if
 //  CERT_NAME_STR_ENABLE_T61_UNICODE_FLAG is set and all the unicode
@@ -8668,6 +8858,22 @@ WINAPI
 CertVerifyValidityNesting(
     IN PCERT_INFO pSubjectInfo,
     IN PCERT_INFO pIssuerInfo
+    );
+
+//+-------------------------------------------------------------------------
+//  Verify that the subject certificate isn't on its issuer CRL.
+//
+//  Returns true if the certificate isn't on the CRL.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CertVerifyCRLRevocation(
+    IN DWORD dwCertEncodingType,
+    IN PCERT_INFO pCertId,          // Only the Issuer and SerialNumber
+                                    // fields are used
+    IN DWORD cCrlInfo,
+    IN PCRL_INFO rgpCrlInfo[]
     );
 
 //End of certificate functions
@@ -9170,6 +9376,7 @@ typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
 #define CONTEXT_OID_CTL         ((LPCSTR)3)
 #define CONTEXT_OID_PKCS7       ((LPCSTR)4)
 #define CONTEXT_OID_CAPI2_ANY   ((LPCSTR)5)
+#define CONTEXT_OID_OCSP_RESP   ((LPCSTR)6)
 
 //
 // Remote Object Retrieval API
@@ -9218,6 +9425,28 @@ typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
 // writing to cache.
 #define CRYPT_AIA_RETRIEVAL                     0x00080000
 
+// For HTTP: use POST instead of the default GET
+//
+// The POST additional binary data and header strings are appended to
+// the host name and path URL as follows:
+//  + L'/'<Optional url escaped and base64 encoded additional data>
+//  + L'?'<Optional additional headers>
+//
+// Here's an example of an OCSP POST URL:
+//  http://ocsp.openvalidation.org/MEIwQDA%2BMDwwOjAJBgUrDgMCGgUABBQdKNE
+//      wjytjKBQADcgM61jfflNpyQQUv1NDgnjQnsOA5RtnygUA37lIg6UCA
+//      QI%3D?Content-Type: application/ocsp-request
+//
+//
+// When this flag is set, CryptRetrieveObjectByUrl, searches for the
+// last L'/' and L'?' POST marker characters in the URL string.
+// These are removed from the URL before it is passed to the WinHttp
+// APIs. The L'?' string is passed as the AdditionHeaders to
+// WinHttpSendRequest. The L'/' string is url unescaped (%xx converted
+// to appropriate character) and base64 decoded into binary. This
+// decoded binary is passed as the additional data to WinHttpSendRequest.
+#define CRYPT_HTTP_POST_RETRIEVAL               0x00100000
+
 //
 // Data verification retrieval flags
 //
@@ -9247,12 +9476,128 @@ typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
 
 #define CRYPT_ACCUMULATIVE_TIMEOUT          0x00000800
 
-typedef struct _CRYPT_RETRIEVE_AUX_INFO {
-    DWORD       cbSize;
-    FILETIME    *pLastSyncTime;
-    DWORD       dwMaxUrlRetrievalByteCount;     // 0 => implies no limit
-} CRYPT_RETRIEVE_AUX_INFO, *PCRYPT_RETRIEVE_AUX_INFO;
+//
+// Cryptnet URL Cache Pre-Fetch Info
+//
+typedef struct _CRYPTNET_URL_CACHE_PRE_FETCH_INFO {
+    DWORD           cbSize;
+    DWORD           dwObjectType;
 
+    // Possible errors:
+    //  S_OK                - Pending
+    //  ERROR_MEDIA_OFFLINE - CRL pre-fetch disabled due to OCSP offline.
+    //  ERROR_FILE_OFFLINE  - Unchanged pre-fetch content
+    //  ERROR_INVALID_DATA  - Invalid pre-fetch content
+    //  Other errors        - Unable to retrieve pre-fetch content
+    DWORD           dwError;
+    DWORD           dwReserved;
+
+    FILETIME        ThisUpdateTime;
+    FILETIME        NextUpdateTime;
+    FILETIME        PublishTime;    // May be zero
+} CRYPTNET_URL_CACHE_PRE_FETCH_INFO, *PCRYPTNET_URL_CACHE_PRE_FETCH_INFO;
+
+//
+// Cryptnet URL Cache Flush Info
+//
+typedef struct _CRYPTNET_URL_CACHE_FLUSH_INFO {
+    DWORD           cbSize;
+    // If pre-fetching is enabled, following is ignored
+    //
+    // 0          - use default flush exempt seconds (2 weeks)
+    // 0xFFFFFFFF - disable flushing
+    DWORD           dwExemptSeconds;
+
+    // Time the object expires. The above dwExemptSeconds is added to
+    // to determine the flush time. The LastSyncTime is used if
+    // after this time.
+    FILETIME        ExpireTime;
+} CRYPTNET_URL_CACHE_FLUSH_INFO, *PCRYPTNET_URL_CACHE_FLUSH_INFO;
+
+//
+// Cryptnet URL Cache Response Info
+//
+typedef struct _CRYPTNET_URL_CACHE_RESPONSE_INFO {
+    DWORD           cbSize;
+    WORD            wResponseType;
+    WORD            wResponseFlags;
+
+    // The following are zero if not present
+    FILETIME        LastModifiedTime;
+    DWORD           dwMaxAge;
+    LPCWSTR         pwszETag;
+    DWORD           dwProxyId;
+} CRYPTNET_URL_CACHE_RESPONSE_INFO, *PCRYPTNET_URL_CACHE_RESPONSE_INFO;
+
+//
+// CryptRetrieveObjectByUrl Auxilliary Info
+//
+//
+// All unused fields in this data structure must be zeroed. More fields
+// could be added in a future release.
+//
+typedef struct _CRYPT_RETRIEVE_AUX_INFO {
+    DWORD                               cbSize;
+    FILETIME                            *pLastSyncTime;
+
+    // 0 => implies no limit
+    DWORD                               dwMaxUrlRetrievalByteCount;
+
+    // To get any PreFetchInfo, set the following pointer to a
+    // CRYPTNET_URL_CACHE_PRE_FETCH_INFO structure with its cbSize set
+    // upon input. For no PreFetchInfo, except for cbSize, the data
+    // structure is zeroed upon return.
+    PCRYPTNET_URL_CACHE_PRE_FETCH_INFO  pPreFetchInfo;
+
+    // To get any FlushInfo, set the following pointer to a
+    // CRYPTNET_URL_CACHE_FLUSH_INFO structure with its cbSize set
+    // upon input. For no FlushInfo, except for cbSize, the data structure
+    // is zeroed upon return.
+    PCRYPTNET_URL_CACHE_FLUSH_INFO      pFlushInfo;
+
+    // To get any ResponseInfo, set the following pointer to the address
+    // of a PCRYPTNET_URL_CACHE_RESPONSE_INFO pointer updated with
+    // the allocated structure. For no ResponseInfo, *ppResponseInfo is set
+    // to NULL. Otherwise, *ppResponseInfo must be free via CryptMemFree().
+    PCRYPTNET_URL_CACHE_RESPONSE_INFO   *ppResponseInfo;
+
+    // If nonNULL, the specified prefix string is prepended to the
+    // cached filename.
+    LPWSTR                              pwszCacheFileNamePrefix;
+
+    // If nonNULL, any cached information before this time is considered
+    // time invalid. For CRYPT_CACHE_ONLY_RETRIEVAL, if there is a
+    // cached entry before this time, LastError is set to ERROR_INVALID_TIME.
+    // Also used to set max-age for http retrievals.
+    LPFILETIME                          pftCacheResync;
+
+    // The following flag is set upon return if CRYPT_PROXY_CACHE_RETRIEVAL
+    // was set in dwRetrievalFlags and the proxy cache wasn't explicitly
+    // bypassed for the retrieval. This flag won't be explicitly cleared.
+    // This flag will only be set for http URL retrievals.
+    BOOL                                fProxyCacheRetrieval;
+
+    // This value is only updated upon return for a nonSuccessful status code
+    // returned in a HTTP response header. This value won't be explicitly
+    // cleared. This value will only be updated for http or https URL
+    // retrievals.
+    //
+    // If CRYPT_NOT_MODIFIED_RETRIEVAL was set in dwFlags, set to winhttp.h's
+    // HTTP_STATUS_NOT_MODIFIED if the retrieval returned not modified. In
+    // this case TRUE is returned with *ppvObject set to NULL.
+    DWORD                               dwHttpStatusCode;
+
+    // To get the HTTP response headers for a retrieval error, set the following
+    // pointer to the address of a LPWSTR to receive the list of
+    // headers. L'|' is used as the separator between headers.
+    // The *ppwszErrorResponseHeaders must be freed via CryptMemFree().
+    LPWSTR                              *ppwszErrorResponseHeaders;
+
+    // To get the content for a retrieval decode error, set the following
+    // pointer to the address of a PCRYPT_DATA_BLOB.
+    // The *ppErrorContentBlob must be freed via CryptMemFree().
+    PCRYPT_DATA_BLOB                    *ppErrorContentBlob;
+} CRYPT_RETRIEVE_AUX_INFO, *PCRYPT_RETRIEVE_AUX_INFO;
 
 WINCRYPT32API
 BOOL
@@ -9344,6 +9689,8 @@ CryptRetrieveObjectByUrlW (
 // 1 minute
 #define CERT_SRV_OCSP_RESP_MIN_AFTER_NEXT_UPDATE_SECONDS_DEFAULT \
     (1 * 60)
+#define CERT_CHAIN_URL_RETRIEVAL_TIMEOUT_MILLISECONDS_DEFAULT       \
+    (15 * 1000)
 
 
 //+=========================================================================
@@ -10546,6 +10893,40 @@ CryptMsgControl(
     IN DWORD dwFlags,
     IN DWORD dwCtrlType,
     IN void const *pvCtrlPara
+    );
+
+//+-------------------------------------------------------------------------
+//  Countersign an already-existing signature in a message
+//
+//  dwIndex is a zero-based index of the SignerInfo to be countersigned.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptMsgCountersign(
+    IN OUT HCRYPTMSG hCryptMsg,
+    IN DWORD dwIndex,
+    IN DWORD cCountersigners,
+    IN PCMSG_SIGNER_ENCODE_INFO rgCountersigners
+    );
+
+//+-------------------------------------------------------------------------
+//  Countersign an already-existing signature (encoded SignerInfo).
+//  Output an encoded SignerInfo blob, suitable for use as a countersignature
+//  attribute in the unauthenticated attributes of a signed-data or
+//  signed-and-enveloped-data message.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptMsgCountersignEncoded(
+    IN DWORD dwEncodingType,
+    IN PBYTE pbSignerInfo,
+    IN DWORD cbSignerInfo,
+    IN DWORD cCountersigners,
+    IN PCMSG_SIGNER_ENCODE_INFO rgCountersigners,
+    OUT PBYTE pbCountersignature,
+    IN OUT PDWORD pcbCountersignature
     );
 
 //+-------------------------------------------------------------------------
@@ -11833,6 +12214,69 @@ CryptDecryptMessage(
     );
 
 //+-------------------------------------------------------------------------
+//  Sign the message and encrypt for the recipient(s). Does a CryptSignMessage
+//  followed with a CryptEncryptMessage.
+//
+//  Note: this isn't the CMSG_SIGNED_AND_ENVELOPED. Its a CMSG_SIGNED
+//  inside of an CMSG_ENVELOPED.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptSignAndEncryptMessage(
+    IN PCRYPT_SIGN_MESSAGE_PARA pSignPara,
+    IN PCRYPT_ENCRYPT_MESSAGE_PARA pEncryptPara,
+    IN DWORD cRecipientCert,
+    IN PCCERT_CONTEXT rgpRecipientCert[],
+    IN const BYTE *pbToBeSignedAndEncrypted,
+    IN DWORD cbToBeSignedAndEncrypted,
+    OUT BYTE *pbSignedAndEncryptedBlob,
+    IN OUT DWORD *pcbSignedAndEncryptedBlob
+    );
+
+//+-------------------------------------------------------------------------
+//  Decrypts the message and verifies the signer. Does a CryptDecryptMessage
+//  followed with a CryptVerifyMessageSignature.
+//
+//  If pbDecrypted == NULL, then, *pcbDecrypted is implicitly set to 0 on input.
+//  For *pcbDecrypted == 0 && ppSignerCert == NULL on input, the signer isn't
+//  verified.
+//
+//  A message might have more than one signer. Set dwSignerIndex to iterate
+//  through all the signers. dwSignerIndex == 0 selects the first signer.
+//
+//  The pVerifyPara's VerifySignerPolicy is called to verify the signer's
+//  certificate.
+//
+//  For a successfully decrypted and verified message, *ppXchgCert and
+//  *ppSignerCert are updated. They must be freed by calling
+//  CertStoreFreeCert. Otherwise, they are set to NULL.
+//
+//  ppXchgCert and/or ppSignerCert can be NULL, indicating the
+//  caller isn't interested in getting the CertContext.
+//
+//  Note: this isn't the CMSG_SIGNED_AND_ENVELOPED. Its a CMSG_SIGNED
+//  inside of an CMSG_ENVELOPED.
+//
+//  The message always needs to be decrypted to allow access to the
+//  signed message. Therefore, if ppXchgCert != NULL, its always updated.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptDecryptAndVerifyMessageSignature(
+    IN PCRYPT_DECRYPT_MESSAGE_PARA pDecryptPara,
+    IN PCRYPT_VERIFY_MESSAGE_PARA pVerifyPara,
+    IN DWORD dwSignerIndex,
+    IN const BYTE *pbEncryptedBlob,
+    IN DWORD cbEncryptedBlob,
+    OUT BYTE *pbDecrypted,
+    IN OUT DWORD *pcbDecrypted,
+    OUT PCCERT_CONTEXT *ppXchgCert,
+    OUT PCCERT_CONTEXT *ppSignerCert
+    );
+
+//+-------------------------------------------------------------------------
 //  Compare two public keys to see if they are identical.
 //
 //  Returns TRUE if the keys are identical.
@@ -12086,6 +12530,9 @@ PFXExportCertStore(
 #define CRYPT_STRING_BASE64X509CRLHEADER    0x00000009
 #define CRYPT_STRING_HEXADDR                0x0000000a
 #define CRYPT_STRING_HEXASCIIADDR           0x0000000b
+#define CRYPT_STRING_BASE64URI              0x0000000d
+
+#define CRYPT_STRING_ENCODEMASK             0x000000ff
 
 #define CRYPT_STRING_NOCR                   0x80000000
 #define CRYPT_STRING_NOCRLF                 0x40000000
@@ -12209,6 +12656,10 @@ CertOpenServerOcspResponse(
     DWORD dwFlags,
     LPVOID pvReserved
     );
+
+// Set this flag to return immediately without making the initial
+// synchronous retrieval
+#define CERT_SERVER_OCSP_RESPONSE_ASYNC_FLAG        0x00000001
 
 //TODO
 //+-------------------------------------------------------------------------

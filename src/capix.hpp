@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#ifndef LIBLOAD
 #ifdef _WIN32
 #define LIBLOAD( name ) LoadLibraryA( name )
 #define LIBFUNC( lib, name ) (void *)GetProcAddress( (HMODULE)lib, name )
@@ -13,6 +14,7 @@ extern "C" {
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
 #define LIBFUNC( lib, name ) dlsym( lib, name )
 #endif
+#endif // LIBLOAD
 
 #ifdef _WIN32
 #define CPROLIBS_PATH ""

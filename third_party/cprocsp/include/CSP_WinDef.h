@@ -192,8 +192,13 @@ typedef unsigned int        *PUINT;
 typedef unsigned __int64 ULONGLONG;
 typedef __int64 LONGLONG;
 #else
-typedef unsigned long long ULONGLONG;
-typedef long long LONGLONG;
+#if defined(__GNUC__) && defined(IOS) && defined(PROCESSOR_TYPE) && PROCESSOR_TYPE == PROC_TYPE_ARM
+#define SUP_ALIGN8 __attribute__((__aligned__(8)))
+#else
+#define SUP_ALIGN8
+#endif
+typedef unsigned long long ULONGLONG SUP_ALIGN8;
+typedef long long LONGLONG SUP_ALIGN8;
 #endif
 
 #ifndef _DWORDLONG_
@@ -480,7 +485,7 @@ FormatMessage(
 
 #if defined (_MSC_VER) || defined (__GNUC__)
 #  if defined (__cplusplus) && !defined (IGNORE_LEGACY_FORMAT_MESSAGE_MSG) && !defined (__APPLE__)
-#    if !(defined(PROCESSOR_TYPE) && (PROCESSOR_TYPE == PROC_TYPE_E2K32 || PROCESSOR_TYPE == PROC_TYPE_E2K64 || PROCESSOR_TYPE == PROC_TYPE_MIPS32 || PROCESSOR_TYPE == PROC_TYPE_ARM64))
+#    if defined(_M_IX86) || defined(_M_X64) || defined(__amd64) || defined(__x86_64__) || defined(__i386__) || defined(__i386)
 #      pragma message ("Your application will require at least CryptoPro CSP 4.0 R3. You can use LEGACY_FORMAT_MESSAGE_IMPL to support older versions.")
 #    endif
 #  endif

@@ -1,12 +1,14 @@
 #ifndef _COMMON_H_INCLUDED_
 #define _COMMON_H_INCLUDED_
 
-#define BUILD_YEAR	"2020"
+#define BUILD_YEAR	"2023"
 
 /* Code types for USE_CODE #define */
 #define USE_CODE_C	    1
 #define USE_CODE_ASM	    2
 #define USE_CODE_ASM64	    3
+#define USE_CODE_ASM_E2K64  4
+#define USE_CODE_ASM_ARM64  5
 
 /* Processor types for PROCESSOR_TYPE #define */
 #define PROC_TYPE_SPARC 1
@@ -19,6 +21,7 @@
 #define PROC_TYPE_MIPS32 8
 #define PROC_TYPE_E2K32 9
 #define PROC_TYPE_E2K64 10
+#define PROC_TYPE_RISCV64 11
 
 #ifdef HAVE_CONFIG_H
 #ifdef DARWIN
@@ -47,6 +50,10 @@
 #  if defined(_WIN32)
 #    if defined(_M_IX86)
 #      define PROCESSOR_TYPE PROC_TYPE_I386
+#    elif defined(_M_ARM64)
+#      define PROCESSOR_TYPE PROC_TYPE_ARM64
+#    elif defined(_M_ARM64EC)
+#      define PROCESSOR_TYPE PROC_TYPE_ARM64
 #    elif defined(_M_X64)
 #      define PROCESSOR_TYPE PROC_TYPE_X64
 #    endif //defined(_M_IX86) or defined(_M_X64)
@@ -108,6 +115,8 @@
 #    else
 #       define PROCESSOR_TYPE PROC_TYPE_E2K32
 #    endif 
+#  elif defined(__riscv)
+#	define PROCESSOR_TYPE PROC_TYPE_RISCV64
 #  endif
 #endif //defined(PROCESSOR_TYPE)
 #if !defined(PROCESSOR_TYPE)
@@ -115,13 +124,17 @@
 #endif //defined(PROCESSOR_TYPE)
 
 #if !defined(USE_CODE)
-#  if defined(DISABLE_SSE_AVX)
+#  if defined(DISABLE_SSE_AVX) || defined (_M_ARM64) || defined (_M_ARM64EC)
 #    define USE_CODE USE_CODE_C
 #  else // defined(DISABLE_SSE_AVX)
 #    if PROCESSOR_TYPE == PROC_TYPE_I386
 #      define USE_CODE USE_CODE_ASM
 #    elif PROCESSOR_TYPE == PROC_TYPE_X64
 #      define USE_CODE USE_CODE_ASM64
+#    elif PROCESSOR_TYPE == PROC_TYPE_E2K64
+#      define USE_CODE USE_CODE_ASM_E2K64
+#    elif PROCESSOR_TYPE == PROC_TYPE_ARM64
+#      define USE_CODE USE_CODE_ASM_ARM64
 #    else
 #      define USE_CODE USE_CODE_C
 #    endif /* PROCESSOR_TYPE_* */

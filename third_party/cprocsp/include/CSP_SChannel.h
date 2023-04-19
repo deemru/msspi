@@ -473,6 +473,10 @@ typedef struct _SCHANNEL_CERT_HASH_STORE
 #define SCH_CRED_IGNORE_NO_REVOCATION_CHECK          0x00000800
 #define SCH_CRED_IGNORE_REVOCATION_OFFLINE           0x00001000
 
+#define SCH_SEND_ROOT_CERT                           0x00040000
+#define SCH_CRED_SNI_CREDENTIAL                      0x00080000
+#define SCH_CRED_SNI_ENABLE_OCSP                     0x00100000
+
 //wininet.h
 #define INTERNET_FLAG_IGNORE_CERT_DATE_INVALID  0x00002000 // expired X509 Cert.
 #define INTERNET_FLAG_IGNORE_CERT_CN_INVALID    0x00001000 // bad common name in X509 Cert.
