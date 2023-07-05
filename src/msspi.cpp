@@ -436,6 +436,7 @@ struct MSSPI
         is.can_append = 0;
         is.names = 0;
         is.pin_cache = 0;
+        is.verify_offline = 0;
         state = MSSPI_OK;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
@@ -485,6 +486,7 @@ struct MSSPI
         unsigned can_append : 1;
         unsigned names : 1;
         unsigned pin_cache : 1;
+        unsigned verify_offline : 1;
     } is;
 
     int state;
@@ -1354,6 +1356,15 @@ char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
     return 1;
 
     MSSPIEHCATCH_HERRRET( 0 );
+}
+
+void msspi_set_verify_offline( MSSPI_HANDLE h, char offline )
+{
+    MSSPIEHTRY;
+
+    h->is.verify_offline = offline ? 1 : 0;
+
+    MSSPIEHCATCH_0;
 }
 
 int msspi_connect( MSSPI_HANDLE h )
@@ -2683,6 +2694,14 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     if( !h->peercert )
         return dwVerify;
 
+    DWORD dwAdditionalFlags = 0;
+    if( h->is.verify_offline )
+        dwAdditionalFlags |= CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL;
+    if( revocation )
+        dwAdditionalFlags |= CERT_CHAIN_REVOCATION_CHECK_CHAIN;
+    if( h->is.verify_offline && revocation )
+        dwAdditionalFlags |= CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY;
+
     for( ;; )
     {
         CERT_CHAIN_PARA ChainPara;
@@ -2695,7 +2714,7 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | (DWORD)( revocation ? CERT_CHAIN_REVOCATION_CHECK_CHAIN : 0 ),
+            CERT_CHAIN_CACHE_END_CERT | dwAdditionalFlags,
             NULL,
             &PeerChain ) )
             break;
