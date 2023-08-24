@@ -1362,7 +1362,7 @@ void msspi_set_verify_offline( MSSPI_HANDLE h, char offline )
 {
     MSSPIEHTRY;
 
-    h->is.verify_offline = offline ? 1 : 0;
+    h->is.verify_offline = (unsigned)( offline ? 1 : 0 );
 
     MSSPIEHCATCH_0;
 }
@@ -2708,7 +2708,7 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
         memset( &ChainPara, 0, sizeof( ChainPara ) );
         ChainPara.cbSize = sizeof( ChainPara );
 
-        LPSTR Usages[1] = { h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH };
+        LPSTR Usages[1] = { (LPSTR)( h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH ) };
         ChainPara.RequestedUsage = { USAGE_MATCH_TYPE_AND, { 1, Usages } };
 
         if( !CertGetCertificateChain(
