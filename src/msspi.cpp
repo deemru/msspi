@@ -2708,6 +2708,9 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
         memset( &ChainPara, 0, sizeof( ChainPara ) );
         ChainPara.cbSize = sizeof( ChainPara );
 
+        LPSTR Usages[1] = { h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH };
+        ChainPara.RequestedUsage = { USAGE_MATCH_TYPE_AND, { 1, Usages } };
+
         if( !CertGetCertificateChain(
             NULL,
             h->peercert,
