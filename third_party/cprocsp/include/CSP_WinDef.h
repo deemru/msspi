@@ -1,15 +1,15 @@
 /*
- * Copyright(C) 2000 Проект ИОК
+ * Copyright(C) 2000 РџСЂРѕРµРєС‚ РРћРљ
  *
- * Этот файл содержит информацию, являющуюся
- * собственностью компании Крипто Про.
+ * Р­С‚РѕС‚ С„Р°Р№Р» СЃРѕРґРµСЂР¶РёС‚ РёРЅС„РѕСЂРјР°С†РёСЋ, СЏРІР»СЏСЋС‰СѓСЋСЃСЏ
+ * СЃРѕР±СЃС‚РІРµРЅРЅРѕСЃС‚СЊСЋ РєРѕРјРїР°РЅРёРё РљСЂРёРїС‚Рѕ РџСЂРѕ.
  *
- * Любая часть этого файла не может быть скопирована,
- * исправлена, переведена на другие языки,
- * локализована или модифицирована любым способом,
- * откомпилирована, передана по сети с или на
- * любую компьютерную систему без предварительного
- * заключения соглашения с компанией Крипто Про.
+ * Р›СЋР±Р°СЏ С‡Р°СЃС‚СЊ СЌС‚РѕРіРѕ С„Р°Р№Р»Р° РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРєРѕРїРёСЂРѕРІР°РЅР°,
+ * РёСЃРїСЂР°РІР»РµРЅР°, РїРµСЂРµРІРµРґРµРЅР° РЅР° РґСЂСѓРіРёРµ СЏР·С‹РєРё,
+ * Р»РѕРєР°Р»РёР·РѕРІР°РЅР° РёР»Рё РјРѕРґРёС„РёС†РёСЂРѕРІР°РЅР° Р»СЋР±С‹Рј СЃРїРѕСЃРѕР±РѕРј,
+ * РѕС‚РєРѕРјРїРёР»РёСЂРѕРІР°РЅР°, РїРµСЂРµРґР°РЅР° РїРѕ СЃРµС‚Рё СЃ РёР»Рё РЅР°
+ * Р»СЋР±СѓСЋ РєРѕРјРїСЊСЋС‚РµСЂРЅСѓСЋ СЃРёСЃС‚РµРјСѓ Р±РµР· РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅРѕРіРѕ
+ * Р·Р°РєР»СЋС‡РµРЅРёСЏ СЃРѕРіР»Р°С€РµРЅРёСЏ СЃ РєРѕРјРїР°РЅРёРµР№ РљСЂРёРїС‚Рѕ РџСЂРѕ.
  */
 
 /****************************************************************************
@@ -146,7 +146,7 @@ typedef char *PSZ;
 #define CONST               const
 #endif
 
-/*Определения из WinNT.h */
+/*РћРїСЂРµРґРµР»РµРЅРёСЏ РёР· WinNT.h */
 /* Basics*/
 
 #ifndef VOID
@@ -156,7 +156,7 @@ typedef short SHORT;
 #ifndef LONG
 typedef int LONG;
 #endif
-typedef unsigned int       DWORD;	/* XXXX icc говорит, что с этим типом есть проблемы ???? */
+typedef unsigned int       DWORD;	/* XXXX icc РіРѕРІРѕСЂРёС‚, С‡С‚Рѕ СЃ СЌС‚РёРј С‚РёРїРѕРј РµСЃС‚СЊ РїСЂРѕР±Р»РµРјС‹ ???? */
 #ifndef _HRESULT_DEFINED
 #define _HRESULT_DEFINED
 typedef LONG HRESULT;
@@ -313,7 +313,7 @@ typedef UINT_PTR            WPARAM;
 typedef LONG_PTR            LPARAM;
 typedef LONG_PTR            LRESULT;
 */
-/*Определения из BaseTsd.h*/
+/*РћРїСЂРµРґРµР»РµРЅРёСЏ РёР· BaseTsd.h*/
 #if SIZEOF_VOID_P == 8 || defined(_WIN64)
 typedef long long INT_PTR, *PINT_PTR;
 typedef unsigned long long UINT_PTR, *PUINT_PTR;
@@ -329,7 +329,7 @@ typedef unsigned long ULONG_PTR, *PULONG_PTR;
 #endif
 
 typedef ULONG_PTR DWORD_PTR, *PDWORD_PTR;
-/*Конец определений из BaseTsd.h*/
+/*РљРѕРЅРµС† РѕРїСЂРµРґРµР»РµРЅРёР№ РёР· BaseTsd.h*/
 
 #define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
 
@@ -364,7 +364,7 @@ typedef CONST TCHAR *LPCTSTR, *PCTSTR;
 
 typedef WORD                ATOM;
 
-/*Определения из WinNT.h*/
+/*РћРїСЂРµРґРµР»РµРЅРёСЏ РёР· WinNT.h*/
 /*
 typedef union _LARGE_INTEGER {
     struct {
@@ -405,11 +405,11 @@ typedef struct _LUID {
 #define ZeroMemory(Destination,Length) memset((Destination),0,(Length))
 #define CopyMemory(Destination,Source,Length) memcpy((Destination),(Source),(Length))
 #define FillMemory(Destination,Length,Fill) memset((Destination),(Fill),(Length))
-/*Конец определений из WinNT.h*/
+/*РљРѕРЅРµС† РѕРїСЂРµРґРµР»РµРЅРёР№ РёР· WinNT.h*/
 
 #include "CSP_WinBase.h"
 
-/*Начало определений из WinNls.h*/
+/*РќР°С‡Р°Р»Рѕ РѕРїСЂРµРґРµР»РµРЅРёР№ РёР· WinNls.h*/
 
 //
 //  Code Page Default Values.
@@ -458,7 +458,7 @@ WideCharToMultiByte(
   LPBOOL lpUsedDefaultChar  // set when default char used
 );
 
-/*Конец определений из WinNls.h*/
+/*РљРѕРЅРµС† РѕРїСЂРµРґРµР»РµРЅРёР№ РёР· WinNls.h*/
 
 WINBASEAPI DWORD WINAPI GetLastError(void);
 

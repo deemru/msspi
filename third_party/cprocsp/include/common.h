@@ -28,7 +28,7 @@
 #   include <stdint.h> 
 #endif //DARWIN
 #include "myconfig.h"
-#elif !defined DEVL && !defined CSP_LITE && !defined _WIN64 /* no config.h :Windows или примеры из doxygen*/
+#elif !defined DEVL && !defined CSP_LITE && !defined _WIN64 /* no config.h :Windows РёР»Рё РїСЂРёРјРµСЂС‹ РёР· doxygen*/
 #if !defined(UNIX)
 # define PATH_MAX MAX_PATH
 #endif
@@ -40,12 +40,12 @@
 # define HAVE_STDLIB_H 1
 # define HAVE_LIMITS_H 1 
 #endif
-#endif /* хотели Windows */
+#endif /* С…РѕС‚РµР»Рё Windows */
 
 #if !defined(PROCESSOR_TYPE)
     /* 
-     * Для автоопределение согласно:
-     * TODO:XXX вставить ссылку на MSDN
+     * Р”Р»СЏ Р°РІС‚РѕРѕРїСЂРµРґРµР»РµРЅРёРµ СЃРѕРіР»Р°СЃРЅРѕ:
+     * TODO:XXX РІСЃС‚Р°РІРёС‚СЊ СЃСЃС‹Р»РєСѓ РЅР° MSDN
      */
 #  if defined(_WIN32)
 #    if defined(_M_IX86)
@@ -60,12 +60,12 @@
 #  endif //defined(_WIN32)
 #endif //defined(PROCESSOR_TYPE)
     /*
-     * В нашей сборке под Mac OS X, AIX, Solaris и пр. 
-     * PROCESSOR_TYPE определяется в configure
+     * Р’ РЅР°С€РµР№ СЃР±РѕСЂРєРµ РїРѕРґ Mac OS X, AIX, Solaris Рё РїСЂ. 
+     * PROCESSOR_TYPE РѕРїСЂРµРґРµР»СЏРµС‚СЃСЏ РІ configure
      */
 #if !defined(PROCESSOR_TYPE)
     /* 
-     * Для драйверов и примеров автоопределение согласно:
+     * Р”Р»СЏ РґСЂР°Р№РІРµСЂРѕРІ Рё РїСЂРёРјРµСЂРѕРІ Р°РІС‚РѕРѕРїСЂРµРґРµР»РµРЅРёРµ СЃРѕРіР»Р°СЃРЅРѕ:
      * Agner Fog, "Calling conventions for different C++ 
      * compilers and operating systems",
      * <http://www.agner.org/optimize/calling_conventions.pdf>
@@ -79,9 +79,9 @@
 #    define PROCESSOR_TYPE PROC_TYPE_PPC64
 #  elif defined(__powerpc__) || defined(__POWERPC__)
        /*
-        * Дополнительно документация IBM
+        * Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ IBM
 	* <http://publib.boulder.ibm.com/infocenter/comphelp/v8v101/index.jsp?topic=%2Fcom.ibm.xlcpp8a.doc%2Fcompiler%2Fref%2Fruopt64b.htm>
-	* TODO:XX старый компилятор, ссылку обновить и проверить
+	* TODO:XX СЃС‚Р°СЂС‹Р№ РєРѕРјРїРёР»СЏС‚РѕСЂ, СЃСЃС‹Р»РєСѓ РѕР±РЅРѕРІРёС‚СЊ Рё РїСЂРѕРІРµСЂРёС‚СЊ
 	*/
 #    if __64BIT__ 
 #      define PROCESSOR_TYPE PROC_TYPE_PPC64
@@ -89,14 +89,14 @@
 #      define PROCESSOR_TYPE PROC_TYPE_PPC32
 #    endif
      /*
-      * Дополнительно документация Oracle(Sun)
+      * Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅРѕ РґРѕРєСѓРјРµРЅС‚Р°С†РёСЏ Oracle(Sun)
       * <http://docs.oracle.com/cd/E19060-01/stud8.compiler/817-0926/Comp_Options_App.html#15342>
-      * TODO:XX старый компилятор, ссылку обновить и проверить
+      * TODO:XX СЃС‚Р°СЂС‹Р№ РєРѕРјРїРёР»СЏС‚РѕСЂ, СЃСЃС‹Р»РєСѓ РѕР±РЅРѕРІРёС‚СЊ Рё РїСЂРѕРІРµСЂРёС‚СЊ
       */
 #  elif defined(__sparc)
 #    define PROCESSOR_TYPE PROC_TYPE_SPARC
 #  elif defined(__sparcv9)
-       // TODO:XXX Смотри:
+       // TODO:XXX РЎРјРѕС‚СЂРё:
        // D:\4_0\build\CSP\src\RuNetCSP\param.c
        // D:\4_0\build\CSP\src\RuNetCSP\G28147C.c
 #    define PROCESSOR_TYPE PROC_TYPE_SPARC
@@ -104,8 +104,8 @@
 #    define PROCESSOR_TYPE PROC_TYPE_ARM64
 #  elif defined(__ARM_ARCH__) || defined(__arm__)
        // TODO:
-       // Вставить ссылку
-       // Возможно, когда-нибудь эти ARM-ы придётся различать
+       // Р’СЃС‚Р°РІРёС‚СЊ СЃСЃС‹Р»РєСѓ
+       // Р’РѕР·РјРѕР¶РЅРѕ, РєРѕРіРґР°-РЅРёР±СѓРґСЊ СЌС‚Рё ARM-С‹ РїСЂРёРґС‘С‚СЃСЏ СЂР°Р·Р»РёС‡Р°С‚СЊ
 #    define PROCESSOR_TYPE PROC_TYPE_ARM
 #  elif defined(__mips__)
 #    define PROCESSOR_TYPE PROC_TYPE_MIPS32
@@ -144,18 +144,18 @@
 #  error "USE_CODE - Can't autodected"
 #endif // !defined(USE_CODE)
 
-    //TODO: Переименовать 
-    //TODO:XXXX Где-то HAVE_MMX_INSTRUCTIONS используется не по назначению
+    //TODO: РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ 
+    //TODO:XXXX Р“РґРµ-С‚Рѕ HAVE_MMX_INSTRUCTIONS РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РЅРµ РїРѕ РЅР°Р·РЅР°С‡РµРЅРёСЋ
 #if !defined(HAVE_MMX_INSTRUCTIONS)
 #  if (PROCESSOR_TYPE == PROC_TYPE_X64) || \
       (PROCESSOR_TYPE == PROC_TYPE_I386 && !defined(IOS))
-#    define HAVE_MMX_INSTRUCTIONS 1 // Для драйвера может потребоваться
-      				    // захват FPU
+#    define HAVE_MMX_INSTRUCTIONS 1 // Р”Р»СЏ РґСЂР°Р№РІРµСЂР° РјРѕР¶РµС‚ РїРѕС‚СЂРµР±РѕРІР°С‚СЊСЃСЏ
+      				    // Р·Р°С…РІР°С‚ FPU
 #  endif /* PROCESSOR_TYPE_* */
 #endif /* !defined(HAVE_MMX_INSTRUCTIONS) */
 
 
-//TODO: У нас определений UNUSED(x) штук 20-30, и некоторые кривые
+//TODO: РЈ РЅР°СЃ РѕРїСЂРµРґРµР»РµРЅРёР№ UNUSED(x) С€С‚СѓРє 20-30, Рё РЅРµРєРѕС‚РѕСЂС‹Рµ РєСЂРёРІС‹Рµ
 #ifndef UNUSED
     #define UNUSED(x) (void)(x)
 #endif
@@ -177,7 +177,7 @@
 #endif
 
 /* Security levels for SECURITY_LEVEL #define
- * Упорядочены по возрастанию. Так что нужно делать, например, так:
+ * РЈРїРѕСЂСЏРґРѕС‡РµРЅС‹ РїРѕ РІРѕР·СЂР°СЃС‚Р°РЅРёСЋ. РўР°Рє С‡С‚Рѕ РЅСѓР¶РЅРѕ РґРµР»Р°С‚СЊ, РЅР°РїСЂРёРјРµСЂ, С‚Р°Рє:
  *   #if SECURITY_LEVEL >= KB1
  */
 
