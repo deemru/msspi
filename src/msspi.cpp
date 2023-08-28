@@ -2709,7 +2709,9 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
         ChainPara.cbSize = sizeof( ChainPara );
 
         LPSTR Usages[1] = { (LPSTR)( h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH ) };
-        ChainPara.RequestedUsage = (CERT_USAGE_MATCH){ USAGE_MATCH_TYPE_AND, { 1, Usages } };
+        ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+        ChainPara.RequestedUsage.Usage.cUsageIdentifier = 1;
+        ChainPara.RequestedUsage.Usage.rgpszUsageIdentifier = Usages;
 
         if( !CertGetCertificateChain(
             NULL,
