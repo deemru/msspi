@@ -149,6 +149,13 @@ static DWORD GetTickCount()
 #include "capix.hpp"
 #endif
 
+#ifdef IOS
+extern "C" WINBASEAPI DWORD WINAPI CSP_GetLastError( void );
+#define GetLastError CSP_GetLastError
+extern "C" WINBASEAPI BOOL WINAPI CSP_FileTimeToSystemTime( CONST FILETIME * lpFileTime, LPSYSTEMTIME lpSystemTime );
+#define FileTimeToSystemTime CSP_FileTimeToSystemTime
+#endif
+
 #ifdef MSSPI_LOGGER
 void msspi_logger_func( char level, const char * format, ... );
 #define msspi_logger_info( format, ... ) msspi_logger_func( 'i', "INFO (%s:%d): " format, __FUNCTION__, __LINE__, __VA_ARGS__ )
@@ -1812,20 +1819,30 @@ char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
 #endif // _WIN32
 #endif // _UN
 
-static BOOL is_cert_oid( PCCERT_CONTEXT pcert, const char * oid )
+enum class CERT_USAGE
+{
+    NOT_FOUND,
+    FOUND,
+    EVERYTHING,
+};
+
+static CERT_USAGE is_cert_usage( PCCERT_CONTEXT pcert, const char * oid )
 {
     DWORD ekuLength = 0;
-    BOOL result = CertGetEnhancedKeyUsage( pcert, 0, NULL, &ekuLength );
-    if( result && ekuLength > 0 )
+    if( CertGetEnhancedKeyUsage( pcert, 0, NULL, &ekuLength ) && ekuLength > 0 )
     {
-        std::vector<BYTE> ekuListBuffer(ekuLength);
+        std::vector<BYTE> ekuListBuffer( ekuLength );
         PCERT_ENHKEY_USAGE ekuList = (PCERT_ENHKEY_USAGE)&ekuListBuffer[0];
         if( CertGetEnhancedKeyUsage( pcert, 0, ekuList, &ekuLength ) )
+        {
+            if( ekuList->cUsageIdentifier == 0 )
+                return GetLastError() == CRYPT_E_NOT_FOUND ? CERT_USAGE::EVERYTHING : CERT_USAGE::NOT_FOUND;
             for( DWORD i = 0; i < ekuList->cUsageIdentifier; i++ )
                 if( 0 == strcmp( ekuList->rgpszUsageIdentifier[i], oid ) )
-                    return TRUE;
+                    return CERT_USAGE::FOUND;
+        }
     }
-    return FALSE;
+    return CERT_USAGE::NOT_FOUND;
 }
 
 char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest )
@@ -1920,7 +1937,7 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                     break;
                 }
 
-                if( is_cert_oid( cert, szOID_PKIX_KP_SERVER_AUTH ) )
+                if( !h->is.client && is_cert_usage( cert, szOID_PKIX_KP_SERVER_AUTH ) != CERT_USAGE::NOT_FOUND )
                 {
                     BYTE bbPK[256/*MAX_PUBLICKEYBLOB_LEN*/];
                     DWORD dwPK = sizeof( bbPK );
@@ -1934,7 +1951,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                         CryptEncrypt( hTestKey, 0, TRUE, 0, 0, &dwPK, dwPK ) ) // check LICENSE
                         selftest = 1;
                 }
-                else // szOID_PKIX_KP_CLIENT_AUTH
+                else
+                if( h->is.client && is_cert_usage( cert, szOID_PKIX_KP_CLIENT_AUTH ) != CERT_USAGE::NOT_FOUND )
                 {
                     BYTE bbSig[128/*MAX_SIG_LEN*/];
                     DWORD dwSig = sizeof( bbSig );
@@ -2709,9 +2727,12 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
         ChainPara.cbSize = sizeof( ChainPara );
 
         LPSTR Usages[1] = { (LPSTR)( h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH ) };
-        ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
-        ChainPara.RequestedUsage.Usage.cUsageIdentifier = 1;
-        ChainPara.RequestedUsage.Usage.rgpszUsageIdentifier = Usages;
+        if( is_cert_usage( h->peercert, (const char *)Usages[0] ) != CERT_USAGE::EVERYTHING )
+        {
+            ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
+            ChainPara.RequestedUsage.Usage.cUsageIdentifier = 1;
+            ChainPara.RequestedUsage.Usage.rgpszUsageIdentifier = Usages;
+        }
 
         if( !CertGetCertificateChain(
             NULL,
