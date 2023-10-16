@@ -104,8 +104,8 @@ static DWORD GetTickCount()
 #elif defined( __APPLE__ )
 #define CPROLIBS_PATH "/opt/cprocsp/lib/"
 #include <TargetConditionals.h>
-#ifdef TARGET_OS_IPHONE
-#define IOS
+#if TARGET_OS_IPHONE
+#define CPROLIBS_IOS
 #endif
 #else // other LINUX
 #if defined( __mips__ ) // archs
@@ -149,7 +149,7 @@ static DWORD GetTickCount()
 #include "capix.hpp"
 #endif
 
-#ifdef IOS
+#ifdef CPROLIBS_IOS
 extern "C" WINBASEAPI DWORD WINAPI CSP_GetLastError( void );
 #define GetLastError CSP_GetLastError
 extern "C" WINBASEAPI BOOL WINAPI CSP_FileTimeToSystemTime( CONST FILETIME * lpFileTime, LPSYSTEMTIME lpSystemTime );
