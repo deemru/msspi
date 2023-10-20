@@ -822,7 +822,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_RECEIVED_SHUTDOWN )
     {
-        SetLastError( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
+        SetLastError( (DWORD)( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT ) );
         return 0;
     }
 
@@ -969,7 +969,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
-        SetLastError( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
+        SetLastError( (DWORD)( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT ) );
         return 0;
     }
 
@@ -1136,7 +1136,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
-        SetLastError( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
+        SetLastError( (DWORD)( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT ) );
         return 0;
     }
 
@@ -1194,7 +1194,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
-        SetLastError( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
+        SetLastError( (DWORD)( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT ) );
         return 0;
     }
 
@@ -1432,7 +1432,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
-        SetLastError( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
+        SetLastError( (DWORD)( ( h->state & MSSPI_ERROR ) ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT ) );
         return 0;
     }
 
