@@ -39,7 +39,7 @@ extern "C" {
 #else // EXCEPTIONS
 #define MSSPIEHTRY try {
 #define MSSPIEHCATCH } catch( ... ) {
-#define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; return ret; }
+#define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; SetLastError( ERROR_INTERNAL_ERROR ); return ret; }
 #define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
 #endif // EXCEPTIONS
@@ -152,6 +152,8 @@ static DWORD GetTickCount()
 #ifdef CPROLIBS_IOS
 extern "C" WINBASEAPI DWORD WINAPI CSP_GetLastError( void );
 #define GetLastError CSP_GetLastError
+extern "C" WINBASEAPI void CSP_SetLastError( DWORD dwErrCode );
+#define SetLastError CSP_SetLastError
 extern "C" WINBASEAPI BOOL WINAPI CSP_FileTimeToSystemTime( CONST FILETIME * lpFileTime, LPSYSTEMTIME lpSystemTime );
 #define FileTimeToSystemTime CSP_FileTimeToSystemTime
 #endif
@@ -575,7 +577,10 @@ static char credentials_acquire( MSSPI_HANDLE h )
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
+    {
+        SetLastError( (DWORD)scRet );
         return 0;
+    }
 
     if( h->cred )
         h->cred->dwRefs--;
@@ -716,6 +721,8 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
             return 1;
         }
     }
+    else
+        SetLastError( ERROR_NOT_FOUND );
 
     return 0;
 }
@@ -744,12 +751,14 @@ static int write_common( MSSPI_HANDLE h )
         if( io == 0 )
         {
             h->state |= MSSPI_SENT_SHUTDOWN;
+            SetLastError( ERROR_WRITE_FAULT );
             return 0;
         }
 
         if( io > h->out_len )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( ERROR_BUFFER_OVERFLOW );
             return 0;
         }
 
@@ -775,6 +784,7 @@ static int read_common( MSSPI_HANDLE h )
     if( io == 0 )
     {
         h->state |= MSSPI_RECEIVED_SHUTDOWN;
+        SetLastError( ERROR_READ_FAULT );
         return 0;
     }
 
@@ -789,7 +799,10 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
     if( h->dec_len )
     {
         if( buf == NULL )
+        {
+            SetLastError( ERROR_BAD_ARGUMENTS );
             return 0;
+        }
 
         int decrypted = h->dec_len;
 
@@ -808,7 +821,10 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
     }
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_RECEIVED_SHUTDOWN )
+    {
+        SetLastError( h->state & MSSPI_ERROR ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
         return 0;
+    }
 
     if( !h->is.connected )
     {
@@ -839,7 +855,10 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( h->state & MSSPI_READING )
         {
             if( len == 0 )
+            {
+                SetLastError( ERROR_BAD_ARGUMENTS );
                 return 0;
+            }
 
             int io = read_common( h );
             if( io <= 0 )
@@ -868,7 +887,10 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
             h->state |= MSSPI_READING;
 
             if( len == 0 )
+            {
+                SetLastError( ERROR_BAD_ARGUMENTS );
                 return 0;
+            }
 
             continue;
         }
@@ -879,6 +901,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
             scRet != SEC_E_CONTEXT_EXPIRED )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
@@ -887,6 +910,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         {
             h->state |= MSSPI_RECEIVED_SHUTDOWN;
             h->in_len = 0;
+            SetLastError( ERROR_GRACEFUL_DISCONNECT );
             return 0;
         }
 
@@ -944,7 +968,10 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
     MSSPIEHTRY;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
+    {
+        SetLastError( h->state & MSSPI_ERROR ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
         return 0;
+    }
 
     if( !h->is.connected )
     {
@@ -968,12 +995,14 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         if( scRet != SEC_E_OK )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
         if( Sizes.cbHeader + Sizes.cbMaximumMessage + Sizes.cbTrailer > SSPI_BUFFER_SIZE )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( ERROR_BUFFER_OVERFLOW );
             return 0;
         }
 
@@ -988,6 +1017,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         if( len < h->out_saved_len )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( ERROR_BAD_ARGUMENTS );
             return 0;
         }
     }
@@ -1030,6 +1060,7 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
             scRet != SEC_E_CONTEXT_EXPIRED )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
@@ -1062,6 +1093,11 @@ int msspi_state( MSSPI_HANDLE h )
     return h->state;
 
     MSSPIEHCATCH_RET( MSSPI_ERROR );
+}
+
+DWORD msspi_last_error()
+{
+    return GetLastError();
 }
 
 int msspi_pending( MSSPI_HANDLE h )
@@ -1099,7 +1135,10 @@ int msspi_shutdown( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
+    {
+        SetLastError( h->state & MSSPI_ERROR ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
         return 0;
+    }
 
     h->state |= MSSPI_SHUTDOWN_PROC;
 
@@ -1127,6 +1166,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
         if( FAILED( scRet ) )
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
@@ -1134,6 +1174,7 @@ int msspi_shutdown( MSSPI_HANDLE h )
     }
 
     h->state |= MSSPI_ERROR;
+    SetLastError( ERROR_INTERNAL_ERROR );
     return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
@@ -1152,7 +1193,10 @@ int msspi_accept( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
+    {
+        SetLastError( h->state & MSSPI_ERROR ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
         return 0;
+    }
 
     for( ;; )
     {
@@ -1187,6 +1231,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
+                    // SetLastError inside credentials_api()
                     return 0;
                 }
             }
@@ -1289,6 +1334,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 scRet == SEC_E_CONTEXT_EXPIRED )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
+                SetLastError( ERROR_GRACEFUL_DISCONNECT );
                 return 0;
             }
         }
@@ -1305,21 +1351,24 @@ int msspi_accept( MSSPI_HANDLE h )
         if( scRet == SEC_E_UNKNOWN_CREDENTIALS ) // GOST, but RSA cert
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
         if( scRet == SEC_E_INTERNAL_ERROR ) // RSA, but GOST cert (or license expired)
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
         if( FAILED( scRet ) )
-            break;
+        {
+            h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
+            return 0;
+        }
     }
-
-    h->state |= MSSPI_ERROR;
-    return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }
@@ -1356,7 +1405,10 @@ char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
     MSSPIEHTRY;
 
     if( h->in_len || len > SSPI_BUFFER_SIZE )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return 0;
+    }
 
     memcpy( h->in_buf, buf, (size_t)len );
     h->in_len = len;
@@ -1379,7 +1431,10 @@ int msspi_connect( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
+    {
+        SetLastError( h->state & MSSPI_ERROR ? ERROR_INTERNAL_ERROR : ERROR_GRACEFUL_DISCONNECT );
         return 0;
+    }
 
     if( h->is.client == 0 )
         h->is.client = 1;
@@ -1435,6 +1490,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
+                    // SetLastError inside credentials_api()
                     return 0;
                 }
             }
@@ -1560,6 +1616,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 scRet == SEC_E_CONTEXT_EXPIRED )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
+                SetLastError( ERROR_GRACEFUL_DISCONNECT );
                 return 0;
             }
         }
@@ -1572,6 +1629,7 @@ int msspi_connect( MSSPI_HANDLE h )
             {
                 msspi_shutdown( h );
                 h->state |= MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN;
+                SetLastError( ERROR_MEDIA_CHANGED );
                 return 0;
             }
 
@@ -1584,12 +1642,14 @@ int msspi_connect( MSSPI_HANDLE h )
         if( scRet == SEC_E_UNKNOWN_CREDENTIALS ) // GOST, but RSA cert
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
         if( scRet == SEC_E_INTERNAL_ERROR ) // RSA, but GOST cert (or license expired)
         {
             h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
             return 0;
         }
 
@@ -1600,11 +1660,12 @@ int msspi_connect( MSSPI_HANDLE h )
         }
 
         if( FAILED( scRet ) )
-            break;
+        {
+            h->state |= MSSPI_ERROR;
+            SetLastError( (DWORD)scRet );
+            return 0;
+        }
     }
-
-    h->state |= MSSPI_ERROR;
-    return 0;
 
     MSSPIEHCATCH_HERRRET( 0 );
 }

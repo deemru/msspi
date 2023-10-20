@@ -166,6 +166,18 @@ rettype WINAPI name args \
     return result; \
 }
 
+#define DECLARE_RDRSUPX_FUNCTION_VOID( name, args, callargs ) \
+typedef void ( WINAPI * t_##name ) args; \
+void WINAPI name args \
+{ \
+    static t_##name capix = NULL; \
+    if( !capix ) \
+        *(void **)&capix = get_rdrsupx( #name ); \
+    if( !capix ) \
+        return; \
+    EXTERCALL( capix callargs; ); \
+}
+
 DECLARE_CAPI10X_FUNCTION( BOOL, CryptAcquireContextA,
     ( HCRYPTPROV * phProv, LPCSTR szContainer, LPCSTR szProvider, DWORD dwProvType, DWORD dwFlags ),
     ( phProv, szContainer, szProvider, dwProvType, dwFlags ), FALSE )
@@ -381,6 +393,10 @@ DECLARE_RDRSUPX_FUNCTION( BOOL, FileTimeToSystemTime,
 DECLARE_RDRSUPX_FUNCTION( DWORD, GetLastError,
     ( ),
     ( ), (DWORD)-1 )
+
+DECLARE_RDRSUPX_FUNCTION_VOID( SetLastError,
+    ( DWORD dwErrCode ),
+    ( dwErrCode ) )
 
 #if defined( __cplusplus )
 }
