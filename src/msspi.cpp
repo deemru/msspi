@@ -1880,14 +1880,28 @@ char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
 #endif // _WIN32
 #endif // _UN
 
+#if __cplusplus >= 201103L
 enum class CERT_USAGE
 {
     NOT_FOUND,
     FOUND,
     EVERYTHING,
 };
+#define CERT_USAGE_RET CERT_USAGE
+#else
+struct CERT_USAGE
+{
+    enum CERT_USAGE_ENUM
+    {
+        NOT_FOUND,
+        FOUND,
+        EVERYTHING,
+    };
+};
+#define CERT_USAGE_RET CERT_USAGE::CERT_USAGE_ENUM
+#endif
 
-static CERT_USAGE is_cert_usage( PCCERT_CONTEXT pcert, const char * oid )
+static CERT_USAGE_RET is_cert_usage( PCCERT_CONTEXT pcert, const char * oid )
 {
     DWORD ekuLength = 0;
     if( CertGetEnhancedKeyUsage( pcert, 0, NULL, &ekuLength ) && ekuLength > 0 )
