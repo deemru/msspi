@@ -383,8 +383,8 @@ DECLARE_CAPI20X_FUNCTION( BOOL, CryptDecodeObjectEx,
     ( dwCertEncodingType, lpszStructType, pbEncoded, cbEncoded, dwFlags, pDecodePara, pvStructInfo, pcbStructInfo ), FALSE )
 
 DECLARE_CAPI20X_FUNCTION( BOOL, CryptAcquireCertificatePrivateKey,
-                         ( PCCERT_CONTEXT pCert, DWORD dwFlags, void * pvParameters, HCRYPTPROV_OR_NCRYPT_KEY_HANDLE * phCryptProvOrNCryptKey, DWORD * pdwKeySpec, BOOL * pfCallerFreeProvOrNCryptKey ),
-                         ( pCert, dwFlags, pvParameters, phCryptProvOrNCryptKey, pdwKeySpec, pfCallerFreeProvOrNCryptKey ), FALSE )
+    ( PCCERT_CONTEXT pCert, DWORD dwFlags, void * pvParameters, HCRYPTPROV_OR_NCRYPT_KEY_HANDLE * phCryptProvOrNCryptKey, DWORD * pdwKeySpec, BOOL * pfCallerFreeProvOrNCryptKey ),
+    ( pCert, dwFlags, pvParameters, phCryptProvOrNCryptKey, pdwKeySpec, pfCallerFreeProvOrNCryptKey ), FALSE )
 
 DECLARE_RDRSUPX_FUNCTION( int, WideCharToMultiByte,
     ( UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar ),
