@@ -2500,6 +2500,7 @@ char msspi_is_cipher_supported( int cipher )
         return 0;
 
     msspi_set_client( h );
+    msspi_set_version( h, TLS1_VERSION, TLS1_3_VERSION );
     h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | (ALG_ID)cipher );
     char supported = credentials_api( h );
     msspi_close( h );
