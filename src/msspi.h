@@ -93,7 +93,7 @@ char msspi_is_cipher_supported( int cipher );
 #define MSSPI_LAST_PROC_WRITE ( 1 << 7 )
 
 int msspi_state( MSSPI_HANDLE h );
-DWORD msspi_last_error();
+DWORD msspi_last_error( void );
 int msspi_pending( MSSPI_HANDLE h );
 int msspi_peek( MSSPI_HANDLE h, void * buf, int len );
 
