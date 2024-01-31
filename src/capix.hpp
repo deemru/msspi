@@ -54,6 +54,10 @@ extern "C" {
 #define LIBCAPI10_NAME "libcapi10.dylib"
 #define LIBCAPI20_NAME "libcapi20.dylib"
 #define LIBRDRSUP_NAME "librdrsup.dylib"
+#elif defined( __ANDROID__ )
+#define LIBCAPI10_NAME "libcspjni.so"
+#define LIBCAPI20_NAME "libcspjni.so"
+#define LIBRDRSUP_NAME "libcspjni.so"
 #else // other LINUX
 #define LIBCAPI10_NAME "libcapi10.so"
 #define LIBCAPI20_NAME "libcapi20.so"

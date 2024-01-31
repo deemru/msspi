@@ -133,6 +133,8 @@ static DWORD GetTickCount()
 #define LIBSSP_NAME "Security.dll"
 #elif defined( __APPLE__ )
 #define LIBSSP_NAME "libssp.dylib"
+#elif defined( __ANDROID__ )
+#define LIBSSP_NAME "libcspjni.so"
 #else // other LINUX
 #define LIBSSP_NAME "libssp.so"
 #endif // LIBSSP_NAME
