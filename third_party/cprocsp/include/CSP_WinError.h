@@ -1,17 +1,3 @@
-/*
- * Copyright(C) 2000 Проект ИОК
- *
- * Этот файл содержит информацию, являющуюся
- * собственностью компании Крипто Про.
- *
- * Любая часть этого файла не может быть скопирована,
- * исправлена, переведена на другие языки,
- * локализована или модифицирована любым способом,
- * откомпилирована, передана по сети с или на
- * любую компьютерную систему без предварительного
- * заключения соглашения с компанией Крипто Про.
- */
-
 /************************************************************************
 *		                                                        *
 *   winerror.h --  error code definitions for the Win32 API functions   *
@@ -1798,6 +1784,15 @@
 /*  The system cannot find message text for message number 0x%1 in the message file for %2.*/
 /**/
 #define ERROR_MR_MID_NOT_FOUND           317L
+
+/**/
+/* MessageId: ERROR_DIRECTORY_NOT_SUPPORTED*/
+/**/
+/* MessageText:*/
+/**/
+/*  An operation is not supported on a directory.*/
+/**/
+#define ERROR_DIRECTORY_NOT_SUPPORTED    336L
 
 /**/
 /* MessageId: ERROR_INVALID_ADDRESS*/

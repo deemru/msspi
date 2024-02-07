@@ -1,16 +1,10 @@
-/*
- * Copyright(C) 2000 Проект ИОК
- *
- * Этот файл содержит информацию, являющуюся
- * собственностью компании Крипто Про.
- *
- * Любая часть этого файла не может быть скопирована,
- * исправлена, переведена на другие языки,
- * локализована или модифицирована любым способом,
- * откомпилирована, передана по сети с или на
- * любую компьютерную систему без предварительного
- * заключения соглашения с компанией Крипто Про.
- */
+/****************************************************************************
+*                                                                           *
+* wincrypt.h -- Cryptographic API Prototypes and Definitions                *
+*                                                                           *
+* Copyright (c) 1992-1999, Microsoft Corp. All rights reserved.             *
+*                                                                           *
+****************************************************************************/
 
 #ifndef __WINCRYPT_H__
 #define __WINCRYPT_H__
@@ -70,10 +64,12 @@ typedef LONG HRESULT;
 #define OPTIONAL
 #endif
 
+#if !defined(WINCRYPT32API)
 #if !defined(_CRYPT32_)
 #define WINCRYPT32API DECLSPEC_IMPORT
 #else
 #define WINCRYPT32API
+#endif
 #endif
 
 /**/
@@ -199,6 +195,7 @@ typedef unsigned int ALG_ID;
 #define CALG_MAC                (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_MAC)
 #define CALG_RSA_SIGN           (ALG_CLASS_SIGNATURE | ALG_TYPE_RSA | ALG_SID_RSA_ANY)
 #define CALG_DSS_SIGN           (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_DSS_ANY)
+#define CALG_NO_SIGN            (ALG_CLASS_SIGNATURE | ALG_TYPE_ANY | ALG_SID_ANY)
 #define CALG_RSA_KEYX           (ALG_CLASS_KEY_EXCHANGE|ALG_TYPE_RSA|ALG_SID_RSA_ANY)
 #define CALG_DES                (ALG_CLASS_DATA_ENCRYPT|ALG_TYPE_BLOCK|ALG_SID_DES)
 #define CALG_3DES_112           (ALG_CLASS_DATA_ENCRYPT|ALG_TYPE_BLOCK|ALG_SID_3DES_112)
@@ -525,6 +522,13 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 // Consistent key usage bits: DIGITAL_SIGNATURE or NON_REPUDIATION
 #define szOID_PKIX_KP_TIMESTAMP_SIGNING "1.3.6.1.5.5.7.3.8"
 
+// OCSP response signer
+#define szOID_PKIX_KP_OCSP_SIGNING      "1.3.6.1.5.5.7.3.9"
+
+// Following extension is present to indicate no revocation checking
+// for the OCSP signer certificate
+#define szOID_PKIX_OCSP_NOCHECK         "1.3.6.1.5.5.7.48.1.5"
+
 // OCSP Nonce
 #define szOID_PKIX_OCSP_NONCE		"1.3.6.1.5.5.7.48.1.2"
 
@@ -660,6 +664,10 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 
 // Application Policies extension -- same encoding as szOID_CERT_POLICIES
  #define szOID_APPLICATION_CERT_POLICIES     "1.3.6.1.4.1.311.21.10"
+
+// Application Policy Mappings -- same encoding as szOID_POLICY_MAPPINGS
+#define szOID_APPLICATION_POLICY_MAPPINGS   "1.3.6.1.4.1.311.21.11"
+
 // Application Policy Constraints -- same encoding as szOID_POLICY_CONSTRAINTS
  #define szOID_APPLICATION_POLICY_CONSTRAINTS    "1.3.6.1.4.1.311.21.12"
 
@@ -684,6 +692,11 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 #ifndef szOID_CERTSRV_CA_VERSION
 #define szOID_CERTSRV_CA_VERSION        "1.3.6.1.4.1.311.21.1"
 #endif
+
+// szOID_CRL_NEXT_PUBLISH -- Contains the time when the next CRL is expected
+// to be published.  This may be sooner than the CRL's NextUpdate field.
+#define szOID_CRL_NEXT_PUBLISH          "1.3.6.1.4.1.311.21.4"
+
 #define szOID_CERTSRV_CROSSCA_VERSION          "1.3.6.1.4.1.311.21.22"
 
 #define CERT_ENCODING_TYPE_MASK 0x0000ffff
@@ -1262,6 +1275,8 @@ typedef struct _CRYPT_ALGORITHM_IDENTIFIER {
 #define szOID_RSA_SMIMECapabilities "1.2.840.113549.1.9.15"
 #define szOID_RSA_preferSignedData "1.2.840.113549.1.9.15.1"
 
+#define szOID_TIMESTAMP_TOKEN           "1.2.840.113549.1.9.16.1.4"
+
 #define szOID_RSA_SMIMEalg              "1.2.840.113549.1.9.16.3"
 #define szOID_RSA_SMIMEalgESDH          "1.2.840.113549.1.9.16.3.5"
 #define szOID_RSA_SMIMEalgCMS3DESwrap   "1.2.840.113549.1.9.16.3.6"
@@ -1363,6 +1378,11 @@ typedef struct _CRYPT_ALGORITHM_IDENTIFIER {
 #define szOID_NIST_AES128_CBC		    "2.16.840.1.101.3.4.1.2"
 #define szOID_NIST_AES192_CBC		    "2.16.840.1.101.3.4.1.22"
 #define szOID_NIST_AES256_CBC		    "2.16.840.1.101.3.4.1.42"
+
+// NIST AES WRAP Algorithms
+#define szOID_NIST_AES128_WRAP		    "2.16.840.1.101.3.4.1.5"
+#define szOID_NIST_AES192_WRAP		    "2.16.840.1.101.3.4.1.25"
+#define szOID_NIST_AES256_WRAP		    "2.16.840.1.101.3.4.1.45"
 
 // ECDH single pass ephemeral-static KeyAgreement KeyEncryptionAlgorithm
 #define szOID_DH_SINGLE_PASS_STDDH_SHA1_KDF   "1.3.133.16.840.63.0.2"
@@ -2749,6 +2769,42 @@ CryptAcquireCertificatePrivateKey(
 #define CRYPT_ACQUIRE_SILENT_FLAG               0x00000040
 
 #define CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG      0x00040000
+
+//+-------------------------------------------------------------------------
+//  Enumerates the cryptographic providers and their containers to find the
+//  private key corresponding to the certificate's public key. For a match,
+//  the certificate's CERT_KEY_PROV_INFO_PROP_ID property is updated.
+//
+//  If the CERT_KEY_PROV_INFO_PROP_ID is already set, then, its checked to
+//  see if it matches the provider's public key. For a match, the above
+//  enumeration is skipped.
+//
+//  By default both the user and machine key containers are searched.
+//  The CRYPT_FIND_USER_KEYSET_FLAG or CRYPT_FIND_MACHINE_KEYSET_FLAG
+//  can be set in dwFlags to restrict the search to either of the containers.
+//
+//  The CRYPT_FIND_SILENT_KEYSET_FLAG can be set to suppress any UI by the CSP.
+//  See CryptAcquireContext's CRYPT_SILENT flag for more details.
+//
+//  If a container isn't found, returns FALSE with LastError set to
+//  NTE_NO_KEY.
+//
+//  The above CRYPT_ACQUIRE_NCRYPT_KEY_FLAGS can also be set. The default
+//  is CRYPT_ACQUIRE_ALLOW_NCRYPT_KEY_FLAG.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptFindCertificateKeyProvInfo(
+    IN PCCERT_CONTEXT pCert,
+    IN DWORD dwFlags,
+    IN void *pvReserved
+);
+
+#define CRYPT_FIND_USER_KEYSET_FLAG        0x00000001
+#define CRYPT_FIND_MACHINE_KEYSET_FLAG     0x00000002
+#define CRYPT_FIND_SILENT_KEYSET_FLAG      0x00000040
+
 
 //+=========================================================================
 //  Object IDentifier (OID) Installable Functions:  Data Structures and APIs
@@ -7176,6 +7232,19 @@ typedef struct _CERT_REVOCATION_CRL_INFO {
     BOOL                    fDeltaCrlEntry; // TRUE if in pDeltaCrlContext
 } CERT_REVOCATION_CRL_INFO, *PCERT_REVOCATION_CRL_INFO;
 
+
+//+-------------------------------------------------------------------------
+//  This data structure is optionally pointed to by the pChainPara field
+//  in the CERT_REVOCATION_PARA and CRYPT_GET_TIME_VALID_OBJECT_EXTRA_INFO
+//  data structures.
+//
+//  Its struct definition follows the CertGetCertificateChain() API
+//  definition below.
+//--------------------------------------------------------------------------
+typedef struct _CERT_REVOCATION_CHAIN_PARA
+    CERT_REVOCATION_CHAIN_PARA,
+    *PCERT_REVOCATION_CHAIN_PARA;
+
 //+-------------------------------------------------------------------------
 //  The following data structure may be passed to CertVerifyRevocation to
 //  assist in finding the issuer of the context to be verified.
@@ -7227,6 +7296,14 @@ typedef struct _CERT_REVOCATION_PARA {
     // interested in this information, then, CertVerifyRevocation should be
     // called with cContext = 1.
     PCERT_REVOCATION_CRL_INFO   pCrlInfo;
+
+    // If nonNULL, any cached information before this time is considered
+    // time invalid and forces a wire retrieval.
+    LPFILETIME                  pftCacheResync;
+
+    // If nonNULL, CertGetCertificateChain() parameters used by the caller.
+    // Enables independent OCSP signer certificate chain verification.
+    PCERT_REVOCATION_CHAIN_PARA pChainPara;
 #endif
 } CERT_REVOCATION_PARA, *PCERT_REVOCATION_PARA;
 
@@ -7750,6 +7827,11 @@ typedef struct _CERT_CHAIN_PARA {
     DWORD            dwUrlRetrievalTimeout;     // milliseconds
     BOOL             fCheckRevocationFreshnessTime;
     DWORD            dwRevocationFreshnessTime; // seconds
+
+    // If nonNULL, any cached information before this time is considered
+    // time invalid and forces a wire retrieval. When set overrides
+    // the registry configuration CacheResync time.
+    LPFILETIME                  pftCacheResync;
 
 #endif
 
@@ -8647,6 +8729,26 @@ WINAPI
 CertFreeCertificateChain (
     IN PCCERT_CHAIN_CONTEXT pChainContext
     );
+
+//+-------------------------------------------------------------------------
+//  This data structure is optionally pointed to by the pChainPara field
+//  in the CERT_REVOCATION_PARA and CRYPT_GET_TIME_VALID_OBJECT_EXTRA_INFO
+//  data structures. CertGetCertificateChain() populates when it calls
+//  the CertVerifyRevocation() API.
+//--------------------------------------------------------------------------
+struct _CERT_REVOCATION_CHAIN_PARA {
+    DWORD                       cbSize;
+    HCERTCHAINENGINE            hChainEngine;
+    HCERTSTORE                  hAdditionalStore;
+    DWORD                       dwChainFlags;
+    DWORD                       dwUrlRetrievalTimeout;     // milliseconds
+    LPFILETIME                  pftCurrentTime;
+    LPFILETIME                  pftCacheResync;
+
+    // Max size of the URL object to download, in bytes.
+    // 0 value means no limit.
+    DWORD                       cbMaxUrlRetrievalByteCount;
+};
 
 BOOL 
 WINAPI
@@ -12397,6 +12499,7 @@ CryptBinaryToStringW(
 #define szOID_PKCS_12_pbeWithSHA1And2KeyTripleDES   "1.2.840.113549.1.12.1.4"
 #define szOID_PKCS_12_pbeWithSHA1And128BitRC2       "1.2.840.113549.1.12.1.5"
 #define szOID_PKCS_12_pbeWithSHA1And40BitRC2        "1.2.840.113549.1.12.1.6"
+#define szOID_PKCS_5_PBKDF2                         "1.2.840.113549.1.5.12"
 
 //+-------------------------------------------------------------------------
 // Imports a PFX BLOB and returns the handle of a store that contains
