@@ -2532,6 +2532,27 @@ char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
+static bool is_cert_selfsigned( PCCERT_CONTEXT cert )
+{
+    PCERT_INFO pCertInfo = cert->pCertInfo;
+
+    if( pCertInfo->Issuer.cbData != pCertInfo->Subject.cbData )
+        return false;
+    if( pCertInfo->Issuer.cbData && ( !pCertInfo->Issuer.pbData || !pCertInfo->Subject.pbData ) )
+        return false;
+    if( pCertInfo->Issuer.cbData && memcmp( pCertInfo->Issuer.pbData, pCertInfo->Subject.pbData, pCertInfo->Issuer.cbData ) )
+        return false;
+
+    if( pCertInfo->IssuerUniqueId.cbData != pCertInfo->SubjectUniqueId.cbData || pCertInfo->IssuerUniqueId.cUnusedBits != pCertInfo->SubjectUniqueId.cUnusedBits )
+        return false;
+    if( pCertInfo->IssuerUniqueId.cbData && ( !pCertInfo->IssuerUniqueId.pbData || !pCertInfo->SubjectUniqueId.pbData ) )
+        return false;
+    if( pCertInfo->IssuerUniqueId.cbData && memcmp( pCertInfo->IssuerUniqueId.pbData, pCertInfo->SubjectUniqueId.pbData, pCertInfo->IssuerUniqueId.cbData ) )
+        return false;
+
+    return true;
+}
+
 char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
 {
     MSSPIEHTRY;
@@ -2556,12 +2577,12 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
 
         for( cert = h->peercert; cert; )
         {
-            PCCERT_CONTEXT IssuerCert = NULL;
+            PCCERT_CONTEXT IssuerCert;
             DWORD dwVerificationFlags = 0;
 
             h->peercerts.push_back( std::string( (char *)cert->pbCertEncoded, cert->cbCertEncoded ) );
 
-            IssuerCert = CertGetIssuerCertificateFromStore( h->peercert->hCertStore, cert, NULL, &dwVerificationFlags );
+            IssuerCert = is_cert_selfsigned( cert ) ? NULL : CertGetIssuerCertificateFromStore( h->peercert->hCertStore, cert, NULL, &dwVerificationFlags );
 
             if( cert != h->peercert )
                 CertFreeCertificateContext( cert );
