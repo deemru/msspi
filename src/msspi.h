@@ -54,7 +54,7 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb, msspi_write_cb );
 
 char msspi_set_hostname( MSSPI_HANDLE h, const char * hostName );
 char msspi_set_cachestring( MSSPI_HANDLE h, const char * cacheString );
-char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, unsigned len );
+char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, size_t len );
 void msspi_set_certstore( MSSPI_HANDLE h, const char * store );
 char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
 char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len );
@@ -132,7 +132,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h );
 #define SECBUFFER_ALERT 17
 #endif
 
-unsigned msspi_verify( MSSPI_HANDLE h );
+int32_t msspi_verify( MSSPI_HANDLE h );
 char msspi_verifypeer( MSSPI_HANDLE h, const char * store );
 
 void msspi_close( MSSPI_HANDLE h );

@@ -1711,7 +1711,7 @@ char msspi_set_cachestring( MSSPI_HANDLE h, const char * cachestring )
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, unsigned len )
+char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, size_t len )
 {
     MSSPIEHTRY;
 
@@ -2800,7 +2800,7 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
-static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
+static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 {
     DWORD dwVerify = MSSPI_VERIFY_ERROR;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
@@ -2889,15 +2889,15 @@ static unsigned msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     if( PeerChain )
         CertFreeCertificateChain( PeerChain );
 
-    return (unsigned)dwVerify;
+    return (int32_t)dwVerify;
 }
 
-unsigned msspi_verify( MSSPI_HANDLE h )
+int32_t msspi_verify( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    unsigned verify_full;
-    unsigned verify_no_revocation;
+    int32_t verify_full;
+    int32_t verify_no_revocation;
 
     verify_full = msspi_verify_internal( h, true );
     if( verify_full == MSSPI_VERIFY_OK )
