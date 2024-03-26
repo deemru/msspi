@@ -106,26 +106,26 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
 char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count );
 const char * msspi_get_alpn( MSSPI_HANDLE h );
 
-#define MSSPI_VERIFY_OK                 0x00000000L
-#define MSSPI_VERIFY_ERROR              0x00000001L
+#define MSSPI_VERIFY_OK                 (int32_t)0x00000000L
+#define MSSPI_VERIFY_ERROR              (int32_t)0x00000001L
 #ifndef TRUST_E_CERT_SIGNATURE
-#define TRUST_E_CERT_SIGNATURE          0x80096004L
-#define CRYPT_E_REVOKED                 0x80092010L
-#define CERT_E_UNTRUSTEDROOT            0x800B0109L
-#define CERT_E_UNTRUSTEDTESTROOT        0x800B010DL
-#define CERT_E_CHAINING                 0x800B010AL
-#define CERT_E_REVOCATION_FAILURE       0x800B010EL
-#define CERT_E_WRONG_USAGE              0x800B0110L
-#define CERT_E_EXPIRED                  0x800B0101L
-#define CERT_E_INVALID_NAME             0x800B0114L
-#define CERT_E_CN_NO_MATCH              0x800B010FL
-#define CERT_E_INVALID_POLICY           0x800B0113L
-#define TRUST_E_BASIC_CONSTRAINTS       0x80096019L
-#define CERT_E_CRITICAL                 0x800B0105L
-#define CERT_E_VALIDITYPERIODNESTING    0x800B0102L
-#define CRYPT_E_NO_REVOCATION_CHECK     0x80092012L
-#define CRYPT_E_REVOCATION_OFFLINE      0x80092013L
-#define CERT_E_ROLE                     0x800B0103L
+#define TRUST_E_CERT_SIGNATURE          (int32_t)0x80096004L
+#define CRYPT_E_REVOKED                 (int32_t)0x80092010L
+#define CERT_E_UNTRUSTEDROOT            (int32_t)0x800B0109L
+#define CERT_E_UNTRUSTEDTESTROOT        (int32_t)0x800B010DL
+#define CERT_E_CHAINING                 (int32_t)0x800B010AL
+#define CERT_E_REVOCATION_FAILURE       (int32_t)0x800B010EL
+#define CERT_E_WRONG_USAGE              (int32_t)0x800B0110L
+#define CERT_E_EXPIRED                  (int32_t)0x800B0101L
+#define CERT_E_INVALID_NAME             (int32_t)0x800B0114L
+#define CERT_E_CN_NO_MATCH              (int32_t)0x800B010FL
+#define CERT_E_INVALID_POLICY           (int32_t)0x800B0113L
+#define TRUST_E_BASIC_CONSTRAINTS       (int32_t)0x80096019L
+#define CERT_E_CRITICAL                 (int32_t)0x800B0105L
+#define CERT_E_VALIDITYPERIODNESTING    (int32_t)0x800B0102L
+#define CRYPT_E_NO_REVOCATION_CHECK     (int32_t)0x80092012L
+#define CRYPT_E_REVOCATION_OFFLINE      (int32_t)0x80092013L
+#define CERT_E_ROLE                     (int32_t)0x800B0103L
 #endif
 
 #ifndef SECBUFFER_ALERT
