@@ -448,6 +448,7 @@ struct MSSPI
         is.names = 0;
         is.pin_cache = 0;
         is.verify_offline = 0;
+        is.verify_revocation = 1;
         state = MSSPI_OK;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
@@ -498,6 +499,7 @@ struct MSSPI
         unsigned names : 1;
         unsigned pin_cache : 1;
         unsigned verify_offline : 1;
+        unsigned verify_revocation : 1;
     } is;
 
     int state;
@@ -1424,6 +1426,15 @@ void msspi_set_verify_offline( MSSPI_HANDLE h, char offline )
     MSSPIEHTRY;
 
     h->is.verify_offline = (unsigned)( offline ? 1 : 0 );
+
+    MSSPIEHCATCH_0;
+}
+
+void msspi_set_verify_revocation( MSSPI_HANDLE h, char revocation )
+{
+    MSSPIEHTRY;
+
+    h->is.verify_revocation = (unsigned)( revocation ? 1 : 0 );
 
     MSSPIEHCATCH_0;
 }
@@ -2815,9 +2826,11 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     if( h->is.verify_offline )
         dwAdditionalFlags |= CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL;
     if( revocation )
+    {
         dwAdditionalFlags |= CERT_CHAIN_REVOCATION_CHECK_CHAIN;
-    if( h->is.verify_offline && revocation )
-        dwAdditionalFlags |= CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY;
+        if( h->is.verify_offline )
+            dwAdditionalFlags |= CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY;
+    }
 
     for( ;; )
     {
@@ -2895,6 +2908,9 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 int32_t msspi_verify( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
+
+    if( !h->is.verify_revocation )
+        return msspi_verify_internal( h, false );
 
     int32_t verify_full;
     int32_t verify_no_revocation;

@@ -70,6 +70,7 @@ char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist );
 char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider );
 char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len );
 void msspi_set_verify_offline( MSSPI_HANDLE h, char offline );
+void msspi_set_verify_revocation( MSSPI_HANDLE h, char revocation );
 
 int msspi_connect( MSSPI_HANDLE h );
 int msspi_accept( MSSPI_HANDLE h );
