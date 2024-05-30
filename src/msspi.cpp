@@ -2639,7 +2639,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
     if( !h->peerchain.size() )
     {
-        if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+        if( ( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) ) || !h->peercert )
             return 0;
 
         PCCERT_CHAIN_CONTEXT PeerChain;
@@ -2813,14 +2813,11 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
 static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 {
-    DWORD dwVerify = MSSPI_VERIFY_ERROR;
+    if( ( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) ) || !h->peercert )
+        return MSSPI_VERIFY_ERROR;
+
+    int32_t result = MSSPI_VERIFY_ERROR;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
-
-    if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
-        return dwVerify;
-
-    if( !h->peercert )
-        return dwVerify;
 
     DWORD dwAdditionalFlags = 0;
     if( h->is.verify_offline )
@@ -2891,10 +2888,10 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
             &PolicyStatus ) )
             break;
 
-        dwVerify = MSSPI_VERIFY_OK;
+        result = MSSPI_VERIFY_OK;
 
         if( PolicyStatus.dwError )
-            dwVerify = PolicyStatus.dwError;
+            result = (int32_t)PolicyStatus.dwError;
 
         break;
     }
@@ -2902,7 +2899,7 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     if( PeerChain )
         CertFreeCertificateChain( PeerChain );
 
-    return (int32_t)dwVerify;
+    return result;
 }
 
 int32_t msspi_verify( MSSPI_HANDLE h )
