@@ -88,7 +88,9 @@ static DWORD GetTickCount()
 
     return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
 }
+#ifndef UNIX
 #define UNIX
+#endif // !UNIX
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
@@ -1886,11 +1888,7 @@ char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
 }
 
 #ifndef _UN
-#ifdef _WIN32
-#define _UN
-#else
-#define _UN f_name.
-#endif // _WIN32
+#define _UN UNNAMED_UNION_A
 #endif // _UN
 
 #if __cplusplus >= 201103L
@@ -2426,6 +2424,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     SecPkgContext_ApplicationProtocol alpn;
 
     SECURITY_STATUS scRet;
+    // cppcheck-suppress uninitvar
     EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn ) );
 
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
@@ -3184,6 +3183,7 @@ char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, 
     MSSPIEHTRY;
 
     ch->subject = certname( &ch->cert->pCertInfo->Subject, quotes != 0 ).c_str();
+    // cppcheck-suppress danglingTemporaryLifetime
     if( !ch->subject.length() )
         return 0;
 
@@ -3199,6 +3199,7 @@ char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, c
     MSSPIEHTRY;
 
     ch->issuer = certname( &ch->cert->pCertInfo->Issuer, quotes != 0 ).c_str();
+    // cppcheck-suppress danglingTemporaryLifetime
     if( !ch->issuer.length() )
         return 0;
 
