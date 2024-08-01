@@ -548,9 +548,10 @@ static char credentials_acquire( MSSPI_HANDLE h )
 {
     CredHandle      hCred;
     TimeStamp       tsExpiry;
-    SCHANNEL_CRED   SchannelCred = { 0 };
+    SCHANNEL_CRED   SchannelCred;
     unsigned long   usage;
 
+    memset( &SchannelCred, 0, sizeof( SchannelCred ) );
     SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
     SchannelCred.grbitEnabledProtocols = h->grbitEnabledProtocols;
     if( h->is.client )
@@ -602,7 +603,7 @@ static void credentials_release( MSSPI_HANDLE h )
     h->cred = NULL;
 }
 
-#define B2C_VALUE( b ) ( ( ( b ) < 10 ) ? '0' + ( b ) : 'A' - 10 + ( b ) )
+#define B2C( b ) ( (char)( ( ( b ) < 10 ? '0' : 'A' - 10 ) + ( b ) ) )
 
 static std::string to_hex_string( uint32_t val )
 {
@@ -612,7 +613,7 @@ static std::string to_hex_string( uint32_t val )
     while( val )
     {
         uint8_t b = val & 0x0F;
-        str[--i] = B2C_VALUE( b );
+        str[--i] = B2C( b );
         val >>= 4;
     }
 
@@ -625,7 +626,7 @@ static std::string to_dec_string( uint32_t val )
 
     while( val )
     {
-        char c = B2C_VALUE( (char)( val % 10 ) );
+        char c = B2C( (char)( val % 10 ) );
         str = c + str;
         val /= 10;
     }
@@ -1217,7 +1218,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
         if( !h->out_len )
         {
-            SecBufferDesc   InBuffer = { 0 };
+            SecBufferDesc   InBuffer = { SECBUFFER_VERSION, 0, NULL };
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
             SecBuffer       OutBuffers[2];
@@ -1484,7 +1485,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
         if( !h->out_len )
         {
-            SecBufferDesc   InBuffer = { 0 };
+            SecBufferDesc   InBuffer = { SECBUFFER_VERSION, 0, NULL };
             SecBuffer       InBuffers[2];
             SecBufferDesc   OutBuffer;
             SecBuffer       OutBuffers[2];
@@ -1776,11 +1777,11 @@ static int str2bin( const char * str, char * bin )
     return n;
 }
 
-void msspi_set_peerauth( MSSPI_HANDLE h, char is_peerauth )
+void msspi_set_peerauth( MSSPI_HANDLE h, char peerauth )
 {
     MSSPIEHTRY;
 
-    h->is.peerauth = (unsigned)is_peerauth;
+    h->is.peerauth = (unsigned)( peerauth ? 1 : 0 );
 
     MSSPIEHCATCH_0;
 }
@@ -2175,7 +2176,8 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
             if( !h->is.pin_cache ) // default: reset pin cache in case of different users working
             {
                 CRYPT_KEY_PROV_PARAM pinparam;
-                CRYPT_PIN_PARAM pinParam = { 0 };
+                CRYPT_PIN_PARAM pinParam;
+                memset( &pinParam, 0, sizeof( pinParam ) );
                 pinParam.type = CRYPT_PIN_CLEAR;
                 pinParam.dest.passwd = NULL;
                 pinparam.dwParam = PP_SET_PIN;
@@ -2355,7 +2357,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int 
     }
 
     if( isOK )
-        h->is.can_append = (unsigned)can_append;
+        h->is.can_append = (unsigned)( can_append ? 1 : 0 );
     else
         h->credstring = saved_credstring;
 
@@ -3003,8 +3005,6 @@ char msspi_random( void * buf, int len, char safe )
 }
 
 #ifndef NO_MSSPI_CERT
-
-#define B2C( b ) ( ( ( b ) < 10 ? '0' : 'A' - 10 ) + ( b ) )
 
 static std::string to_hex_string( const uint8_t * bytes, size_t len )
 {
