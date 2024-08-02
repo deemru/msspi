@@ -143,10 +143,6 @@ static DWORD GetTickCount()
 #define LIBSSP_PATH_NAME CPROLIBS_PATH LIBSSP_NAME
 
 #include "msspi.h"
-
-#ifndef __MINGW32__
-#include "common.h"
-#endif // __MINGW32__
 #include "WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
