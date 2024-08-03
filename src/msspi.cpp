@@ -289,6 +289,10 @@ typedef struct _SecPkgContext_ApplicationProtocol
 
 #endif /*SECBUFFER_APPLICATION_PROTOCOLS*/
 
+#if !defined(USE_BOOST) && !defined(_MSVC_LANG) && __cplusplus < 201103L
+#define USE_BOOST
+#endif
+
 // credentials_api
 #ifdef USE_BOOST
 #define BOOST_ALL_NO_LIB 1
