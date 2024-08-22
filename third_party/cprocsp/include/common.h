@@ -29,7 +29,7 @@
 #endif //DARWIN
 #include "myconfig.h"
 #elif !defined DEVL && !defined CSP_LITE && !defined _WIN64 /* no config.h :Windows или примеры из doxygen*/
-#if !defined(UNIX)
+#if !defined(PATH_MAX) && !defined(UNIX)
 # define PATH_MAX MAX_PATH
 #endif
 # define HAVE_STDLIB_H 1

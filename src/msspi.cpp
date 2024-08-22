@@ -1889,7 +1889,11 @@ char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
 }
 
 #ifndef _UN
+#ifndef __MINGW32__
 #define _UN UNNAMED_UNION_A
+#else
+#define _UN DUMMYUNIONNAME
+#endif
 #endif // _UN
 
 #if __cplusplus >= 201103L
