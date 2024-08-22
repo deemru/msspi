@@ -1,6 +1,9 @@
 #ifndef _MSSPI_H_INCLUDED_
 #define _MSSPI_H_INCLUDED_
 
+#include <stdint.h>
+#include <stddef.h>
+
 #define TLS1_VERSION    0x0301
 #define TLS1_1_VERSION  0x0302
 #define TLS1_2_VERSION  0x0303
