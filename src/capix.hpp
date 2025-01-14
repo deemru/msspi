@@ -394,6 +394,10 @@ DECLARE_RDRSUPX_FUNCTION( int, WideCharToMultiByte,
     ( UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, LPBOOL lpUsedDefaultChar ),
     ( CodePage, dwFlags, lpWideCharStr, cchWideChar, lpMultiByteStr, cbMultiByte, lpDefaultChar, lpUsedDefaultChar ), 0 )
 
+DECLARE_RDRSUPX_FUNCTION( int, MultiByteToWideChar,
+    ( UINT CodePage, DWORD dwFlags, LPCSTR lpMultiByteStr, int cbMultiByte, LPWSTR lpWideCharStr, int cchWideChar ),
+    ( CodePage, dwFlags, lpMultiByteStr, cbMultiByte, lpWideCharStr, cchWideChar ), 0 )
+
 DECLARE_RDRSUPX_FUNCTION( BOOL, FileTimeToSystemTime,
     ( const FILETIME * lpFileTime, LPSYSTEMTIME lpSystemTime ),
     ( lpFileTime, lpSystemTime ), FALSE )
