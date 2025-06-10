@@ -2680,26 +2680,30 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
 static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    DWORD dwLen = CertNameToStrW( X509_ASN_ENCODING, name, (DWORD)( CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ) ), NULL, 0 );
-    if( dwLen > 1 )
+    const DWORD dwStrType = CERT_X500_NAME_STR | (quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG);
+    DWORD dwSize = CertNameToStrW(X509_ASN_ENCODING, name, dwStrType, NULL, 0);
+    if(dwSize <= 1 )
     {
-        std::vector<WCHAR> w_str( dwLen );
-        dwLen = CertNameToStrW( X509_ASN_ENCODING, name, (DWORD)( CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ) ), &w_str[0], dwLen );
-        if( dwLen == w_str.size() )
-        {
-            dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL );
-            if( dwLen )
-            {
-                std::string c_str;
-                c_str.resize( dwLen );
-                dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, &w_str[0], -1, &c_str[0], (int)dwLen, NULL, NULL );
-                if( dwLen == c_str.size() )
-                    return c_str.c_str();
-            }
-        }
+        return std::string();
     }
-
-    return "";
+    std::vector<WCHAR> w_str(dwSize);
+    dwSize = CertNameToStrW(X509_ASN_ENCODING, name, dwStrType, &w_str[0], dwSize);
+    if (dwSize != w_str.size())
+    {
+        return std::string();
+    }
+    int size = WideCharToMultiByte(CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL);
+    if (size == 0)
+    {
+        return std::string();
+    }
+    std::vector<char> c_str(size);
+    size = WideCharToMultiByte(CP_UTF8, 0, &w_str[0], -1, &c_str[0], size, NULL, NULL);
+    if (size == 0)
+    {
+        return std::string();
+    }
+    return std::string(&c_str[0]);
 }
 
 char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, const char ** issuer, size_t * ilen )
@@ -3003,17 +3007,18 @@ static std::string to_hex_string( std::string b )
 
 static std::string to_string( LPCWSTR w_str )
 {
-    DWORD dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, w_str, -1, NULL, 0, NULL, NULL );
-    if( dwLen )
+    int size = WideCharToMultiByte(CP_UTF8, 0, w_str, -1, NULL, 0, NULL, NULL);
+    if (size == 0)
     {
-        std::string c_str;
-        c_str.resize( dwLen );
-        dwLen = (DWORD)WideCharToMultiByte( CP_UTF8, 0, w_str, -1, &c_str[0], (int)dwLen, NULL, NULL );
-        if( dwLen == c_str.size() )
-            return c_str.c_str();
+        return std::string();
     }
-
-    return "";
+    std::vector<char> c_str(size);
+    size = WideCharToMultiByte(CP_UTF8, 0, w_str, -1, &c_str[0], size, NULL, NULL);
+    if (size == 0)
+    {
+        return std::string();
+    }
+    return std::string(&c_str[0]);
 }
 
 static std::string certprop( PCCERT_CONTEXT cert, DWORD id )
