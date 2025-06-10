@@ -622,6 +622,9 @@ static std::string to_hex_string( uint32_t val )
 
 static std::string to_dec_string( uint32_t val )
 {
+    if( val == 0 )
+        return "0";
+
     std::string str;
 
     while( val )
@@ -1355,20 +1358,6 @@ int msspi_accept( MSSPI_HANDLE h )
             return 1;
         }
 
-        if( scRet == SEC_E_UNKNOWN_CREDENTIALS ) // GOST, but RSA cert
-        {
-            h->state |= MSSPI_ERROR;
-            SetLastError( (DWORD)scRet );
-            return 0;
-        }
-
-        if( scRet == SEC_E_INTERNAL_ERROR ) // RSA, but GOST cert (or license expired)
-        {
-            h->state |= MSSPI_ERROR;
-            SetLastError( (DWORD)scRet );
-            return 0;
-        }
-
         if( FAILED( scRet ) )
         {
             h->state |= MSSPI_ERROR;
@@ -1653,20 +1642,6 @@ int msspi_connect( MSSPI_HANDLE h )
             if( h->in_len )
                 msspi_read( h, NULL, 0 );
             return 1;
-        }
-
-        if( scRet == SEC_E_UNKNOWN_CREDENTIALS ) // GOST, but RSA cert
-        {
-            h->state |= MSSPI_ERROR;
-            SetLastError( (DWORD)scRet );
-            return 0;
-        }
-
-        if( scRet == SEC_E_INTERNAL_ERROR ) // RSA, but GOST cert (or license expired)
-        {
-            h->state |= MSSPI_ERROR;
-            SetLastError( (DWORD)scRet );
-            return 0;
         }
 
         if( scRet == SEC_I_INCOMPLETE_CREDENTIALS )
@@ -2443,8 +2418,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
         alpn.ProtocolIdSize &&
         alpn.ProtocolIdSize < h->alpn.length() )
     {
-        memset( &h->alpn[0], 0, h->alpn.length() );
-        memcpy( &h->alpn[0], alpn.ProtocolId, alpn.ProtocolIdSize );
+        h->alpn.assign( (char *)alpn.ProtocolId, alpn.ProtocolIdSize );
     }
     else
     {
