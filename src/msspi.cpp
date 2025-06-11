@@ -570,13 +570,13 @@ static char credentials_acquire( MSSPI_HANDLE h )
     if( h->certs.size() )
     {
         SchannelCred.cCreds = (DWORD)h->certs.size();
-        SchannelCred.paCred = &h->certs[0];
+        SchannelCred.paCred = h->certs.data();
     }
 
     if( h->ciphers.size() )
     {
         SchannelCred.cSupportedAlgs = (DWORD)h->ciphers.size();
-        SchannelCred.palgSupportedAlgs = &h->ciphers[0];
+        SchannelCred.palgSupportedAlgs = h->ciphers.data();
     }
 
     SECURITY_STATUS scRet;
@@ -1480,7 +1480,7 @@ int msspi_connect( MSSPI_HANDLE h )
             SecBuffer       OutBuffers[2];
             unsigned long   dwSSPIOutFlags;
             TimeStamp       tsExpiry;
-            std::string     alpn_holder;
+            std::vector<BYTE> alpn_holder;
 
             static DWORD dwSSPIFlags =
                 ISC_REQ_SEQUENCE_DETECT |
@@ -1531,15 +1531,15 @@ int msspi_connect( MSSPI_HANDLE h )
                 {
                     alpn_holder.resize( sizeof( SEC_APPLICATION_PROTOCOLS ) + h->alpn.length() );
 
-                    SEC_APPLICATION_PROTOCOLS * sap = (SEC_APPLICATION_PROTOCOLS *)&alpn_holder[0];
+                    SEC_APPLICATION_PROTOCOLS * sap = (SEC_APPLICATION_PROTOCOLS *)alpn_holder.data();
                     sap->ProtocolListsSize = (unsigned long)( sizeof( SEC_APPLICATION_PROTOCOL_LIST ) + h->alpn.length() );
                     sap->ProtocolLists[0].ProtoNegoExt = SecApplicationProtocolNegotiationExt_ALPN;
                     sap->ProtocolLists[0].ProtocolListSize = (unsigned short)h->alpn.length();
                     memcpy( sap->ProtocolLists[0].ProtocolList, h->alpn.data(), h->alpn.length() );
                 }
 
-                InBuffers[0].pvBuffer = &alpn_holder[0];
-                InBuffers[0].cbBuffer = (bufsize_t)alpn_holder.length();
+                InBuffers[0].pvBuffer = alpn_holder.data();
+                InBuffers[0].cbBuffer = (bufsize_t)alpn_holder.size();
                 InBuffers[0].BufferType = SECBUFFER_APPLICATION_PROTOCOLS;
 
                 InBuffer.cBuffers = 1;
@@ -1898,7 +1898,7 @@ static CERT_USAGE_RET is_cert_usage( PCCERT_CONTEXT pcert, const char * oid )
     if( CertGetEnhancedKeyUsage( pcert, 0, NULL, &ekuLength ) && ekuLength > 0 )
     {
         std::vector<BYTE> ekuListBuffer( ekuLength );
-        PCERT_ENHKEY_USAGE ekuList = (PCERT_ENHKEY_USAGE)&ekuListBuffer[0];
+        PCERT_ENHKEY_USAGE ekuList = (PCERT_ENHKEY_USAGE)ekuListBuffer.data();
         if( CertGetEnhancedKeyUsage( pcert, 0, ekuList, &ekuLength ) )
         {
             if( ekuList->cUsageIdentifier == 0 )
@@ -2095,10 +2095,10 @@ static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password
         if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
         {
             PFXDer.resize( dwData );
-            if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, &PFXDer[0], &dwData, NULL, NULL ) )
+            if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, PFXDer.data(), &dwData, NULL, NULL ) )
             {
                 pfxBlob.cbData = dwData;
-                pfxBlob.pbData = &PFXDer[0];
+                pfxBlob.pbData = PFXDer.data();
                 hStore = PFXImportCertStore( &pfxBlob, wpassword.data(), PKCS12_NO_PERSIST_KEY );
             }
         }
@@ -2220,8 +2220,8 @@ static PCCERT_CONTEXT findcert( const char * certData, int len, const char * cer
             if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
             {
                 clientCertDer.resize( dwData );
-                if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, &clientCertDer[0], &dwData, NULL, NULL ) )
-                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, &clientCertDer[0], dwData );
+                if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, clientCertDer.data(), &dwData, NULL, NULL ) )
+                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, clientCertDer.data(), dwData );
             }
 
             if( !certprobe )
@@ -2678,32 +2678,31 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
     MSSPIEHCATCH_HERRRET( 0 );
 }
 
+static std::string to_string( LPCWSTR w_str )
+{
+    int size = WideCharToMultiByte( CP_UTF8, 0, w_str, -1, NULL, 0, NULL, NULL );
+    if( size == 0 )
+        return std::string();
+    std::vector<char> c_str( (size_t)size );
+    size = WideCharToMultiByte( CP_UTF8, 0, w_str, -1, c_str.data(), size, NULL, NULL );
+    if (size == 0)
+        return std::string();
+
+    return std::string( c_str.data() );
+}
+
 static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    const DWORD dwStrType = (DWORD)( CERT_X500_NAME_STR | (quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG) );
-    DWORD dwSize = CertNameToStrW(X509_ASN_ENCODING, name, dwStrType, NULL, 0);
-    if(dwSize <= 1 )
-    {
+    const DWORD dwStrType = (DWORD)( CERT_X500_NAME_STR | ( quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG ) );
+    DWORD dwSize = CertNameToStrW( X509_ASN_ENCODING, name, dwStrType, NULL, 0 );
+    if( dwSize <= 1 )
         return std::string();
-    }
-    std::vector<WCHAR> w_str(dwSize);
-    dwSize = CertNameToStrW(X509_ASN_ENCODING, name, dwStrType, &w_str[0], dwSize);
-    if (dwSize != w_str.size())
-    {
+    std::vector<WCHAR> w_str( dwSize );
+    dwSize = CertNameToStrW( X509_ASN_ENCODING, name, dwStrType, w_str.data(), dwSize );
+    if( dwSize != w_str.size() )
         return std::string();
-    }
-    int size = WideCharToMultiByte(CP_UTF8, 0, &w_str[0], -1, NULL, 0, NULL, NULL);
-    if (size == 0)
-    {
-        return std::string();
-    }
-    std::vector<char> c_str((size_t)size);
-    size = WideCharToMultiByte(CP_UTF8, 0, &w_str[0], -1, &c_str[0], size, NULL, NULL);
-    if (size == 0)
-    {
-        return std::string();
-    }
-    return std::string(&c_str[0]);
+
+    return to_string( w_str.data() );
 }
 
 char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, const char ** issuer, size_t * ilen )
@@ -2722,13 +2721,13 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
 
     if( subject && slen )
     {
-        *subject = &h->peercert_subject[0];
+        *subject = h->peercert_subject.c_str();
         *slen = h->peercert_subject.size();
     }
 
     if( issuer && ilen )
     {
-        *issuer = &h->peercert_issuer[0];
+        *issuer = h->peercert_issuer.c_str();
         *ilen = h->peercert_issuer.size();
     }
 
@@ -3000,38 +2999,17 @@ static std::string to_hex_string( const uint8_t * bytes, size_t len )
     return c_str;
 }
 
-static std::string to_hex_string( std::string b )
+static std::vector<BYTE> certprop( PCCERT_CONTEXT cert, DWORD id )
 {
-    return to_hex_string( (const uint8_t *)&b[0], b.length() );
-}
-
-static std::string to_string( LPCWSTR w_str )
-{
-    int size = WideCharToMultiByte(CP_UTF8, 0, w_str, -1, NULL, 0, NULL, NULL);
-    if (size == 0)
-    {
-        return std::string();
-    }
-    std::vector<char> c_str((size_t)size);
-    size = WideCharToMultiByte(CP_UTF8, 0, w_str, -1, &c_str[0], size, NULL, NULL);
-    if (size == 0)
-    {
-        return std::string();
-    }
-    return std::string(&c_str[0]);
-}
-
-static std::string certprop( PCCERT_CONTEXT cert, DWORD id )
-{
-    std::string prop;
+    std::vector<BYTE> prop;
 
     DWORD dw;
     if( CertGetCertificateContextProperty( cert, id, NULL, &dw ) )
     {
         prop.resize( dw );
-        if( CertGetCertificateContextProperty( cert, id, &prop[0], &dw ) )
+        if( CertGetCertificateContextProperty( cert, id, prop.data(), &dw ) )
         {
-            if( dw < prop.length() )
+            if( dw < prop.size() )
                 prop.resize( dw );
         }
     }
@@ -3104,8 +3082,8 @@ MSSPI_CERT_HANDLE msspi_cert_open( const char * certbuf, size_t len )
         if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
         {
             certbufder.resize( dwData );
-            if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, &certbufder[0], &dwData, NULL, NULL ) )
-                cert = CertCreateCertificateContext( X509_ASN_ENCODING, &certbufder[0], dwData );
+            if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, certbufder.data(), &dwData, NULL, NULL ) )
+                cert = CertCreateCertificateContext( X509_ASN_ENCODING, certbufder.data(), dwData );
         }
 
         if( !cert )
@@ -3215,11 +3193,11 @@ char msspi_cert_keyid( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
 {
     MSSPIEHTRY;
 
-    std::string prop = certprop( ch->cert, CERT_KEY_IDENTIFIER_PROP_ID );
-    if( !prop.length() )
+    std::vector<BYTE> prop = certprop( ch->cert, CERT_KEY_IDENTIFIER_PROP_ID );
+    if( !prop.size() )
         return 0;
 
-    ch->keyid = to_hex_string( prop );
+    ch->keyid = to_hex_string( prop.data(), prop.size() );
     if( !ch->keyid.length() )
         return 0;
 
@@ -3234,11 +3212,11 @@ char msspi_cert_sha1( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
 {
     MSSPIEHTRY;
 
-    std::string prop = certprop( ch->cert, CERT_SHA1_HASH_PROP_ID );
-    if( !prop.length() )
+    std::vector<BYTE> prop = certprop( ch->cert, CERT_SHA1_HASH_PROP_ID );
+    if( !prop.size() )
         return 0;
 
-    ch->sha1 = to_hex_string( prop );
+    ch->sha1 = to_hex_string( prop.data(), prop.size() );
     if( !ch->sha1.length() )
         return 0;
 
