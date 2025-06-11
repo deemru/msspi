@@ -514,9 +514,9 @@ struct MSSPI
     PCCERT_CONTEXT peercert;
     std::string peercert_subject;
     std::string peercert_issuer;
-    std::vector<std::string> peercerts;
-    std::vector<std::string> peerchain;
-    std::vector<std::string> issuerlist;
+    std::vector<std::vector<BYTE>> peercerts;
+    std::vector<std::vector<BYTE>> peerchain;
+    std::vector<std::vector<BYTE>> issuerlist;
 
     CtxtHandle hCtx;
     MSSPI_CredCache * cred;
@@ -580,7 +580,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
     }
 
     SECURITY_STATUS scRet;
-    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)h->credprovider.data(), usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
+    EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)h->credprovider.c_str(), usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
     msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
@@ -1371,12 +1371,8 @@ int msspi_accept( MSSPI_HANDLE h )
 
 static char is_new_session_unmodified( MSSPI_HANDLE h )
 {
-    std::string old_session;
-    std::string new_session;
-
-    old_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
-    for( size_t i = 0; i < h->peercerts.size(); i++ )
-        old_session.append( h->peercerts[i] );
+    SecPkgContext_CipherInfo old_cipherinfo = h->cipherinfo;
+    std::vector<std::vector<BYTE>> old_peercerts = h->peercerts;
 
     h->is.cipherinfo = 0;
     if( !msspi_get_cipherinfo( h ) )
@@ -1386,11 +1382,10 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
     if( !msspi_get_peercerts( h, NULL, NULL, NULL ) )
         return 0;
 
-    new_session.append( (char *)&h->cipherinfo, sizeof( h->cipherinfo ) );
-    for( size_t i = 0; i < h->peercerts.size(); i++ )
-        new_session.append( h->peercerts[i] );
+    if( memcmp( &old_cipherinfo, &h->cipherinfo, sizeof( SecPkgContext_CipherInfo ) ) != 0 )
+        return 0;
 
-    if( new_session != old_session )
+    if( old_peercerts != h->peercerts )
         return 0;
 
     return 1;
@@ -1535,7 +1530,7 @@ int msspi_connect( MSSPI_HANDLE h )
                     sap->ProtocolListsSize = (unsigned long)( sizeof( SEC_APPLICATION_PROTOCOL_LIST ) + h->alpn.length() );
                     sap->ProtocolLists[0].ProtoNegoExt = SecApplicationProtocolNegotiationExt_ALPN;
                     sap->ProtocolLists[0].ProtocolListSize = (unsigned short)h->alpn.length();
-                    memcpy( sap->ProtocolLists[0].ProtocolList, h->alpn.data(), h->alpn.length() );
+                    memcpy( sap->ProtocolLists[0].ProtocolList, h->alpn.c_str(), h->alpn.length() );
                 }
 
                 InBuffers[0].pvBuffer = alpn_holder.data();
@@ -1550,7 +1545,7 @@ int msspi_connect( MSSPI_HANDLE h )
             EXTERCALL( scRet = sspi->InitializeSecurityContextA(
                 &h->cred->hCred,
                 ( h->hCtx.dwLower || h->hCtx.dwUpper ) ? &h->hCtx : NULL,
-                h->hostname.length() ? (char *)h->hostname.data() : NULL,
+                h->hostname.length() ? (char *)h->hostname.c_str() : NULL,
                 dwSSPIFlags,
                 0,
                 SECURITY_NATIVE_DREP,
@@ -1564,7 +1559,7 @@ int msspi_connect( MSSPI_HANDLE h )
             msspi_logger_info( "InitializeSecurityContext( hCred = %016llX:%016llX, hCtx = %016llX:%016llX, pszTargetName = %s, fContextReq = %08X, pInput (length) = %d ) returned %08X",
                 (uint64_t)(uintptr_t)h->cred->hCred.dwUpper, (uint64_t)(uintptr_t)h->cred->hCred.dwLower,
                 (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower,
-                h->hostname.length() ? (char *)h->hostname.data() : "NULL", dwSSPIFlags, h->in_len, (uint32_t)scRet );
+                h->hostname.length() ? (char *)h->hostname.c_str() : "NULL", dwSSPIFlags, h->in_len, (uint32_t)scRet );
 
             if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
@@ -2327,7 +2322,7 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int 
     if( pfx )
         cert = pfx2cert( certData, len, password );
     else
-        cert = findcert( certData, len, h->certstore.data() );
+        cert = findcert( certData, len, h->certstore.c_str() );
 
     if( cert )
     {
@@ -2400,7 +2395,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     MSSPIEHTRY;
 
     if( h->is.alpn )
-        return h->alpn.length() ? h->alpn.data() : NULL;
+        return h->alpn.length() ? h->alpn.c_str() : NULL;
 
     SecPkgContext_ApplicationProtocol alpn;
 
@@ -2426,7 +2421,7 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     }
 
     h->is.alpn = 1;
-    return h->alpn.length() ? h->alpn.data() : NULL;
+    return h->alpn.length() ? h->alpn.c_str() : NULL;
 
     MSSPIEHCATCH_HERRRET( NULL );
 }
@@ -2570,7 +2565,7 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
             PCCERT_CONTEXT IssuerCert;
             DWORD dwVerificationFlags = 0;
 
-            h->peercerts.push_back( std::string( (char *)cert->pbCertEncoded, cert->cbCertEncoded ) );
+            h->peercerts.push_back( std::vector<BYTE>( cert->pbCertEncoded, cert->pbCertEncoded + cert->cbCertEncoded ) );
 
             IssuerCert = is_cert_selfsigned( cert ) ? NULL : CertGetIssuerCertificateFromStore( h->peercert->hCertStore, cert, NULL, &dwVerificationFlags );
 
@@ -2603,7 +2598,7 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
 
     for( size_t i = 0; i < h->peercerts.size(); i++ )
     {
-        bufs[i] = h->peercerts[i].data();
+        bufs[i] = (const char *)h->peercerts[i].data();
         lens[i] = (int)h->peercerts[i].size();
     }
 
@@ -2640,7 +2635,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
                 for( DWORD i = 0; i < PeerChain->rgpChain[0]->cElement; i++ )
                 {
                     PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[i]->pCertContext;
-                    h->peerchain.push_back( std::string( (char *)cert->pbCertEncoded, cert->cbCertEncoded ) );
+                    h->peerchain.push_back( std::vector<BYTE>( cert->pbCertEncoded, cert->pbCertEncoded + cert->cbCertEncoded ) );
                 }
 
             CertFreeCertificateChain( PeerChain );
@@ -2669,7 +2664,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
     for( size_t i = 0; i < h->peerchain.size(); i++ )
     {
-        bufs[i] = h->peerchain[i].data();
+        bufs[i] = (const char *)h->peerchain[i].data();
         lens[i] = (int)h->peerchain[i].size();
     }
 
@@ -2753,7 +2748,7 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
             return 0;
 
         for( DWORD i = 0; i < issuerlist.cIssuers; i++ )
-            h->issuerlist.push_back( std::string( (char *)issuerlist.aIssuers[i].pbData, issuerlist.aIssuers[i].cbData ) );
+            h->issuerlist.push_back( std::vector<BYTE>( issuerlist.aIssuers[i].pbData, issuerlist.aIssuers[i].pbData + issuerlist.aIssuers[i].cbData ) );
 
         if( issuerlist.aIssuers )
         {
@@ -2784,7 +2779,7 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
     for( size_t i = 0; i < h->issuerlist.size(); i++ )
     {
-        bufs[i] = h->issuerlist[i].data();
+        bufs[i] = (const char *)h->issuerlist[i].data();
         lens[i] = (int)h->issuerlist[i].size();
     }
 
