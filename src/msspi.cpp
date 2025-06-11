@@ -2680,7 +2680,7 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
 static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
 {
-    const DWORD dwStrType = CERT_X500_NAME_STR | (quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG);
+    const DWORD dwStrType = (DWORD)( CERT_X500_NAME_STR | (quotes ? 0 : CERT_NAME_STR_NO_QUOTING_FLAG) );
     DWORD dwSize = CertNameToStrW(X509_ASN_ENCODING, name, dwStrType, NULL, 0);
     if(dwSize <= 1 )
     {
@@ -2697,7 +2697,7 @@ static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
     {
         return std::string();
     }
-    std::vector<char> c_str(size);
+    std::vector<char> c_str((size_t)size);
     size = WideCharToMultiByte(CP_UTF8, 0, &w_str[0], -1, &c_str[0], size, NULL, NULL);
     if (size == 0)
     {
@@ -3012,7 +3012,7 @@ static std::string to_string( LPCWSTR w_str )
     {
         return std::string();
     }
-    std::vector<char> c_str(size);
+    std::vector<char> c_str((size_t)size);
     size = WideCharToMultiByte(CP_UTF8, 0, w_str, -1, &c_str[0], size, NULL, NULL);
     if (size == 0)
     {
