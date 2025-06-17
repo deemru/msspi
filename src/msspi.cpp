@@ -60,6 +60,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <limits.h>
 #define SECURITY_WIN32
 #ifdef _WIN32
 #ifdef __MINGW32__
