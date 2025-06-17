@@ -1708,7 +1708,7 @@ char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, size_t len )
 }
 
 #define C2B_IS_SKIP( c ) ( c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ':' )
-#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (char)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (char)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (char)( c - 'A' + 10 ) : -1 ) ) )
+#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (char)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (char)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (char)( c - 'A' + 10 ) : CHAR_MAX ) ) )
 
 static int str2bin( const char * str, char * bin )
 {
@@ -1725,7 +1725,7 @@ static int str2bin( const char * str, char * bin )
 
         v = C2B_VALUE( c );
 
-        if( v == -1 )
+        if( v == CHAR_MAX )
             return -1;
 
         if( !is_filled )
@@ -1832,7 +1832,7 @@ char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
 
         c = C2B_VALUE( c );
 
-        if( c == -1 )
+        if( c == CHAR_MAX )
             break;
 
         cipher = ( cipher << 4 ) | c;
