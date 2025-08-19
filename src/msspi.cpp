@@ -1308,6 +1308,15 @@ int msspi_accept( MSSPI_HANDLE h )
                     InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->peeraddr.size();
                     InBuffers[InBuffer.cBuffers].BufferType = SECBUFFER_EXTRA;
                     InBuffer.cBuffers++;
+
+                    if( h->dtls_mtu )
+                    {
+                        secDtlsMtu = (unsigned short)h->dtls_mtu;
+                        InBuffers[InBuffer.cBuffers].pvBuffer = &secDtlsMtu;
+                        InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)sizeof( secDtlsMtu );
+                        InBuffers[InBuffer.cBuffers].BufferType = 0x18; /* SECBUFFER_DTLS_MTU */
+                        InBuffer.cBuffers++;
+                    }
                 }
 
                 if( !h->is_ctx() )
@@ -1318,14 +1327,6 @@ int msspi_accept( MSSPI_HANDLE h )
                         InBuffers[InBuffer.cBuffers].pvBuffer = alpn_holder.data();
                         InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)alpn_holder.size();
                         InBuffers[InBuffer.cBuffers].BufferType = SECBUFFER_APPLICATION_PROTOCOLS;
-                        InBuffer.cBuffers++;
-                    }
-                    if( h->is.dtls && h->dtls_mtu )
-                    {
-                        secDtlsMtu = (unsigned short)h->dtls_mtu;
-                        InBuffers[InBuffer.cBuffers].pvBuffer = &secDtlsMtu;
-                        InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)sizeof( secDtlsMtu );
-                        InBuffers[InBuffer.cBuffers].BufferType = 0x18; /* SECBUFFER_DTLS_MTU */
                         InBuffer.cBuffers++;
                     }
                 }
