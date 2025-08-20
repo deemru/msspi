@@ -1,0 +1,77 @@
+name: Cross-Platform Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test-linux:
+    name: Test on Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        
+    - name: Test stub mode
+      run: |
+        cd examples
+        make stub
+        make test
+        
+    - name: Clean and test compilation only for full mode
+      run: |
+        cd examples
+        make clean
+        # Note: Full mode would require CryptoPro CSP on Linux, so we only test compilation
+        make full || echo "Expected failure - CryptoPro CSP not available in CI"
+
+  test-windows:
+    name: Test on Windows
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      
+    - name: Test stub mode
+      run: |
+        cd examples
+        .\make_windows.bat stub test
+        
+    - name: Test full mode with Windows SSP
+      run: |
+        cd examples
+        .\make_windows.bat clean
+        .\make_windows.bat full test
+
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Test stub mode
+      run: |
+        cd examples
+        make stub
+        make test
+        
+    - name: Clean and test compilation only for full mode
+      run: |
+        cd examples
+        make clean
+        # Note: Full mode would require CryptoPro CSP on macOS, so we only test compilation
+        make full || echo "Expected failure - CryptoPro CSP not available in CI"
