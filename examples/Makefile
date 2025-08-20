@@ -1,4 +1,9 @@
 # Makefile for MSSPI Examples
+# 
+# For Windows builds, use make_windows.bat instead:
+#   make_windows.bat stub      - Build with stub implementation
+#   make_windows.bat full      - Build with Windows SSP interface  
+#   make_windows.bat stub test - Build and test with stub
 
 CC = gcc
 CXX = g++
@@ -128,7 +133,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all       - Build the example application (default: stub mode)"
 	@echo "  stub      - Build with stub implementation (for testing/demo)"
-	@echo "  full      - Build with real MSSPI library (requires CryptoPro CSP)"
+	@echo "  full      - Build with real MSSPI library (requires CryptoPro CSP on Linux)"
 	@echo "  lib       - Build the MSSPI library (full mode only)"
 	@echo "  test      - Run both TLS and DTLS tests"
 	@echo "  test-tls  - Run TLS client/server test"
@@ -138,9 +143,18 @@ help:
 	@echo ""
 	@echo "Build modes:"
 	@echo "  stub - Uses stub implementation, no external dependencies"
-	@echo "  full - Uses real MSSPI library, requires CryptoPro CSP"
+	@echo "  full - Uses real MSSPI library (CryptoPro CSP on Linux, Windows SSP on Windows)"
 	@echo ""
-	@echo "Examples:"
+	@echo "Platform support:"
+	@echo "  Linux/macOS - Use this Makefile"
+	@echo "  Windows     - Use make_windows.bat instead"
+	@echo ""
+	@echo "Windows examples:"
+	@echo "  make_windows.bat stub      # Build with stub implementation"
+	@echo "  make_windows.bat full      # Build with Windows SSP interface"
+	@echo "  make_windows.bat stub test # Build and test with stub"
+	@echo ""
+	@echo "Unix examples:"
 	@echo "  make BUILD_MODE=stub    # Build with stub (default)"
 	@echo "  make BUILD_MODE=full    # Build with real library"
 	@echo ""

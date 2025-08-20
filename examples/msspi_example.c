@@ -10,19 +10,38 @@
  * DTLS Client:  ./example --client --dtls --host localhost --port 4434
  */
 
-#define _GNU_SOURCE
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <signal.h>
+    #include <time.h>
+    #pragma comment(lib, "ws2_32.lib")
+    
+    #define close closesocket
+    #define ssize_t int
+    #define socklen_t int
+    
+    // Windows doesn't have these standard POSIX functions
+    static void sleep(int seconds) {
+        Sleep(seconds * 1000);
+    }
+#else
+    #define _GNU_SOURCE
+    #include <unistd.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <signal.h>
+    #include <errno.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <errno.h>
 #include <time.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 
 #include "../src/msspi.h"
 
@@ -66,10 +85,18 @@ static int socket_read_cb(void *cb_arg, void *buf, int len) {
     }
     
     if (result < 0) {
+#ifdef _WIN32
+        int err = WSAGetLastError();
+        if (err == WSAEWOULDBLOCK) {
+            return -1; // Would block, try again later
+        }
+        fprintf(stderr, "socket read error: %d\n", err);
+#else
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             return -1; // Would block, try again later
         }
         perror("socket read error");
+#endif
         return -1;
     }
     
@@ -95,10 +122,18 @@ static int socket_write_cb(void *cb_arg, const void *buf, int len) {
     }
     
     if (result < 0) {
+#ifdef _WIN32
+        int err = WSAGetLastError();
+        if (err == WSAEWOULDBLOCK) {
+            return -1; // Would block, try again later
+        }
+        fprintf(stderr, "socket write error: %d\n", err);
+#else
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             return -1; // Would block, try again later
         }
         perror("socket write error");
+#endif
         return -1;
     }
     
@@ -117,13 +152,22 @@ static int create_socket(app_context_t *ctx) {
     // Create socket
     sock_fd = socket(AF_INET, ctx->is_dtls ? SOCK_DGRAM : SOCK_STREAM, 0);
     if (sock_fd < 0) {
+#ifdef _WIN32
+        fprintf(stderr, "socket creation failed: %d\n", WSAGetLastError());
+#else
         perror("socket creation failed");
+#endif
         return -1;
     }
     
     // Set socket options
+#ifdef _WIN32
+    if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt)) < 0) {
+        fprintf(stderr, "setsockopt SO_REUSEADDR failed: %d\n", WSAGetLastError());
+#else
     if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt SO_REUSEADDR failed");
+#endif
         close(sock_fd);
         return -1;
     }
@@ -370,6 +414,16 @@ static void print_usage(const char *program_name) {
 }
 
 int main(int argc, char *argv[]) {
+#ifdef _WIN32
+    // Initialize Winsock on Windows
+    WSADATA wsaData;
+    int wsa_result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (wsa_result != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", wsa_result);
+        return 1;
+    }
+#endif
+
     app_context_t ctx = {
         .is_client = 1,     // Default to client
         .is_dtls = 0,       // Default to TLS
@@ -435,6 +489,10 @@ int main(int argc, char *argv[]) {
     if (ctx.socket_fd >= 0) {
         close(ctx.socket_fd);
     }
+    
+#ifdef _WIN32
+    WSACleanup();
+#endif
     
     return result == 0 ? 0 : 1;
 }

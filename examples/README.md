@@ -4,16 +4,19 @@ This directory contains example applications demonstrating how to use the MSSPI 
 
 ## Files
 
-- `msspi_example.c` - Combined TLS/DTLS client/server example application
+- `msspi_example.c` - Combined TLS/DTLS client/server example application  
 - `msspi_stub.c` - Stub implementation of MSSPI for testing/demonstration
-- `Makefile` - Build configuration for the examples
+- `Makefile` - Build configuration for Unix-like systems (Linux/macOS)
+- `make_windows.bat` - Build script for Windows systems
 - `README.md` - This file
 
 ## Building
 
-The examples can be built in two modes:
+The examples can be built in two modes on different platforms:
 
-### Stub Mode (Default, for Testing/Demo)
+### Linux/macOS
+
+#### Stub Mode (Default, for Testing/Demo)
 ```bash
 cd examples
 make stub
@@ -21,15 +24,33 @@ make stub
 make
 ```
 
-This builds with a stub implementation that demonstrates the API usage patterns without requiring the full CryptoPro CSP environment.
+This builds with a stub implementation that demonstrates the API usage patterns without requiring external dependencies.
 
-### Full Mode (Requires CryptoPro CSP)
+#### Full Mode (Requires CryptoPro CSP)
 ```bash
-cd examples
+cd examples  
 make full
 ```
 
 This builds with the real MSSPI library, but requires a properly installed CryptoPro CSP environment.
+
+### Windows
+
+#### Stub Mode (Default, for Testing/Demo) 
+```cmd
+cd examples
+make_windows.bat stub
+```
+
+This builds with a stub implementation that works without external dependencies.
+
+#### Full Mode (Uses Windows Built-in SSP Interface)
+```cmd
+cd examples
+make_windows.bat full
+```
+
+This builds with the real MSSPI library using Windows' built-in Schannel SSP interface. **No CryptoPro CSP required on Windows** - it uses the native Windows TLS/SSL implementation.
 
 ## Usage
 
@@ -37,22 +58,38 @@ The example application can operate in four modes:
 
 ### TLS Server
 ```bash
+# Linux/macOS
 ./build/msspi_example --server --tls --port 4433
+
+# Windows  
+build\msspi_example.exe --server --tls --port 4433
 ```
 
 ### TLS Client
 ```bash
+# Linux/macOS
 ./build/msspi_example --client --tls --host localhost --port 4433
+
+# Windows
+build\msspi_example.exe --client --tls --host localhost --port 4433
 ```
 
 ### DTLS Server
 ```bash
+# Linux/macOS
 ./build/msspi_example --server --dtls --port 4434
+
+# Windows
+build\msspi_example.exe --server --dtls --port 4434
 ```
 
 ### DTLS Client
 ```bash
+# Linux/macOS
 ./build/msspi_example --client --dtls --host localhost --port 4434
+
+# Windows
+build\msspi_example.exe --client --dtls --host localhost --port 4434
 ```
 
 ## Command Line Options
@@ -68,6 +105,8 @@ The example application can operate in four modes:
 
 ## Testing
 
+### Linux/macOS
+
 To run automated tests:
 
 ```bash
@@ -77,8 +116,26 @@ make test
 # Test only TLS
 make test-tls
 
-# Test only DTLS (note: may have issues in stub mode)
+# Test only DTLS
 make test-dtls
+```
+
+### Windows
+
+To run automated tests:
+
+```cmd
+# Test both TLS and DTLS (stub mode)
+make_windows.bat stub test
+
+# Test only TLS  
+make_windows.bat stub test-tls
+
+# Test only DTLS
+make_windows.bat stub test-dtls
+
+# Test with full Windows SSP interface
+make_windows.bat full test
 ```
 
 The test targets will automatically start a server in the background, run a client to connect to it, exchange messages, and then clean up.
@@ -87,12 +144,20 @@ The test targets will automatically start a server in the background, run a clie
 
 1. **Start TLS server** in one terminal:
    ```bash
+   # Linux/macOS
    ./build/msspi_example --server --tls --port 4433
+   
+   # Windows
+   build\msspi_example.exe --server --tls --port 4433
    ```
 
 2. **Connect with TLS client** in another terminal:
    ```bash
+   # Linux/macOS
    ./build/msspi_example --client --tls --host localhost --port 4433
+   
+   # Windows
+   build\msspi_example.exe --client --tls --host localhost --port 4433
    ```
 
 3. The client will connect, perform a TLS handshake, send a test message, receive an echo response, and disconnect.
