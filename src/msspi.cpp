@@ -146,6 +146,10 @@ static DWORD GetTickCount()
 #include "msspi.h"
 #include "WinCryptEx.h"
 
+#ifndef SEC_I_MESSAGE_FRAGMENT
+#define SEC_I_MESSAGE_FRAGMENT ((HRESULT)0x00090364L)
+#endif
+
 #ifdef MSSPI_USE_CAPIX
 #include "capix.hpp"
 #endif
