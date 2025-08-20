@@ -1,0 +1,37 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Build directories
+build_linux/*.o
+build_linux/*.a
+build_linux/*.so
+build_windows/*.obj
+build_windows/*.lib
+build_windows/*.dll
+build_windows/*.exe
+
+# Examples build output
+examples/build/
+examples/*.exe
+examples/tls_example
+examples/dtls_example
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
