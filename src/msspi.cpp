@@ -829,7 +829,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
     if( h->dec_len )
     {
-        if( buf == NULL )
+        if( buf == NULL || len <= 0 )
         {
             SetLastError( ERROR_BAD_ARGUMENTS );
             return 0;
@@ -885,12 +885,6 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( h->state & MSSPI_READING )
         {
-            if( len == 0 )
-            {
-                SetLastError( ERROR_BAD_ARGUMENTS );
-                return 0;
-            }
-
             int io = read_common( h );
             if( io <= 0 )
                 return io;
@@ -1141,10 +1135,7 @@ int msspi_pending( MSSPI_HANDLE h )
 {
     MSSPIEHTRY;
 
-    if( h->dec_len )
-        return h->dec_len;
-
-    return 0;
+    return h->dec_len;
 
     MSSPIEHCATCH_RET( 0 );
 }
@@ -1152,6 +1143,21 @@ int msspi_pending( MSSPI_HANDLE h )
 int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
 {
     MSSPIEHTRY;
+
+    if( !buf || len <= 0 )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
+        return 0;
+    }
+
+    if( h->dec_len == 0 )
+    {
+        int ret = msspi_read( h, NULL, 0 );
+        if ( ret < 0 )
+        {
+            return ret;
+        }
+    }
 
     if( h->dec_len )
     {
