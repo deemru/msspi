@@ -13957,6 +13957,93 @@
 /*-------------------------------------------------*/
 
 
+/*-------------------------------------------------*/
+/*                                                 */
+/*           Start of IPSec Error codes            */
+/*                                                 */
+/*                 13000 to 13999                  */
+/*-------------------------------------------------*/
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_AUTH_FAIL*/
+/**/
+/* MessageText:*/
+/**/
+/* IKE authentication credentials are unacceptable*/
+/**/
+#define ERROR_IPSEC_IKE_AUTH_FAIL        13801L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_SA_DELETED*/
+/**/
+/* MessageText:*/
+/**/
+/* IKE SA deleted by peer before establishment completed*/
+/**/
+#define ERROR_IPSEC_IKE_SA_DELETED       13807L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_SA_REAPED*/
+/**/
+/* MessageText:*/
+/**/
+/* IKE SA deleted before establishment completed*/
+//
+#define ERROR_IPSEC_IKE_SA_REAPED        13808L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_INVALID_KEY_USAGE*/
+/**/
+/* MessageText:*/
+/**/
+/* Invalid certificate key usage*/
+/**/
+#define ERROR_IPSEC_IKE_INVALID_KEY_USAGE 13818L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_CRITICAL_PAYLOAD_NOT_RECOGNIZED*/
+/**/
+/* MessageText:*/
+/**/
+/*  Don't know how to process critical payload.*/
+/**/
+#define ERROR_IPSEC_IKE_CRITICAL_PAYLOAD_NOT_RECOGNIZED 13823L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_PROCESS_ERR_KE*/
+/**/
+/* MessageText:*/
+/**/
+/* Error processing KE payload*/
+/**/
+#define ERROR_IPSEC_IKE_PROCESS_ERR_KE   13833L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_BENIGN_REINIT*/
+/**/
+/* MessageText:*/
+/**/
+/*  Temporary state created to perform reinitialization. This is not a real failure.*/
+/**/
+#define ERROR_IPSEC_IKE_BENIGN_REINIT    13878L
+
+/**/
+/* MessageId: ERROR_IPSEC_IKE_MM_EXPIRED*/
+/**/
+/* MessageText:*/
+/**/
+/*  Main mode SA lifetime expired or peer sent a main mode delete.*/
+/**/
+#define ERROR_IPSEC_IKE_MM_EXPIRED       13885L
+
+/*-------------------------------------------------*/
+/*                                                 */
+/*           End of IPSec Error codes              */
+/*                                                 */
+/*                 13000 to 13999                  */
+/*-------------------------------------------------*/
+
+
 /*----------------------------------*/
 /*                                  */
 /*     COM Error Codes              */
@@ -18920,6 +19007,15 @@
 #define SEC_I_NO_RENEGOTIATION           _HRESULT_TYPEDEF_(0x00090360L)
 
 //
+// MessageId: SEC_I_MESSAGE_FRAGMENT
+//
+// MessageText:
+//
+// The returned buffer is only a fragment of the message.  More fragments need to be returned.
+//
+#define SEC_I_MESSAGE_FRAGMENT           _HRESULT_TYPEDEF_(0x00090364L)
+
+//
 // MessageId: SEC_E_APPLICATION_PROTOCOL_MISMATCH
 //
 // MessageText:
@@ -22320,6 +22416,14 @@
 #define ERROR_WINHTTP_SECURE_INVALID_CERT 12169
 #define ERROR_WINHTTP_SECURE_INVALID_CA 12045
 #define ERROR_WINHTTP_INVALID_SERVER_RESPONSE 12152
+#define ERROR_WINHTTP_INVALID_OPTION 12009
+#define ERROR_WINHTTP_OPTION_NOT_SETTABLE 12011
+#define ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED_PROXY 12187
+#define ERROR_WINHTTP_INVALID_HEADER 12153
+#define ERROR_WINHTTP_INVALID_QUERY_REQUEST 12154
+#define ERROR_WINHTTP_SECURE_FAILURE_PROXY 12188
+#define ERROR_WINHTTP_SHUTDOWN 12012
+#define ERROR_WINHTTP_OPERATION_CANCELLED 12017
 
 //
 //// MessageId: NS_E_CURL_INVALIDSCHEME
