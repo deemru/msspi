@@ -829,7 +829,11 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
     if( h->dec_len )
     {
-        if( buf == NULL || len <= 0 )
+        if( len == 0 )
+        {
+            return 0;
+        }
+        if( buf == NULL || len < 0 )
         {
             SetLastError( ERROR_BAD_ARGUMENTS );
             return 0;
@@ -1144,12 +1148,6 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
 {
     MSSPIEHTRY;
 
-    if( !buf || len <= 0 )
-    {
-        SetLastError( ERROR_BAD_ARGUMENTS );
-        return 0;
-    }
-
     if( h->dec_len == 0 )
     {
         int ret = msspi_read( h, NULL, 0 );
@@ -1161,6 +1159,16 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
 
     if( h->dec_len )
     {
+        if( len == 0 )
+        {
+            return 0;
+        }
+        if( !buf || len < 0 )
+        {
+            SetLastError( ERROR_BAD_ARGUMENTS );
+            return 0;
+        }
+
         if( len > h->dec_len )
             len = h->dec_len;
 
