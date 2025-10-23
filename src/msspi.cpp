@@ -36,7 +36,7 @@ extern "C" {
 #define MSSPIEHCATCH_HERRRET( ret )
 #define MSSPIEHCATCH_RET( ret )
 #define MSSPIEHCATCH_0 MSSPIEHCATCH
-#else // EXCEPTIONS
+#else // no EXCEPTIONS
 #define MSSPIEHTRY try {
 #define MSSPIEHCATCH } catch( ... ) {
 #define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; SetLastError( ERROR_INTERNAL_ERROR ); return ret; }
@@ -69,11 +69,11 @@ extern "C" {
 #include "CSP_Sspi.h"
 #include "CSP_SChannel.h"
 #define UNIX
-#else
+#else // not __MINGW32__
 #include <schannel.h>
 #include <sspi.h>
-#endif
-#else
+#endif // __MINGW32__
+#else // not _WIN32
 #define LEGACY_FORMAT_MESSAGE_IMPL
 #include "CSP_WinDef.h"
 #include "CSP_WinCrypt.h"
@@ -602,7 +602,7 @@ static char credentials_acquire( MSSPI_HANDLE h )
 
     SECURITY_STATUS scRet;
     EXTERCALL( scRet = sspi->AcquireCredentialsHandleA( NULL, (char *)h->credprovider.c_str(), usage, NULL, &SchannelCred, NULL, NULL, &hCred, &tsExpiry ) );
-    msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)h->cert, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
+    msspi_logger_info( "AcquireCredentialsHandle( cert = %016llX ) returned %08X, hCred = %016llX:%016llX ", (uint64_t)(uintptr_t)SchannelCred.paCred, (uint32_t)scRet, (uint64_t)hCred.dwUpper, (uint64_t)hCred.dwLower );
 
     if( scRet != SEC_E_OK )
     {
@@ -2663,10 +2663,15 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
         }
 
         SECURITY_STATUS scRet;
+#ifdef _WIN32
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CHAIN, (PVOID)&h->peercert ) );
+
+        msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CHAIN ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
+#else // not _WIN32
         EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_REMOTE_CERT_CONTEXT, (PVOID)&h->peercert ) );
 
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
-
+#endif // _WIN32
         if( scRet != SEC_E_OK )
             return 0;
 
