@@ -831,6 +831,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
     {
         if( len == 0 )
         {
+            SetLastError( ERROR_SUCCESS );
             return 0;
         }
         if( buf == NULL || len < 0 )
@@ -1161,6 +1162,7 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
     {
         if( len == 0 )
         {
+            SetLastError( ERROR_SUCCESS );
             return 0;
         }
         if( !buf || len < 0 )
@@ -1176,6 +1178,7 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
         return len;
     }
 
+    SetLastError( ERROR_SUCCESS );
     return 0;
 
     MSSPIEHCATCH_RET( 0 );
