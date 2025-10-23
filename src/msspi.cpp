@@ -341,12 +341,18 @@ static char msspi_init_sspi( void )
         hSecurity = (HMODULE)LIBLOAD( LIBSSP_NAME );
 
     if( hSecurity == NULL )
+    {
+        SetLastError( ERROR_MOD_NOT_FOUND );
         return 0;
+    }
 
     pInitSecurityInterface = (INIT_SECURITY_INTERFACE_A)LIBFUNC( hSecurity, "InitSecurityInterfaceA" );
 
     if( pInitSecurityInterface == NULL )
+    {
+        SetLastError( ERROR_PROC_NOT_FOUND );
         return 0;
+    }
 
 #endif
 
@@ -355,7 +361,10 @@ static char msspi_init_sspi( void )
     msspi_logger_info( "InitSecurityInterface = %016llX", (uint64_t)(uintptr_t)sspi );
 
     if( sspi == NULL )
+    {
+        SetLastError( ERROR_INTERNAL_ERROR );
         return 0;
+    }
 
     return 1;
 }
@@ -418,14 +427,14 @@ struct MSSPI_VerifyProvider
     {
         if( Init() && CryptGenRandom( hProv, dw, pb ) )
             return 1;
-        return 0;
+        return 0; // last error included
     }
 
     char Init()
     {
         if( hProv || CryptAcquireContextW( &hProv, NULL, NULL, PROV_GOST_2001_DH, CRYPT_VERIFYCONTEXT ) )
             return 1;
-        return 0;
+        return 0; // last error included
     }
 };
 
@@ -743,7 +752,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
             credprovider = UNISP_NAME_A;
 #endif
             if( !msspi_set_credprovider( h, credprovider ) )
-                return 0;
+                return 0; // last error included
         }
 
         if( credentials_acquire( h ) )
@@ -768,6 +777,7 @@ static int write_common( MSSPI_HANDLE h )
         if( io < 0 )
         {
             h->state |= MSSPI_LAST_PROC_WRITE | MSSPI_WRITING;
+            SetLastError( ERROR_SUCCESS );
             return io;
         }
 
@@ -808,7 +818,10 @@ static int read_common( MSSPI_HANDLE h )
     h->state &= ~MSSPI_LAST_PROC_WRITE;
 
     if( io < 0 )
+    {
+        SetLastError( ERROR_SUCCESS );
         return io;
+    }
 
     h->state &= ~MSSPI_READING;
 
@@ -1290,8 +1303,7 @@ int msspi_accept( MSSPI_HANDLE h )
                 if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
-                    // SetLastError inside credentials_api()
-                    return 0;
+                    return 0; // last error included
                 }
             }
 
@@ -1465,17 +1477,22 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
 
     h->is.cipherinfo = 0;
     if( !msspi_get_cipherinfo( h ) )
-        return 0;
+        return 0; // last error included
 
     h->peercerts.clear();
     if( !msspi_get_peercerts( h, NULL, NULL, NULL ) )
-        return 0;
-
+        return 0; // last error included
     if( memcmp( &old_cipherinfo, &h->cipherinfo, sizeof( SecPkgContext_CipherInfo ) ) != 0 )
+    {
+        SetLastError( ERROR_INVALID_DATA );
         return 0;
+    }
 
     if( old_peercerts != h->peercerts )
+    {
+        SetLastError( ERROR_INVALID_DATA );
         return 0;
+    }
 
     return 1;
 }
@@ -1540,7 +1557,10 @@ int msspi_connect( MSSPI_HANDLE h )
                 EXTERCALL( io = h->cert_cb( h->cb_arg ) );
 
                 if( io != 1 )
+                {
+                    SetLastError( ERROR_SUCCESS ); // not msspi error
                     return io;
+                }
 
                 h->state &= ~MSSPI_X509_LOOKUP;
 
@@ -1580,8 +1600,7 @@ int msspi_connect( MSSPI_HANDLE h )
                 if( !credentials_api( h ) )
                 {
                     h->state |= MSSPI_ERROR;
-                    // SetLastError inside credentials_api()
-                    return 0;
+                    return 0; // last error included
                 }
             }
 
@@ -1762,10 +1781,13 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
     MSSPIEHTRY;
 
     if( !msspi_init_sspi() )
-        return NULL;
+        return NULL; // last error included
 
     if( !read_cb || !write_cb )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return NULL;
+    }
 
     return new MSSPI( cb_arg, read_cb, write_cb );
 
@@ -2511,7 +2533,10 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_CIPHER_INFO ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
     if( scRet != SEC_E_OK )
+    {
+        SetLastError( (DWORD)scRet );
         return NULL;
+    }
 
     h->is.cipherinfo = 1;
     return &h->cipherinfo;
@@ -2535,7 +2560,10 @@ const char * msspi_get_alpn( MSSPI_HANDLE h )
     msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
     if( scRet != SEC_E_OK )
+    {
+        SetLastError( (DWORD)scRet );
         return NULL;
+    }
 
     if( alpn.ProtoNegoStatus == SecApplicationProtocolNegotiationStatus_Success &&
         alpn.ProtoNegoExt == SecApplicationProtocolNegotiationExt_ALPN &&
@@ -2599,13 +2627,15 @@ char msspi_is_version_supported( int version )
 {
     MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
     if( !h )
-        return 0;
+        return 0; // last error included
 
     msspi_set_client( h );
     msspi_set_version( h, version, version );
     char supported = h->grbitEnabledProtocols == 0 ? 0 : credentials_api( h );
     msspi_close( h );
 
+    if( !supported )
+        SetLastError( ERROR_NOT_SUPPORTED );
     return supported;
 }
 
@@ -2613,7 +2643,7 @@ char msspi_is_cipher_supported( int cipher )
 {
     MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
     if( !h )
-        return 0;
+        return 0; // last error included
 
     msspi_set_client( h );
     msspi_set_version( h, TLS1_VERSION, TLS1_3_VERSION );
@@ -2621,6 +2651,8 @@ char msspi_is_cipher_supported( int cipher )
     char supported = credentials_api( h );
     msspi_close( h );
 
+    if( !supported )
+        SetLastError( ERROR_NOT_SUPPORTED );
     return supported;
 }
 
@@ -2636,7 +2668,10 @@ char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
         cert = h->cred->certs[0];
 
     if( !cert )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = (char *)cert->pbCertEncoded;
     *len = (int)cert->cbCertEncoded;
@@ -2690,7 +2725,10 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_REMOTE_CERT_CONTEXT ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 #endif // _WIN32
         if( scRet != SEC_E_OK )
+        {
+            SetLastError( (DWORD)scRet );
             return 0;
+        }
 
         PCCERT_CONTEXT cert;
 
@@ -2711,13 +2749,19 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     }
 
     if( !h->peercerts.size() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     if( !count && !bufs )
         return 1;
 
     if( !count )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return 0;
+    }
 
     if( !bufs )
     {
@@ -2726,7 +2770,10 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
     }
 
     if( *count < h->peercerts.size() )
+    {
+        SetLastError( ERROR_MORE_DATA );
         return 0;
+    }
 
     *count = h->peercerts.size();
 
@@ -2747,8 +2794,14 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
     if( !h->peerchain.size() )
     {
-        if( ( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) ) || !h->peercert )
+        if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+            return 0; // last error included
+        
+        if( !h->peercert )
+        {
+            SetLastError( ERROR_NOT_FOUND );
             return 0;
+        }
 
         PCCERT_CHAIN_CONTEXT PeerChain;
         CERT_CHAIN_PARA ChainPara;
@@ -2777,13 +2830,19 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
     }
 
     if( !h->peerchain.size() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     if( !count && !bufs )
         return 1;
 
     if( !count )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return 0;
+    }
 
     if( !bufs )
     {
@@ -2792,7 +2851,10 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
     }
 
     if( *count < h->peerchain.size() )
+    {
+        SetLastError( ERROR_MORE_DATA );
         return 0;
+    }
 
     *count = h->peerchain.size();
 
@@ -2839,7 +2901,10 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
     MSSPIEHTRY;
 
     if( !h->peercert )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     if( !h->is.names )
     {
@@ -2879,7 +2944,10 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
         msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_ISSUER_LIST_EX ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
 
         if( scRet != SEC_E_OK )
+        {
+            SetLastError( (DWORD)scRet );
             return 0;
+        }
 
         for( DWORD i = 0; i < issuerlist.cIssuers; i++ )
             h->issuerlist.push_back( std::vector<BYTE>( issuerlist.aIssuers[i].pbData, issuerlist.aIssuers[i].pbData + issuerlist.aIssuers[i].cbData ) );
@@ -2892,13 +2960,19 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     }
 
     if( !h->issuerlist.size() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     if( !count && !bufs )
         return 1;
 
     if( !count )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return 0;
+    }
 
     if( !bufs )
     {
@@ -2907,7 +2981,10 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
     }
 
     if( *count < h->issuerlist.size() )
+    {
+        SetLastError( ERROR_MORE_DATA );
         return 0;
+    }
 
     *count = h->issuerlist.size();
 
@@ -2924,8 +3001,14 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
 static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 {
-    if( ( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) ) || !h->peercert )
+    if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+        return MSSPI_VERIFY_ERROR; // last error included
+    
+    if( !h->peercert )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return MSSPI_VERIFY_ERROR;
+    }
 
     int32_t result = MSSPI_VERIFY_ERROR;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
@@ -3201,7 +3284,10 @@ MSSPI_CERT_HANDLE msspi_cert_open( const char * certbuf, size_t len )
     PCCERT_CONTEXT cert = NULL;
 
     if( !len )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
         return NULL;
+    }
 
     cert = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)certbuf, (DWORD)len );
     if( !cert )
@@ -3216,7 +3302,7 @@ MSSPI_CERT_HANDLE msspi_cert_open( const char * certbuf, size_t len )
         }
 
         if( !cert )
-            return NULL;
+            return NULL; // last error included
     }
 
     return new MSSPI_CERT( cert );
@@ -3275,7 +3361,10 @@ char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, 
     ch->subject = certname( &ch->cert->pCertInfo->Subject, quotes != 0 ).c_str();
     // cppcheck-suppress danglingTemporaryLifetime
     if( !ch->subject.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->subject.c_str();
     *len = ch->subject.length();
@@ -3291,7 +3380,10 @@ char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, c
     ch->issuer = certname( &ch->cert->pCertInfo->Issuer, quotes != 0 ).c_str();
     // cppcheck-suppress danglingTemporaryLifetime
     if( !ch->issuer.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->issuer.c_str();
     *len = ch->issuer.length();
@@ -3305,11 +3397,17 @@ char msspi_cert_serial( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
     MSSPIEHTRY;
 
     if( !ch->cert->pCertInfo->SerialNumber.pbData || !ch->cert->pCertInfo->SerialNumber.cbData )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     ch->serial = to_hex_string( ch->cert->pCertInfo->SerialNumber.pbData, ch->cert->pCertInfo->SerialNumber.cbData );
     if( !ch->serial.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->serial.c_str();
     *len = ch->serial.length();
@@ -3324,11 +3422,17 @@ char msspi_cert_keyid( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
 
     std::vector<BYTE> prop = certprop( ch->cert, CERT_KEY_IDENTIFIER_PROP_ID );
     if( !prop.size() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     ch->keyid = to_hex_string( prop.data(), prop.size() );
     if( !ch->keyid.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->keyid.c_str();
     *len = ch->keyid.length();
@@ -3343,11 +3447,17 @@ char msspi_cert_sha1( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
 
     std::vector<BYTE> prop = certprop( ch->cert, CERT_SHA1_HASH_PROP_ID );
     if( !prop.size() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     ch->sha1 = to_hex_string( prop.data(), prop.size() );
     if( !ch->sha1.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->sha1.c_str();
     *len = ch->sha1.length();
@@ -3361,11 +3471,17 @@ char msspi_cert_alg_sig( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
     MSSPIEHTRY;
 
     if( !ch->cert->pCertInfo->SignatureAlgorithm.pszObjId )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     ch->alg_sig = algstr( ch->cert->pCertInfo->SignatureAlgorithm.pszObjId );
     if( !ch->alg_sig.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     *buf = ch->alg_sig.c_str();
     *len = ch->alg_sig.length();
@@ -3379,11 +3495,17 @@ char msspi_cert_alg_key( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
     MSSPIEHTRY;
 
     if( !ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     ch->alg_key = algstr( ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId );
     if( !ch->alg_key.length() )
+    {
+        SetLastError( ERROR_NOT_FOUND );
         return 0;
+    }
 
     std::string bitlen = alglenstr( &ch->cert->pCertInfo->SubjectPublicKeyInfo );
     if( bitlen.length() > 0 )
@@ -3402,7 +3524,7 @@ char msspi_cert_time_issued( MSSPI_CERT_HANDLE ch, struct tm * time )
 
     SYSTEMTIME stime;
     if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotBefore, &stime ) )
-        return 0;
+        return 0; // last error included
 
     time->tm_year = stime.wYear;
     time->tm_mon = stime.wMonth;
@@ -3425,7 +3547,7 @@ char msspi_cert_time_expired( MSSPI_CERT_HANDLE ch, struct tm * time )
 
     SYSTEMTIME stime;
     if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotAfter, &stime ) )
-        return 0;
+        return 0; // last error included
 
     time->tm_year = stime.wYear;
     time->tm_mon = stime.wMonth;
