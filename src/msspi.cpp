@@ -15,19 +15,15 @@
 #include <Windows.h>
 #endif
 
-#if defined( __cplusplus )
-extern "C" {
-#endif
 #ifdef _WIN32
 #define LIBLOAD( name ) LoadLibraryA( name )
 #define LIBFUNC( lib, name ) (void *)GetProcAddress( (HMODULE)lib, name )
 #else
+extern "C" {
 #include <dlfcn.h>
+}
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
 #define LIBFUNC( lib, name ) dlsym( lib, name )
-#endif
-#if defined( __cplusplus )
-}
 #endif
 
 #define CHECK_HANDLE( h ) if( !h || h->magic != MSSPI_MAGIC_VERSION ){ SetLastError( ERROR_INVALID_HANDLE ); return 0; }
