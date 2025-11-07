@@ -458,10 +458,11 @@ typedef unsigned int bufsize_t;
 
 #define MSSPI_MAGIC 0x4D535350 // MSSP
 #define MSSPI_MAGIC_VERSION ( MSSPI_MAGIC ^ MSSPI_VERSION )
+#define MSSPI_MAGIC_DEAD ( 0xDEADBEEF )
 
 struct MSSPI
 {
-    const uint32_t magic = MSSPI_MAGIC_VERSION;
+    volatile uint32_t magic = MSSPI_MAGIC_VERSION;
 
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
     {
@@ -514,6 +515,8 @@ struct MSSPI
 
         if( peercert )
             CertFreeCertificateContext( peercert );
+
+        magic = MSSPI_MAGIC_DEAD;
     }
 
     struct
@@ -3342,10 +3345,11 @@ static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 
 #define MSSPI_CERT_MAGIC 0x4D434552 // MCER
 #define MSSPI_CERT_MAGIC_VERSION ( MSSPI_CERT_MAGIC ^ MSSPI_VERSION )
+#define MSSPI_CERT_MAGIC_DEAD ( 0xDEAD2BAD )
 
 struct MSSPI_CERT
 {
-    const uint32_t magic = MSSPI_CERT_MAGIC_VERSION;
+    volatile uint32_t magic = MSSPI_CERT_MAGIC_VERSION;
 
     PCCERT_CONTEXT cert;
     std::string subject;
@@ -3365,6 +3369,8 @@ struct MSSPI_CERT
     {
         if( cert )
             CertFreeCertificateContext( cert );
+
+        magic = MSSPI_CERT_MAGIC_DEAD;
     }
 };
 
