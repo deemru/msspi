@@ -501,6 +501,8 @@ struct MSSPI
 
     ~MSSPI()
     {
+        magic = MSSPI_MAGIC_DEAD;
+
         if( cred )
             credentials_release( this );
 
@@ -515,8 +517,6 @@ struct MSSPI
 
         if( peercert )
             CertFreeCertificateContext( peercert );
-
-        magic = MSSPI_MAGIC_DEAD;
     }
 
     struct
@@ -3367,10 +3367,10 @@ struct MSSPI_CERT
 
     ~MSSPI_CERT()
     {
+        magic = MSSPI_CERT_MAGIC_DEAD;
+
         if( cert )
             CertFreeCertificateContext( cert );
-
-        magic = MSSPI_CERT_MAGIC_DEAD;
     }
 };
 
