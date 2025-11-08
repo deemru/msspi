@@ -458,7 +458,7 @@ typedef unsigned int bufsize_t;
 
 #define MSSPI_MAGIC 0x4D535350 // MSSP
 #define MSSPI_MAGIC_VERSION ( MSSPI_MAGIC ^ MSSPI_VERSION )
-#define MSSPI_MAGIC_DEAD ( 0xDEADBEEF )
+#define MSSPI_MAGIC_DEAD MSSPI_MAGIC
 
 struct MSSPI
 {
@@ -501,8 +501,6 @@ struct MSSPI
 
     ~MSSPI()
     {
-        magic = MSSPI_MAGIC_DEAD;
-
         if( cred )
             credentials_release( this );
 
@@ -517,6 +515,8 @@ struct MSSPI
 
         if( peercert )
             CertFreeCertificateContext( peercert );
+
+        magic = MSSPI_MAGIC_DEAD;
     }
 
     struct
@@ -1796,6 +1796,13 @@ int msspi_connect( MSSPI_HANDLE h )
     MSSPIEHCATCH_HRET( 0 );
 }
 
+static MSSPI_HANDLE msspi_handle( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY_h;
+    return h;
+    MSSPIEHCATCH_RET( NULL );
+}
+
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb write_cb )
 {
     MSSPIEHTRY_0;
@@ -1809,7 +1816,7 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
         return NULL;
     }
 
-    return new MSSPI( cb_arg, read_cb, write_cb );
+    return msspi_handle( new MSSPI( cb_arg, read_cb, write_cb ) );
 
     MSSPIEHCATCH_RET( NULL );
 }
@@ -3345,7 +3352,7 @@ static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 
 #define MSSPI_CERT_MAGIC 0x4D434552 // MCER
 #define MSSPI_CERT_MAGIC_VERSION ( MSSPI_CERT_MAGIC ^ MSSPI_VERSION )
-#define MSSPI_CERT_MAGIC_DEAD ( 0xDEAD2BAD )
+#define MSSPI_CERT_MAGIC_DEAD MSSPI_CERT_MAGIC
 
 struct MSSPI_CERT
 {
@@ -3367,12 +3374,19 @@ struct MSSPI_CERT
 
     ~MSSPI_CERT()
     {
-        magic = MSSPI_CERT_MAGIC_DEAD;
-
         if( cert )
             CertFreeCertificateContext( cert );
+
+        magic = MSSPI_CERT_MAGIC_DEAD;
     }
 };
+
+static MSSPI_CERT_HANDLE msspi_cert_handle( MSSPI_CERT_HANDLE ch )
+{
+    MSSPIEHTRY_ch;
+    return ch;
+    MSSPIEHCATCH_RET( NULL );
+}
 
 MSSPI_CERT_HANDLE msspi_cert_open( const uint8_t * certbuf, size_t len )
 {
@@ -3402,7 +3416,7 @@ MSSPI_CERT_HANDLE msspi_cert_open( const uint8_t * certbuf, size_t len )
             return NULL; // last error included
     }
 
-    return new MSSPI_CERT( cert );
+    return msspi_cert_handle( new MSSPI_CERT( cert ) );
 
     MSSPIEHCATCH_RET( NULL );
 }
