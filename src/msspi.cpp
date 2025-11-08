@@ -15,34 +15,39 @@
 #include <Windows.h>
 #endif
 
-#if defined( __cplusplus )
-extern "C" {
-#endif
 #ifdef _WIN32
 #define LIBLOAD( name ) LoadLibraryA( name )
 #define LIBFUNC( lib, name ) (void *)GetProcAddress( (HMODULE)lib, name )
 #else
+extern "C" {
 #include <dlfcn.h>
+}
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
 #define LIBFUNC( lib, name ) dlsym( lib, name )
 #endif
-#if defined( __cplusplus )
-}
+
+#if __cplusplus >= 201103L
+#define ALIGNOF( type ) alignof( type )
+#else
+namespace _detail { template< typename T > struct _alignof_trick { char _; T _test; }; }
+#define ALIGNOF( type ) offsetof( _detail::_alignof_trick< type >, _test )
 #endif
 
-#define CHECK_HANDLE( h ) if( !h || h->magic != MSSPI_MAGIC_VERSION ){ SetLastError( ERROR_INVALID_HANDLE ); return 0; }
+#define IS_ALIGNED_PTR( x, type ) ( !( (uintptr_t)( x ) % ALIGNOF( type ) ) )
+
+#define CHECK_HANDLE( h, type ) if( !h || !IS_ALIGNED_PTR( h, type ) || h->magic != MSSPI_MAGIC_VERSION ){ SetLastError( ERROR_INVALID_HANDLE ); return 0; }
 #if defined( QT_NO_EXCEPTIONS ) || defined( NO_EXCEPTIONS ) || ( defined( __clang__ ) && !defined( __EXCEPTIONS ) )
 #define MSSPIEHTRY_0
-#define MSSPIEHTRY_h CHECK_HANDLE( h )
-#define MSSPIEHTRY_ch CHECK_HANDLE( ch )
+#define MSSPIEHTRY_h CHECK_HANDLE( h, MSSPI_HANDLE )
+#define MSSPIEHTRY_ch CHECK_HANDLE( ch, MSSPI_CERT_HANDLE )
 #define MSSPIEHCATCH
 #define MSSPIEHCATCH_HRET( ret )
 #define MSSPIEHCATCH_RET( ret )
 #define MSSPIEHCATCH_0 MSSPIEHCATCH
 #else // no EXCEPTIONS
 #define MSSPIEHTRY_0 try {
-#define MSSPIEHTRY_h try { CHECK_HANDLE( h )
-#define MSSPIEHTRY_ch try { CHECK_HANDLE( ch )
+#define MSSPIEHTRY_h try { CHECK_HANDLE( h, MSSPI_HANDLE )
+#define MSSPIEHTRY_ch try { CHECK_HANDLE( ch, MSSPI_CERT_HANDLE )
 #define MSSPIEHCATCH } catch( ... ) {
 #define MSSPIEHCATCH_HRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; SetLastError( ERROR_INTERNAL_ERROR ); return ret; }
 #define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
@@ -453,10 +458,11 @@ typedef unsigned int bufsize_t;
 
 #define MSSPI_MAGIC 0x4D535350 // MSSP
 #define MSSPI_MAGIC_VERSION ( MSSPI_MAGIC ^ MSSPI_VERSION )
+#define MSSPI_MAGIC_DEAD MSSPI_MAGIC
 
 struct MSSPI
 {
-    const uint32_t magic = MSSPI_MAGIC_VERSION;
+    volatile uint32_t magic = MSSPI_MAGIC_VERSION;
 
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
     {
@@ -509,6 +515,8 @@ struct MSSPI
 
         if( peercert )
             CertFreeCertificateContext( peercert );
+
+        magic = MSSPI_MAGIC_DEAD;
     }
 
     struct
@@ -1788,6 +1796,13 @@ int msspi_connect( MSSPI_HANDLE h )
     MSSPIEHCATCH_HRET( 0 );
 }
 
+static MSSPI_HANDLE msspi_handle( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY_h;
+    return h;
+    MSSPIEHCATCH_RET( NULL );
+}
+
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb write_cb )
 {
     MSSPIEHTRY_0;
@@ -1801,7 +1816,7 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
         return NULL;
     }
 
-    return new MSSPI( cb_arg, read_cb, write_cb );
+    return msspi_handle( new MSSPI( cb_arg, read_cb, write_cb ) );
 
     MSSPIEHCATCH_RET( NULL );
 }
@@ -3337,10 +3352,11 @@ static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 
 #define MSSPI_CERT_MAGIC 0x4D434552 // MCER
 #define MSSPI_CERT_MAGIC_VERSION ( MSSPI_CERT_MAGIC ^ MSSPI_VERSION )
+#define MSSPI_CERT_MAGIC_DEAD MSSPI_CERT_MAGIC
 
 struct MSSPI_CERT
 {
-    const uint32_t magic = MSSPI_CERT_MAGIC_VERSION;
+    volatile uint32_t magic = MSSPI_CERT_MAGIC_VERSION;
 
     PCCERT_CONTEXT cert;
     std::string subject;
@@ -3360,8 +3376,17 @@ struct MSSPI_CERT
     {
         if( cert )
             CertFreeCertificateContext( cert );
+
+        magic = MSSPI_CERT_MAGIC_DEAD;
     }
 };
+
+static MSSPI_CERT_HANDLE msspi_cert_handle( MSSPI_CERT_HANDLE ch )
+{
+    MSSPIEHTRY_ch;
+    return ch;
+    MSSPIEHCATCH_RET( NULL );
+}
 
 MSSPI_CERT_HANDLE msspi_cert_open( const uint8_t * certbuf, size_t len )
 {
@@ -3391,7 +3416,7 @@ MSSPI_CERT_HANDLE msspi_cert_open( const uint8_t * certbuf, size_t len )
             return NULL; // last error included
     }
 
-    return new MSSPI_CERT( cert );
+    return msspi_cert_handle( new MSSPI_CERT( cert ) );
 
     MSSPIEHCATCH_RET( NULL );
 }
