@@ -11,7 +11,9 @@
 #   pragma warning( disable:5026 )
 #   pragma warning( disable:5027 )
 #   pragma warning( disable:4774 )
+#if _MSC_VER >= 1920
 #   pragma warning( disable:5220 )
+#endif
 #endif // __MINGW32__
 #include <Windows.h>
 #endif
