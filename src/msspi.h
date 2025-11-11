@@ -14,6 +14,10 @@
 #define MSSPI_MAKE_VERSION( major, minor, patch ) \
     ( ( ( major ) << 16 ) | ( ( minor ) << 8 ) | ( patch ) )
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t msspi_version( void );
 
 #define TLS1_VERSION    0x0301
@@ -63,9 +67,9 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len );
 int msspi_write( MSSPI_HANDLE h, const void * buf, int len );
 int msspi_shutdown( MSSPI_HANDLE h );
 
-int msspi_random( void * buf, int len, int strong );
+int msspi_random( void * buf, int len );
 
-#define MSSPI_OK    ( 0 )
+#define MSSPI_EMPTY ( 0 )
 #define MSSPI_ERROR ( 1 << 30 )
 
 #define MSSPI_READING ( 1 << 1 )
@@ -113,10 +117,6 @@ typedef struct _SecPkgContext_CipherInfo
 
 #endif /* SECPKGCONTEXT_CIPHERINFO_V1 */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int msspi_get_cipherinfo( MSSPI_HANDLE h, const SecPkgContext_CipherInfo ** cipherinfo );
 int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** version_str, size_t * version_str_len );
 int msspi_get_mycert( MSSPI_HANDLE h, const uint8_t ** cert, size_t * cert_len );
@@ -155,7 +155,7 @@ int msspi_verify_peer_in_store( MSSPI_HANDLE h, const uint8_t * store, size_t st
 
 int msspi_close( MSSPI_HANDLE h );
 
-#ifndef NO_MSSPI_CERT
+#ifdef MSSPI_USE_MSSPI_CERT
 
 typedef struct MSSPI_CERT * MSSPI_CERT_HANDLE;
 
@@ -174,7 +174,7 @@ int msspi_cert_time_expired( MSSPI_CERT_HANDLE ch, struct tm * time );
 
 int msspi_cert_close( MSSPI_CERT_HANDLE ch );
 
-#endif /* NO_MSSPI_CERT */
+#endif /* MSSPI_USE_MSSPI_CERT */
 
 #ifdef __cplusplus
 }
