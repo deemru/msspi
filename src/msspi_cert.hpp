@@ -45,6 +45,23 @@ static std::string algstr( LPSTR oid )
     return keyalg;
 }
 
+static std::string to_dec_string( uint32_t val )
+{
+    if( val == 0 )
+        return "0";
+
+    std::string str;
+
+    while( val )
+    {
+        char c = B2C( (char)( val % 10 ) );
+        str = c + str;
+        val /= 10;
+    }
+
+    return str;
+}
+
 static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 {
     std::string keylen;
@@ -62,7 +79,7 @@ static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
 
 struct MSSPI_CERT
 {
-    volatile uint32_t magic = MSSPI_CERT_MAGIC_VERSION;
+    volatile uint32_t magic;
 
     PCCERT_CONTEXT cert;
     std::string subject;
@@ -75,6 +92,7 @@ struct MSSPI_CERT
 
     MSSPI_CERT( PCCERT_CONTEXT certin )
     {
+        magic = MSSPI_CERT_MAGIC_VERSION;
         cert = certin;
     }
 
@@ -85,6 +103,10 @@ struct MSSPI_CERT
 
         magic = MSSPI_CERT_MAGIC_DEAD;
     }
+
+private:
+    MSSPI_CERT( const MSSPI_CERT & );
+    MSSPI_CERT & operator=( const MSSPI_CERT & );
 };
 
 static MSSPI_CERT_HANDLE msspi_cert_handle( MSSPI_CERT_HANDLE ch )

@@ -12,6 +12,9 @@ msspi.o:
 msspi-capix.o:
 	g++ -Wall -std=c++11 -g -O2 -fPIC -Werror -Wno-unused-function -I../third_party/cprocsp/include -DMSSPI_USE_CAPIX ../src/msspi.cpp -c -o msspi-capix.o
 
+msspi-cert.o:
+	g++ -Wall -std=c++11 -g -O2 -fPIC -Werror -Wno-unused-function -I../third_party/cprocsp/include -DMSSPI_USE_MSSPI_CERT ../src/msspi.cpp -c -o msspi-cert.o
+
 libmsspi.a: msspi.o
 	ar cr libmsspi.a msspi.o
 

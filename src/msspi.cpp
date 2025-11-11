@@ -11,6 +11,7 @@
 #   pragma warning( disable:5026 )
 #   pragma warning( disable:5027 )
 #   pragma warning( disable:4774 )
+#   pragma warning( disable:5220 )
 #endif // __MINGW32__
 #include <Windows.h>
 #endif
@@ -462,10 +463,11 @@ typedef unsigned int bufsize_t;
 
 struct MSSPI
 {
-    volatile uint32_t magic = MSSPI_MAGIC_VERSION;
+    volatile uint32_t magic;
 
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
     {
+        magic = MSSPI_MAGIC_VERSION;
         is.client = 0;
         is.connected = 0;
         is.peerauth = 0;
@@ -590,6 +592,10 @@ struct MSSPI
         sap->ProtocolLists[0].ProtocolListSize = (unsigned short)alpn.length();
         memcpy( sap->ProtocolLists[0].ProtocolList, alpn.c_str(), alpn.length() );
     }
+
+private:
+    MSSPI( const MSSPI & );
+    MSSPI & operator=( const MSSPI & );
 };
 
 static int credentials_acquire( MSSPI_HANDLE h )
@@ -663,23 +669,6 @@ static std::string to_hex_string( uint32_t val )
         uint8_t b = val & 0x0F;
         str[--i] = B2C( b );
         val >>= 4;
-    }
-
-    return str;
-}
-
-static std::string to_dec_string( uint32_t val )
-{
-    if( val == 0 )
-        return "0";
-
-    std::string str;
-
-    while( val )
-    {
-        char c = B2C( (char)( val % 10 ) );
-        str = c + str;
-        val /= 10;
     }
 
     return str;
@@ -1308,7 +1297,7 @@ int msspi_accept( MSSPI_HANDLE h )
             std::vector<BYTE> alpn_holder;
             unsigned short  secDtlsMtu; /* SEC_DTLS_MTU */
 
-            DWORD dwSSPIFlags =
+            DWORD dwSSPIFlags = (DWORD)
                 ASC_REQ_SEQUENCE_DETECT |
                 ASC_REQ_REPLAY_DETECT |
                 ASC_REQ_CONFIDENTIALITY |
@@ -1607,7 +1596,7 @@ int msspi_connect( MSSPI_HANDLE h )
             std::vector<BYTE> alpn_holder;
             unsigned short  secDtlsMtu; /* SEC_DTLS_MTU */
 
-            DWORD dwSSPIFlags =
+            DWORD dwSSPIFlags = (DWORD)
                 ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
@@ -1858,7 +1847,7 @@ int msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, size_t len )
 }
 
 #define C2B_IS_SKIP( c ) ( c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ':' )
-#define C2B_FAILED 0xFF
+#define C2B_FAILED ((BYTE)0xFF)
 #define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (BYTE)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (BYTE)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (BYTE)( c - 'A' + 10 ) : C2B_FAILED ) ) )
 
 static std::vector<BYTE> from_hex_string( const char * str, size_t len )
