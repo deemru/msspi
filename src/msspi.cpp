@@ -11,35 +11,48 @@
 #   pragma warning( disable:5026 )
 #   pragma warning( disable:5027 )
 #   pragma warning( disable:4774 )
+#if _MSC_VER >= 1920
+#   pragma warning( disable:5220 )
+#endif
 #endif // __MINGW32__
 #include <Windows.h>
 #endif
 
-#if defined( __cplusplus )
-extern "C" {
-#endif
 #ifdef _WIN32
 #define LIBLOAD( name ) LoadLibraryA( name )
 #define LIBFUNC( lib, name ) (void *)GetProcAddress( (HMODULE)lib, name )
 #else
+extern "C" {
 #include <dlfcn.h>
+}
 #define LIBLOAD( name ) dlopen( name, RTLD_LAZY )
 #define LIBFUNC( lib, name ) dlsym( lib, name )
 #endif
-#if defined( __cplusplus )
-}
+
+#if __cplusplus >= 201103L
+#define ALIGNOF( type ) alignof( type )
+#else
+namespace _detail { template< typename T > struct _alignof_trick { char _; T _test; }; }
+#define ALIGNOF( type ) offsetof( _detail::_alignof_trick< type >, _test )
 #endif
 
+#define IS_ALIGNED_PTR( x, type ) ( !( (uintptr_t)( x ) % ALIGNOF( type ) ) )
+
+#define CHECK_HANDLE( h, type ) if( !h || !IS_ALIGNED_PTR( h, type ) || h->magic != MSSPI_MAGIC_VERSION ){ SetLastError( ERROR_INVALID_HANDLE ); return 0; }
 #if defined( QT_NO_EXCEPTIONS ) || defined( NO_EXCEPTIONS ) || ( defined( __clang__ ) && !defined( __EXCEPTIONS ) )
-#define MSSPIEHTRY
+#define MSSPIEHTRY_0
+#define MSSPIEHTRY_h CHECK_HANDLE( h, MSSPI_HANDLE )
+#define MSSPIEHTRY_ch CHECK_HANDLE( ch, MSSPI_CERT_HANDLE )
 #define MSSPIEHCATCH
-#define MSSPIEHCATCH_HERRRET( ret )
+#define MSSPIEHCATCH_HRET( ret )
 #define MSSPIEHCATCH_RET( ret )
 #define MSSPIEHCATCH_0 MSSPIEHCATCH
 #else // no EXCEPTIONS
-#define MSSPIEHTRY try {
+#define MSSPIEHTRY_0 try {
+#define MSSPIEHTRY_h try { CHECK_HANDLE( h, MSSPI_HANDLE )
+#define MSSPIEHTRY_ch try { CHECK_HANDLE( ch, MSSPI_CERT_HANDLE )
 #define MSSPIEHCATCH } catch( ... ) {
-#define MSSPIEHCATCH_HERRRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; SetLastError( ERROR_INTERNAL_ERROR ); return ret; }
+#define MSSPIEHCATCH_HRET( ret ) MSSPIEHCATCH; h->state |= MSSPI_ERROR; SetLastError( ERROR_INTERNAL_ERROR ); return ret; }
 #define MSSPIEHCATCH_RET( ret ) MSSPIEHCATCH; return ret; }
 #define MSSPIEHCATCH_0 MSSPIEHCATCH; }
 #endif // EXCEPTIONS
@@ -311,13 +324,13 @@ static std_prefix::recursive_mutex & g_mtx = *( new std_prefix::recursive_mutex(
 struct MSSPI_CredCache;
 typedef std::map< std::string, MSSPI_CredCache * > CREDENTIALS_DB;
 static CREDENTIALS_DB & credentials_db = *( new CREDENTIALS_DB() );
-static char credentials_api( MSSPI_HANDLE h, bool just_find = false );
+static int credentials_api( MSSPI_HANDLE h, bool just_find = false );
 static void credentials_release( MSSPI_HANDLE h );
 
 // sspi
 static volatile PSecurityFunctionTableA sspi = NULL;
 
-static char msspi_init_sspi( void )
+static int msspi_init_sspi( void )
 {
     if( sspi ) // fast ret no-lock
         return 1;
@@ -423,14 +436,14 @@ struct MSSPI_VerifyProvider
             CryptReleaseContext( hProv, 0 );
     }
 
-    char Random( BYTE * pb, DWORD dw )
+    int Random( BYTE * pb, DWORD dw )
     {
         if( Init() && CryptGenRandom( hProv, dw, pb ) )
             return 1;
         return 0; // last error included
     }
 
-    char Init()
+    int Init()
     {
         if( hProv || CryptAcquireContextW( &hProv, NULL, NULL, PROV_GOST_2001_DH, CRYPT_VERIFYCONTEXT ) )
             return 1;
@@ -446,10 +459,17 @@ typedef unsigned long bufsize_t;
 typedef unsigned int bufsize_t;
 #endif
 
+#define MSSPI_MAGIC 0x4D535350 // MSSP
+#define MSSPI_MAGIC_VERSION ( MSSPI_MAGIC ^ MSSPI_VERSION )
+#define MSSPI_MAGIC_DEAD MSSPI_MAGIC
+
 struct MSSPI
 {
+    volatile uint32_t magic;
+
     MSSPI( void * arg, msspi_read_cb read, msspi_write_cb write )
     {
+        magic = MSSPI_MAGIC_VERSION;
         is.client = 0;
         is.connected = 0;
         is.peerauth = 0;
@@ -462,7 +482,7 @@ struct MSSPI
         is.verify_offline = 0;
         is.verify_revocation = 1;
         is.dtls = 0;
-        state = MSSPI_OK;
+        state = MSSPI_EMPTY;
         hCtx.dwLower = 0;
         hCtx.dwUpper = 0;
         cred = NULL;
@@ -499,6 +519,8 @@ struct MSSPI
 
         if( peercert )
             CertFreeCertificateContext( peercert );
+
+        magic = MSSPI_MAGIC_DEAD;
     }
 
     struct
@@ -547,9 +569,9 @@ struct MSSPI
     bufsize_t out_trl_max;
     int out_len;
     int out_saved_len;
-    char in_buf[SSPI_BUFFER_SIZE];
-    char dec_buf[SSPI_BUFFER_SIZE];
-    char out_buf[SSPI_BUFFER_SIZE];
+    BYTE in_buf[SSPI_BUFFER_SIZE];
+    BYTE dec_buf[SSPI_BUFFER_SIZE];
+    BYTE out_buf[SSPI_BUFFER_SIZE];
 
     void * cb_arg;
     msspi_read_cb read_cb;
@@ -572,9 +594,13 @@ struct MSSPI
         sap->ProtocolLists[0].ProtocolListSize = (unsigned short)alpn.length();
         memcpy( sap->ProtocolLists[0].ProtocolList, alpn.c_str(), alpn.length() );
     }
+
+private:
+    MSSPI( const MSSPI & );
+    MSSPI & operator=( const MSSPI & );
 };
 
-static char credentials_acquire( MSSPI_HANDLE h )
+static int credentials_acquire( MSSPI_HANDLE h )
 {
     CredHandle      hCred;
     TimeStamp       tsExpiry;
@@ -650,23 +676,6 @@ static std::string to_hex_string( uint32_t val )
     return str;
 }
 
-static std::string to_dec_string( uint32_t val )
-{
-    if( val == 0 )
-        return "0";
-
-    std::string str;
-
-    while( val )
-    {
-        char c = B2C( (char)( val % 10 ) );
-        str = c + str;
-        val /= 10;
-    }
-
-    return str;
-}
-
 static std::string credstring( MSSPI_HANDLE h )
 {
     std::string credstring;
@@ -688,7 +697,7 @@ static std::string credstring( MSSPI_HANDLE h )
     return credstring;
 }
 
-static char credentials_api( MSSPI_HANDLE h, bool just_find )
+static int credentials_api( MSSPI_HANDLE h, bool just_find )
 {
     CREDENTIALS_DB::iterator it;
     DWORD dwNow = GetTickCount();
@@ -739,7 +748,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
 
             // default (no detours)
             credprovider = DEFAULT_TLS_SSP_NAME_A;
-            if( msspi_set_credprovider( h, credprovider ) && credentials_acquire( h ) )
+            if( msspi_set_credprovider( h, (const uint8_t *)credprovider, strlen( credprovider ) ) && credentials_acquire( h ) )
             {
                 credentials_db.insert( it, CREDENTIALS_DB::value_type( h->credstring, h->cred ) );
                 return 1;
@@ -751,7 +760,7 @@ static char credentials_api( MSSPI_HANDLE h, bool just_find )
 #else
             credprovider = UNISP_NAME_A;
 #endif
-            if( !msspi_set_credprovider( h, credprovider ) )
+            if( !msspi_set_credprovider( h, (const uint8_t *)credprovider, strlen( credprovider ) ) )
                 return 0; // last error included
         }
 
@@ -838,7 +847,7 @@ static int read_common( MSSPI_HANDLE h )
 
 int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->dec_len )
     {
@@ -971,7 +980,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
                 if( returning > len )
                 {
-                    memcpy( h->dec_buf, (char *)Buffers[i].pvBuffer + len, (size_t)returning - len );
+                    memcpy( h->dec_buf, (BYTE *)Buffers[i].pvBuffer + len, (size_t)returning - len );
                     h->dec_len = returning - len;
                     returning = len;
                 }
@@ -1009,12 +1018,12 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         }
     }
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
@@ -1132,26 +1141,26 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
 
     return h->out_saved_len;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 int msspi_state( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     return h->state;
 
     MSSPIEHCATCH_RET( MSSPI_ERROR );
 }
 
-DWORD msspi_last_error()
+uint32_t msspi_last_error( void )
 {
-    return GetLastError();
+    return (uint32_t)GetLastError();
 }
 
 int msspi_pending( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     return h->dec_len;
 
@@ -1160,7 +1169,7 @@ int msspi_pending( MSSPI_HANDLE h )
 
 int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->dec_len == 0 )
     {
@@ -1199,7 +1208,7 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
 
 int msspi_shutdown( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
@@ -1244,12 +1253,12 @@ int msspi_shutdown( MSSPI_HANDLE h )
     SetLastError( ERROR_INTERNAL_ERROR );
     return 0;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 static void connected( MSSPI_HANDLE h )
 {
-    msspi_get_cipherinfo( h );
+    msspi_get_cipherinfo( h, NULL );
     msspi_get_peercerts( h, NULL, NULL, NULL );
     msspi_get_peernames( h, NULL, NULL, NULL, NULL );
     h->is.connected = 1;
@@ -1257,7 +1266,7 @@ static void connected( MSSPI_HANDLE h )
 
 int msspi_accept( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
@@ -1290,7 +1299,7 @@ int msspi_accept( MSSPI_HANDLE h )
             std::vector<BYTE> alpn_holder;
             unsigned short  secDtlsMtu; /* SEC_DTLS_MTU */
 
-            DWORD dwSSPIFlags =
+            DWORD dwSSPIFlags = (DWORD)
                 ASC_REQ_SEQUENCE_DETECT |
                 ASC_REQ_REPLAY_DETECT |
                 ASC_REQ_CONFIDENTIALITY |
@@ -1467,16 +1476,16 @@ int msspi_accept( MSSPI_HANDLE h )
         }
     }
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-static char is_new_session_unmodified( MSSPI_HANDLE h )
+static int is_new_session_unmodified( MSSPI_HANDLE h )
 {
     SecPkgContext_CipherInfo old_cipherinfo = h->cipherinfo;
     std::vector<std::vector<BYTE>> old_peercerts = h->peercerts;
 
     h->is.cipherinfo = 0;
-    if( !msspi_get_cipherinfo( h ) )
+    if( !msspi_get_cipherinfo( h, NULL ) )
         return 0; // last error included
 
     h->peercerts.clear();
@@ -1497,9 +1506,9 @@ static char is_new_session_unmodified( MSSPI_HANDLE h )
     return 1;
 }
 
-char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
+int msspi_set_input( MSSPI_HANDLE h, const uint8_t * input, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->in_len || len > SSPI_BUFFER_SIZE )
     {
@@ -1507,34 +1516,36 @@ char msspi_set_input( MSSPI_HANDLE h, const void * buf, int len )
         return 0;
     }
 
-    memcpy( h->in_buf, buf, (size_t)len );
-    h->in_len = len;
+    memcpy( h->in_buf, input, len );
+    h->in_len = (int)len;
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_verify_offline( MSSPI_HANDLE h, char offline )
+int msspi_set_verify_offline( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.verify_offline = (unsigned)( offline ? 1 : 0 );
+    h->is.verify_offline = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_verify_revocation( MSSPI_HANDLE h, char revocation )
+int msspi_set_verify_revocation( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.verify_revocation = (unsigned)( revocation ? 1 : 0 );
+    h->is.verify_revocation = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 int msspi_connect( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->state & MSSPI_ERROR || h->state & MSSPI_SENT_SHUTDOWN )
     {
@@ -1587,7 +1598,7 @@ int msspi_connect( MSSPI_HANDLE h )
             std::vector<BYTE> alpn_holder;
             unsigned short  secDtlsMtu; /* SEC_DTLS_MTU */
 
-            DWORD dwSSPIFlags =
+            DWORD dwSSPIFlags = (DWORD)
                 ISC_REQ_SEQUENCE_DETECT |
                 ISC_REQ_REPLAY_DETECT |
                 ISC_REQ_CONFIDENTIALITY |
@@ -1773,12 +1784,19 @@ int msspi_connect( MSSPI_HANDLE h )
         }
     }
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
+}
+
+static MSSPI_HANDLE msspi_handle( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY_h;
+    return h;
+    MSSPIEHCATCH_RET( NULL );
 }
 
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb write_cb )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_0;
 
     if( !msspi_init_sspi() )
         return NULL; // last error included
@@ -1789,154 +1807,163 @@ MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb wr
         return NULL;
     }
 
-    return new MSSPI( cb_arg, read_cb, write_cb );
+    return msspi_handle( new MSSPI( cb_arg, read_cb, write_cb ) );
 
     MSSPIEHCATCH_RET( NULL );
 }
 
-char msspi_set_hostname( MSSPI_HANDLE h, const char * hostname )
+int msspi_set_hostname( MSSPI_HANDLE h, const uint8_t * hostname, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    if( hostname )
-        h->hostname = hostname;
+    if( hostname && len > 0 )
+        h->hostname.assign( (const char *)hostname, len );
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_set_cachestring( MSSPI_HANDLE h, const char * cachestring )
+int msspi_set_cachestring( MSSPI_HANDLE h, const uint8_t * cachestring, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    if( cachestring )
-        h->cachestring = cachestring;
+    if( cachestring && len > 0 )
+        h->cachestring.assign( (const char *)cachestring, len );
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_set_alpn( MSSPI_HANDLE h, const char * alpn, size_t len )
+int msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( alpn && len )
-        h->alpn.assign( alpn, len );
+        h->alpn.assign( (const char *)alpn, len );
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 #define C2B_IS_SKIP( c ) ( c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' || c == ':' )
-#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (char)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (char)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (char)( c - 'A' + 10 ) : CHAR_MAX ) ) )
+#define C2B_FAILED ((BYTE)0xFF)
+#define C2B_VALUE( c ) ( ( '0' <= c && c <= '9' ) ? (BYTE)( c - '0' ) : ( ( 'a' <= c && c <= 'f' ) ? (BYTE)( c - 'a' + 10 ) : ( ( 'A' <= c && c <= 'F' ) ? (BYTE)( c - 'A' + 10 ) : C2B_FAILED ) ) )
 
-static int str2bin( const char * str, char * bin )
+static std::vector<BYTE> from_hex_string( const char * str, size_t len )
 {
-    char c;
-    char is_filled = 0;
-    int n = 0;
+    std::vector<BYTE> bin;
+    BYTE byte = 0;
+    bool byte_filled = false;
 
-    while( 0 != ( c = *str++ ) )
+    for( size_t i = 0; i < len; i++ )
     {
-        char v;
+        char c = str[i];
 
         if( C2B_IS_SKIP( c ) )
             continue;
 
-        v = C2B_VALUE( c );
+        BYTE v = C2B_VALUE( c );
 
-        if( v == CHAR_MAX )
-            return -1;
+        if( v == C2B_FAILED )
+            return std::vector<BYTE>();
 
-        if( !is_filled )
+        if( !byte_filled )
         {
-            bin[n] = (char)( v << 4 );
-            is_filled = 1;
+            byte = (BYTE)( v << 4 );
+            byte_filled = true;
         }
         else
         {
-            bin[n] = (char)( bin[n] + v );
-            is_filled = 0;
-            n++;
+            byte = (BYTE)( byte + v );
+            bin.push_back( byte );
+            byte_filled = false;
         }
     }
 
-    if( is_filled )
-        return -1;
+    if( byte_filled )
+        return std::vector<BYTE>();
 
-    return n;
+    return bin;
 }
 
-void msspi_set_peerauth( MSSPI_HANDLE h, char peerauth )
+int msspi_set_peerauth( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.peerauth = (unsigned)( peerauth ? 1 : 0 );
+    h->is.peerauth = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert )
+int msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     h->cert_cb = cert;
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_client( MSSPI_HANDLE h )
+int msspi_set_client( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.client = 1;
+    h->is.client = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_dtls( MSSPI_HANDLE h )
+int msspi_set_dtls( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.dtls = 1;
+    h->is.dtls = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_dtls_mtu( MSSPI_HANDLE h, size_t mtu )
+int msspi_set_dtls_mtu( MSSPI_HANDLE h, size_t mtu )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     h->dtls_mtu = (DWORD)mtu;
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_dtls_peeraddr( MSSPI_HANDLE h, const uint8_t * peeraddr, size_t len )
+int msspi_set_dtls_peeraddr( MSSPI_HANDLE h, const uint8_t * peeraddr, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( peeraddr && len )
         h->peeraddr.assign( peeraddr, peeraddr + len );
 
-    MSSPIEHCATCH_0;
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_pin_cache( MSSPI_HANDLE h )
+int msspi_set_pin_cache( MSSPI_HANDLE h, int enable )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->is.pin_cache = 1;
+    h->is.pin_cache = (unsigned)( enable ? 1 : 0 );
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_version( MSSPI_HANDLE h, int min, int max )
+int msspi_set_version( MSSPI_HANDLE h, int min, int max )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     h->grbitEnabledProtocols = 0;
 
@@ -1949,24 +1976,28 @@ void msspi_set_version( MSSPI_HANDLE h, int min, int max )
     if( ( !min || min <= TLS1_3_VERSION ) && ( !max || TLS1_3_VERSION <= max ) )
         h->grbitEnabledProtocols |= SP_PROT_TLS1_3;
 
-    MSSPIEHCATCH_0;
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 #ifndef ALG_TYPE_CIPHER_SUITE
 #define ALG_TYPE_CIPHER_SUITE (15 << 9)
 #endif
 
-char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
+int msspi_set_cipherlist( MSSPI_HANDLE h, const uint8_t * cipherlist, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     h->ciphers.clear();
 
     char c;
     ALG_ID cipher = 0;
 
-    while( 0 != ( c = *cipherlist++ ) )
+    for( size_t i = 0; i < len; i++ )
     {
+        c = (char)cipherlist[i];
+
         if( !c )
             break;
 
@@ -1981,12 +2012,12 @@ char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
             continue;
         }
 
-        c = C2B_VALUE( c );
+        BYTE v = C2B_VALUE( c );
 
-        if( c == CHAR_MAX )
+        if( v == C2B_FAILED )
             break;
 
-        cipher = ( cipher << 4 ) | c;
+        cipher = ( cipher << 4 ) | v;
     }
 
     if( cipher )
@@ -1994,19 +2025,19 @@ char msspi_set_cipherlist( MSSPI_HANDLE h, const char * cipherlist )
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_set_credprovider( MSSPI_HANDLE h, const char * credprovider )
+int msspi_set_credprovider( MSSPI_HANDLE h, const uint8_t * credprovider, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    if( credprovider )
-        h->credprovider = credprovider;
+    if( credprovider && len > 0 )
+        h->credprovider.assign( (const char *)credprovider, len );
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 #ifndef _UN
@@ -2057,15 +2088,16 @@ static CERT_USAGE_RET is_cert_usage( PCCERT_CONTEXT pcert, const char * oid )
     return CERT_USAGE::NOT_FOUND;
 }
 
-char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, char selftest )
+int msspi_set_mycert_options( MSSPI_HANDLE h, int silent, const uint8_t * pin, size_t pin_len, int selftest )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( h->cred && !h->certs.size() )
         return 1;
 
+    std::vector<BYTE> provinfo_buf;
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
-    char isOK = 0;
+    int isOK = 0;
 
     for( ;; )
     {
@@ -2079,7 +2111,8 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
         if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
             break;
 
-        provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+        provinfo_buf.resize( dw );
+        provinfo = (PCRYPT_KEY_PROV_INFO)provinfo_buf.data();
 
         if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
             break;
@@ -2094,14 +2127,14 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
                 break;
         }
 
-        if( pin )
+        if( pin && pin_len > 0 )
         {
             CRYPT_KEY_PROV_PARAM pinparam;
 
             pinparam.dwParam = PP_KEYEXCHANGE_PIN;
             pinparam.dwFlags = 0;
             pinparam.pbData = (BYTE *)pin;
-            pinparam.cbData = (DWORD)strlen( pin ) + 1;
+            pinparam.cbData = (DWORD)pin_len;
 
             provinfo->cProvParam = 1;
             provinfo->rgProvParam = &pinparam;
@@ -2123,13 +2156,11 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
 
             for( ;; )
             {
-                delete[]( char * )provinfo;
-                provinfo = NULL;
-
                 if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
                     break;
 
-                provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+                provinfo_buf.resize( dw );
+                provinfo = (PCRYPT_KEY_PROV_INFO)provinfo_buf.data();
 
                 if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                     break;
@@ -2205,30 +2236,30 @@ char msspi_set_mycert_options( MSSPI_HANDLE h, char silent, const char * pin, ch
         break;
     }
 
-    if( provinfo )
-        delete[]( char * )provinfo;
-
     if( isOK && h->is.can_append )
         credentials_api( h );
 
     return isOK;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-void msspi_set_certstore( MSSPI_HANDLE h, const char * certstore )
+int msspi_set_certstore( MSSPI_HANDLE h, const uint8_t * store, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    h->certstore = certstore;
+    if( store && len > 0 )
+        h->certstore.assign( (const char *)store, len );
 
-    MSSPIEHCATCH_0;
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password )
+static PCCERT_CONTEXT pfx2cert( const uint8_t * pfx, size_t len, const uint8_t * password, size_t password_len )
 {
     std::wstring wpassword;
-    wpassword.resize( strlen( password ) );
+    wpassword.resize( password_len );
     for( size_t i = 0; i < wpassword.length(); ++i )
         wpassword[i] = (WCHAR)password[i];
 
@@ -2238,10 +2269,10 @@ static PCCERT_CONTEXT pfx2cert( const char * pfx, int len, const char * password
     {
         std::vector<BYTE> PFXDer;
         DWORD dwData;
-        if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+        if( CryptStringToBinaryA( (LPCSTR)pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
         {
             PFXDer.resize( dwData );
-            if( CryptStringToBinaryA( pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, PFXDer.data(), &dwData, NULL, NULL ) )
+            if( CryptStringToBinaryA( (LPCSTR)pfx, (DWORD)len, CRYPT_STRING_BASE64_ANY, PFXDer.data(), &dwData, NULL, NULL ) )
             {
                 pfxBlob.cbData = dwData;
                 pfxBlob.pbData = PFXDer.data();
@@ -2275,6 +2306,7 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
 {
     bool isOK = false;
     PCCERT_CONTEXT cleancert = NULL;
+    std::vector<BYTE> provinfo_buf;
     PCRYPT_KEY_PROV_INFO provinfo = NULL;
     DWORD dw = 0;
 
@@ -2293,7 +2325,8 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
             if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, NULL, &dw ) )
                 break;
 
-            provinfo = (PCRYPT_KEY_PROV_INFO)( new char[dw] );
+            provinfo_buf.resize( dw );
+            provinfo = (PCRYPT_KEY_PROV_INFO)provinfo_buf.data();
 
             if( !CertGetCertificateContextProperty( certfound, CERT_KEY_PROV_INFO_PROP_ID, provinfo, &dw ) )
                 break;
@@ -2332,9 +2365,6 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
         break;
     }
 
-    if( provinfo )
-        delete[]( char * )provinfo;
-
     if( isOK )
     {
         if( h->certs.size() && !can_append )
@@ -2352,21 +2382,21 @@ static bool msspi_set_mycert_finalize( MSSPI_HANDLE h, PCCERT_CONTEXT certfound,
     return isOK;
 }
 
-static PCCERT_CONTEXT findcert( const char * certData, int len, const char * certstore )
+static PCCERT_CONTEXT findcert( const uint8_t * certData, size_t len, const char * certstore )
 {
     PCCERT_CONTEXT certprobe = NULL;
 
     if( len )
     {
-        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)certData, (DWORD)len );
+        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, certData, (DWORD)len );
         if( !certprobe )
         {
             std::vector<BYTE> clientCertDer;
             DWORD dwData;
-            if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
+            if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
             {
                 clientCertDer.resize( dwData );
-                if( CryptStringToBinaryA( certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, clientCertDer.data(), &dwData, NULL, NULL ) )
+                if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, clientCertDer.data(), &dwData, NULL, NULL ) )
                     certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, clientCertDer.data(), dwData );
             }
 
@@ -2398,33 +2428,25 @@ static PCCERT_CONTEXT findcert( const char * certData, int len, const char * cer
         }
         else
         {
-            BYTE bb[64/*MAX_OID_LEN*/];
-            int bblen = sizeof( bb );
-            int sslen = (int)strlen( certData );
-
-            if( sslen < bblen * 2 )
+            std::vector<BYTE> bb = from_hex_string( (const char *)certData, len );
+            if( !bb.empty() )
             {
-                bblen = str2bin( certData, (char *)bb );
-                if( bblen != -1 )
-                {
-                    CERT_ID id;
+                CERT_ID id;
+                id.dwIdChoice = CERT_ID_SHA1_HASH;
+                id._UN HashId.pbData = bb.data();
+                id._UN HashId.cbData = (DWORD)bb.size();
 
-                    id.dwIdChoice = CERT_ID_SHA1_HASH;
-                    id._UN HashId.pbData = bb;
-                    id._UN HashId.cbData = (DWORD)bblen;
+                certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                if( certfound )
+                    break;
 
-                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
-                    if( certfound )
-                        break;
+                id.dwIdChoice = CERT_ID_KEY_IDENTIFIER;
+                id._UN KeyId.pbData = bb.data();
+                id._UN KeyId.cbData = (DWORD)bb.size();
 
-                    id.dwIdChoice = CERT_ID_KEY_IDENTIFIER;
-                    id._UN KeyId.pbData = bb;
-                    id._UN KeyId.cbData = (DWORD)bblen;
-
-                    certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
-                    if( certfound )
-                        break;
-                }
+                certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_CERT_ID, &id, NULL );
+                if( certfound )
+                    break;
             }
 
             certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, certData, NULL );
@@ -2445,9 +2467,15 @@ static PCCERT_CONTEXT findcert( const char * certData, int len, const char * cer
     return certfound;
 }
 
-static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int len, const char * password, bool pfx, bool can_append )
+static int msspi_set_mycert_common( MSSPI_HANDLE h, const uint8_t * certData, size_t len, const uint8_t * password, size_t password_len, bool pfx, bool can_append )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
+
+    if( !certData || len == 0 )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
+        return 0;
+    }
 
     bool is_append = can_append && h->credstring.length() != 0;
     std::string saved_credstring;
@@ -2458,20 +2486,16 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int 
         h->credstring = credstring( h );
 
     h->credstring += pfx ? "::pfx::" : "::cert::";
-
-    if( len )
-        h->credstring.append( certData, (unsigned)len );
-    else
-        h->credstring.append( certData );
+    h->credstring.append( (const char *)certData, len );
 
     if( credentials_api( h, true ) )
         return 1;
 
-    char isOK = 0;
+    int isOK = 0;
     PCCERT_CONTEXT cert = NULL;
 
     if( pfx )
-        cert = pfx2cert( certData, len, password );
+        cert = pfx2cert( certData, len, password, password_len );
     else
         cert = findcert( certData, len, h->certstore.c_str() );
 
@@ -2488,44 +2512,54 @@ static char msspi_set_mycert_common( MSSPI_HANDLE h, const char * certData, int 
 
     return isOK;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_set_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
+int msspi_set_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t len )
 {
-    return msspi_set_mycert_common( h, clientCert, len, NULL, false, false );
+    return msspi_set_mycert_common( h, cert, len, NULL, 0, false, false );
 }
 
-char msspi_add_mycert( MSSPI_HANDLE h, const char * clientCert, int len )
+int msspi_add_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t len )
 {
-    return msspi_set_mycert_common( h, clientCert, len, NULL, false, true );
+    return msspi_set_mycert_common( h, cert, len, NULL, 0, false, true );
 }
 
-char msspi_set_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password )
+int msspi_set_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len )
 {
-    return msspi_set_mycert_common( h, pfx, len, password, true, false );
+    return msspi_set_mycert_common( h, pfx, pfx_len, password, password_len, true, false );
 }
 
-char msspi_add_mycert_pfx( MSSPI_HANDLE h, const char * pfx, int len, const char * password )
+int msspi_add_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len )
 {
-    return msspi_set_mycert_common( h, pfx, len, password, true, true );
+    return msspi_set_mycert_common( h, pfx, pfx_len, password, password_len, true, true );
 }
 
-void msspi_close( MSSPI_HANDLE h )
+int msspi_close( MSSPI_HANDLE h )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     delete h;
+    return 1;
 
-    MSSPIEHCATCH_0;
+    MSSPIEHCATCH_RET( 0 );
 }
 
-PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
+uint32_t msspi_version( void )
 {
-    MSSPIEHTRY;
+    return MSSPI_VERSION;
+}
+
+int msspi_get_cipherinfo( MSSPI_HANDLE h, const SecPkgContext_CipherInfo ** cipherinfo )
+{
+    MSSPIEHTRY_h;
 
     if( h->is.cipherinfo )
-        return &h->cipherinfo;
+    {
+        if( cipherinfo )
+            *cipherinfo = &h->cipherinfo;
+        return 1;
+    }
 
     SECURITY_STATUS scRet;
     EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_CIPHER_INFO, (PVOID)&h->cipherinfo ) );
@@ -2535,61 +2569,73 @@ PSecPkgContext_CipherInfo msspi_get_cipherinfo( MSSPI_HANDLE h )
     if( scRet != SEC_E_OK )
     {
         SetLastError( (DWORD)scRet );
-        return NULL;
+        return 0;
     }
 
     h->is.cipherinfo = 1;
-    return &h->cipherinfo;
+    if( cipherinfo )
+        *cipherinfo = &h->cipherinfo;
+    return 1;
 
-    MSSPIEHCATCH_HERRRET( NULL );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-const char * msspi_get_alpn( MSSPI_HANDLE h )
+int msspi_get_alpn( MSSPI_HANDLE h, const uint8_t ** alpn, size_t * len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    if( h->is.alpn )
-        return h->alpn.length() ? h->alpn.c_str() : NULL;
-
-    SecPkgContext_ApplicationProtocol alpn;
-
-    SECURITY_STATUS scRet;
-    // cppcheck-suppress uninitvar
-    EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn ) );
-
-    msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
-
-    if( scRet != SEC_E_OK )
+    if( !h->is.alpn )
     {
-        SetLastError( (DWORD)scRet );
-        return NULL;
+        SecPkgContext_ApplicationProtocol alpn_ctx;
+
+        SECURITY_STATUS scRet;
+        // cppcheck-suppress uninitvar
+        EXTERCALL( scRet = sspi->QueryContextAttributesA( &h->hCtx, SECPKG_ATTR_APPLICATION_PROTOCOL, (PVOID)&alpn_ctx ) );
+
+        msspi_logger_info( "QueryContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_APPLICATION_PROTOCOL ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)scRet );
+
+        if( scRet != SEC_E_OK )
+        {
+            SetLastError( (DWORD)scRet );
+            return 0;
+        }
+
+        if( alpn_ctx.ProtoNegoStatus == SecApplicationProtocolNegotiationStatus_Success &&
+            alpn_ctx.ProtoNegoExt == SecApplicationProtocolNegotiationExt_ALPN &&
+            alpn_ctx.ProtocolIdSize &&
+            alpn_ctx.ProtocolIdSize < h->alpn.length() )
+        {
+            h->alpn.assign( (const char *)alpn_ctx.ProtocolId, alpn_ctx.ProtocolIdSize );
+        }
+        else
+        {
+            h->alpn.clear();
+        }
+
+        h->is.alpn = 1;
     }
 
-    if( alpn.ProtoNegoStatus == SecApplicationProtocolNegotiationStatus_Success &&
-        alpn.ProtoNegoExt == SecApplicationProtocolNegotiationExt_ALPN &&
-        alpn.ProtocolIdSize &&
-        alpn.ProtocolIdSize < h->alpn.length() )
-    {
-        h->alpn.assign( (char *)alpn.ProtocolId, alpn.ProtocolIdSize );
-    }
-    else
-    {
-        h->alpn.clear();
-    }
+    if( h->alpn.length() == 0 )
+        return 0;
 
-    h->is.alpn = 1;
-    return h->alpn.length() ? h->alpn.c_str() : NULL;
+    if( alpn )
+        *alpn = (const uint8_t *)h->alpn.c_str();
+    if( len )
+        *len = h->alpn.length();
 
-    MSSPIEHCATCH_HERRRET( NULL );
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-const char * msspi_get_version( MSSPI_HANDLE h )
+int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** version_str, size_t * version_str_len )
 {
     const char * tlsproto = "Unknown";
+    uint32_t tlsprotonum = 0;
 
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
-    if( h->is.cipherinfo || msspi_get_cipherinfo( h ) )
+    if( h->is.cipherinfo || msspi_get_cipherinfo( h, NULL ) )
     {
         switch( h->cipherinfo.dwProtocol )
         {
@@ -2597,41 +2643,54 @@ const char * msspi_get_version( MSSPI_HANDLE h )
             case SP_PROT_TLS1_SERVER:
             case SP_PROT_TLS1_CLIENT:
                 tlsproto = "TLSv1";
+                tlsprotonum = TLS1_VERSION;
                 break;
             case TLS1_1_VERSION:
             case SP_PROT_TLS1_1_SERVER:
             case SP_PROT_TLS1_1_CLIENT:
                 tlsproto = "TLSv1.1";
+                tlsprotonum = TLS1_1_VERSION;
                 break;
             case TLS1_2_VERSION:
             case SP_PROT_TLS1_2_SERVER:
             case SP_PROT_TLS1_2_CLIENT:
                 tlsproto = "TLSv1.2";
+                tlsprotonum = TLS1_2_VERSION;
                 break;
             case TLS1_3_VERSION:
             case SP_PROT_TLS1_3_SERVER:
             case SP_PROT_TLS1_3_CLIENT:
                 tlsproto = "TLSv1.3";
+                tlsprotonum = TLS1_3_VERSION;
                 break;
             default:
                 break;
         }
     }
 
-    return tlsproto;
+    if( version_num )
+        *version_num = tlsprotonum;
 
-    MSSPIEHCATCH_HERRRET( tlsproto );
+    if( version_str && version_str_len )
+    {
+        *version_str = (const uint8_t *)tlsproto;
+        *version_str_len = strlen( tlsproto );
+    }
+
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_is_version_supported( int version )
+int msspi_is_version_supported( int version )
 {
     MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
     if( !h )
         return 0; // last error included
 
-    msspi_set_client( h );
+    msspi_set_client( h, 1 );
     msspi_set_version( h, version, version );
-    char supported = h->grbitEnabledProtocols == 0 ? 0 : credentials_api( h );
+    int supported = h->grbitEnabledProtocols == 0 ? 0 : credentials_api( h );
     msspi_close( h );
 
     if( !supported )
@@ -2639,16 +2698,16 @@ char msspi_is_version_supported( int version )
     return supported;
 }
 
-char msspi_is_cipher_supported( int cipher )
+int msspi_is_cipher_supported( int cipher )
 {
     MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
     if( !h )
         return 0; // last error included
 
-    msspi_set_client( h );
+    msspi_set_client( h, 1 );
     msspi_set_version( h, TLS1_VERSION, TLS1_3_VERSION );
     h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | (ALG_ID)cipher );
-    char supported = credentials_api( h );
+    int supported = credentials_api( h );
     msspi_close( h );
 
     if( !supported )
@@ -2656,9 +2715,9 @@ char msspi_is_cipher_supported( int cipher )
     return supported;
 }
 
-char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
+int msspi_get_mycert( MSSPI_HANDLE h, const uint8_t ** buf, size_t * len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     PCCERT_CONTEXT cert = NULL;
 
@@ -2673,12 +2732,12 @@ char msspi_get_mycert( MSSPI_HANDLE h, const char ** buf, int * len )
         return 0;
     }
 
-    *buf = (char *)cert->pbCertEncoded;
-    *len = (int)cert->cbCertEncoded;
+    *buf = (const uint8_t *)cert->pbCertEncoded;
+    *len = (size_t)cert->cbCertEncoded;
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 static bool is_cert_selfsigned( PCCERT_CONTEXT cert )
@@ -2702,9 +2761,9 @@ static bool is_cert_selfsigned( PCCERT_CONTEXT cert )
     return true;
 }
 
-char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
+int msspi_get_peercerts( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( !h->peercerts.size() )
     {
@@ -2779,24 +2838,24 @@ char msspi_get_peercerts( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t
 
     for( size_t i = 0; i < h->peercerts.size(); i++ )
     {
-        bufs[i] = (const char *)h->peercerts[i].data();
-        lens[i] = (int)h->peercerts[i].size();
+        bufs[i] = (const uint8_t *)h->peercerts[i].data();
+        lens[i] = h->peercerts[i].size();
     }
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int * lens, size_t * count )
+int msspi_get_peerchain( MSSPI_HANDLE h, int online, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( !h->peerchain.size() )
     {
         if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
             return 0; // last error included
-        
+
         if( !h->peercert )
         {
             SetLastError( ERROR_NOT_FOUND );
@@ -2860,13 +2919,13 @@ char msspi_get_peerchain( MSSPI_HANDLE h, char online, const char ** bufs, int *
 
     for( size_t i = 0; i < h->peerchain.size(); i++ )
     {
-        bufs[i] = (const char *)h->peerchain[i].data();
-        lens[i] = (int)h->peerchain[i].size();
+        bufs[i] = (const uint8_t *)h->peerchain[i].data();
+        lens[i] = h->peerchain[i].size();
     }
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 static std::string to_string( LPCWSTR w_str )
@@ -2896,9 +2955,9 @@ static std::string certname( PCERT_NAME_BLOB name, bool quotes = true )
     return to_string( w_str.data() );
 }
 
-char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, const char ** issuer, size_t * ilen )
+int msspi_get_peernames( MSSPI_HANDLE h, const uint8_t ** subject, size_t * subject_len, const uint8_t ** issuer, size_t * issuer_len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( !h->peercert )
     {
@@ -2913,26 +2972,26 @@ char msspi_get_peernames( MSSPI_HANDLE h, const char ** subject, size_t * slen, 
         h->is.names = 1;
     }
 
-    if( subject && slen )
+    if( subject && subject_len )
     {
-        *subject = h->peercert_subject.c_str();
-        *slen = h->peercert_subject.size();
+        *subject = (const uint8_t *)h->peercert_subject.c_str();
+        *subject_len = h->peercert_subject.size();
     }
 
-    if( issuer && ilen )
+    if( issuer && issuer_len )
     {
-        *issuer = h->peercert_issuer.c_str();
-        *ilen = h->peercert_issuer.size();
+        *issuer = (const uint8_t *)h->peercert_issuer.c_str();
+        *issuer_len = h->peercert_issuer.size();
     }
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_t * count )
+int msspi_get_issuerlist( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     if( !h->issuerlist.size() )
     {
@@ -2990,27 +3049,28 @@ char msspi_get_issuerlist( MSSPI_HANDLE h, const char ** bufs, int * lens, size_
 
     for( size_t i = 0; i < h->issuerlist.size(); i++ )
     {
-        bufs[i] = (const char *)h->issuerlist[i].data();
-        lens[i] = (int)h->issuerlist[i].size();
+        bufs[i] = (const uint8_t *)h->issuerlist[i].data();
+        lens[i] = h->issuerlist[i].size();
     }
 
     return 1;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
+static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
 {
+    uint32_t result = ERROR_INTERNAL_ERROR;
+
     if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
-        return MSSPI_VERIFY_ERROR; // last error included
-    
+        return result; // last error included
+
     if( !h->peercert )
     {
         SetLastError( ERROR_NOT_FOUND );
-        return MSSPI_VERIFY_ERROR;
+        return result;
     }
 
-    int32_t result = MSSPI_VERIFY_ERROR;
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
     DWORD dwAdditionalFlags = 0;
@@ -3082,10 +3142,10 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
             &PolicyStatus ) )
             break;
 
-        result = MSSPI_VERIFY_OK;
+        result = ERROR_SUCCESS;
 
         if( PolicyStatus.dwError )
-            result = (int32_t)PolicyStatus.dwError;
+            result = (uint32_t)PolicyStatus.dwError;
 
         break;
     }
@@ -3096,33 +3156,49 @@ static int32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     return result;
 }
 
-int32_t msspi_verify( MSSPI_HANDLE h )
+int msspi_verify( MSSPI_HANDLE h, uint32_t * verify_result )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
+
+    if( !verify_result )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
+        return 0;
+    }
+
+    uint32_t verify_final;
 
     if( !h->is.verify_revocation )
-        return msspi_verify_internal( h, false );
+    {
+        verify_final = msspi_verify_internal( h, false );
+    }
+    else
+    {
+        uint32_t verify_full = msspi_verify_internal( h, true );
+        if( verify_full == ERROR_SUCCESS || verify_full == ERROR_INTERNAL_ERROR )
+            verify_final = verify_full;
+        else // we got error in verify_full (but maybe more priority error exists)
+        {
+            uint32_t verify_no_revocation = msspi_verify_internal( h, false );
+            if( verify_no_revocation == ERROR_SUCCESS )
+                verify_final = verify_full; // it was revocation error
+            else
+                verify_final = verify_no_revocation; // more priority error found
+        }
+    }
 
-    int32_t verify_full;
-    int32_t verify_no_revocation;
+    if( verify_final == ERROR_INTERNAL_ERROR )
+        return 0; // last error included
 
-    verify_full = msspi_verify_internal( h, true );
-    if( verify_full == MSSPI_VERIFY_OK )
-        return verify_full;
+    *verify_result = verify_final;
+    return 1;
 
-    verify_no_revocation = msspi_verify_internal( h, false );
-    if( verify_no_revocation == MSSPI_VERIFY_OK )
-        return verify_full;
-
-    // mitigate capilite revocation errors priority
-    return verify_no_revocation;
-
-    MSSPIEHCATCH_HERRRET( MSSPI_VERIFY_ERROR );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
+int msspi_verify_peer_in_store( MSSPI_HANDLE h, const uint8_t * store, size_t len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_h;
 
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
@@ -3133,9 +3209,11 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
         CERT_STORE_OPEN_EXISTING_FLAG | CERT_STORE_READONLY_FLAG | CERT_SYSTEM_STORE_LOCAL_MACHINE,
     };
 
+    std::string store_str( (const char *)store, len );
+
     for( i = 0; i < sizeof( dwStoreFlags ) / sizeof( dwStoreFlags[0] ); i++ )
     {
-        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], store );
+        hStore = CertOpenStore( CERT_STORE_PROV_SYSTEM_A, 0, 0, dwStoreFlags[i], store_str.c_str() );
 
         if( !hStore )
             continue;
@@ -3154,414 +3232,20 @@ char msspi_verifypeer( MSSPI_HANDLE h, const char * store )
 
     return certfound ? 1 : 0;
 
-    MSSPIEHCATCH_HERRRET( 0 );
+    MSSPIEHCATCH_HRET( 0 );
 }
 
-char msspi_random( void * buf, int len, char safe )
+int msspi_random( void * buf, int len )
 {
-    MSSPIEHTRY;
+    MSSPIEHTRY_0;
 
     UNIQUE_LOCK( g_mtx );
 
-    if( safe )
-        return g_prov.Random( (BYTE *)buf, (DWORD)len );
-    else
-#ifdef USE_BOOST
-    {
-        static bool inited = false;
-
-        if( !inited )
-        {
-            srand( GetTickCount() );
-            inited = true;
-        }
-
-        for( int i = 0; i < len; i++ )
-            ( (BYTE *)buf )[i] = (BYTE)rand();
-
-        return 1;
-    }
-#else /* USE_BOOST */
-    {
-        static std::random_device & random_device = *( new std::random_device() );
-        static std::default_random_engine & default_random_engine = *( new std::default_random_engine{ random_device() } );
-        static std::uniform_int_distribution<> & random = *( new std::uniform_int_distribution<>( 0, 255 ) );
-
-        for( int i = 0; i < len; i++ )
-            ( (BYTE *)buf )[i] = (BYTE)random( default_random_engine );
-
-        return 1;
-    }
-#endif /* USE_BOOST */
+    return g_prov.Random( (BYTE *)buf, (DWORD)len );
 
     MSSPIEHCATCH_RET( 0 );
 }
 
-#ifndef NO_MSSPI_CERT
-
-static std::string to_hex_string( const uint8_t * bytes, size_t len )
-{
-    std::string c_str;
-    for( size_t i = 0; i < len; i++ )
-    {
-        uint8_t b = bytes[i];
-        c_str += B2C( b >> 4 );
-        c_str += B2C( b & 15 );
-    }
-    return c_str;
-}
-
-static std::vector<BYTE> certprop( PCCERT_CONTEXT cert, DWORD id )
-{
-    std::vector<BYTE> prop;
-
-    DWORD dw;
-    if( CertGetCertificateContextProperty( cert, id, NULL, &dw ) )
-    {
-        prop.resize( dw );
-        if( CertGetCertificateContextProperty( cert, id, prop.data(), &dw ) )
-        {
-            if( dw < prop.size() )
-                prop.resize( dw );
-        }
-    }
-
-    return prop;
-}
-
-static std::string algstr( LPSTR oid )
-{
-    std::string keyalg;
-
-    PCCRYPT_OID_INFO pInfo;
-    pInfo = CryptFindOIDInfo( CRYPT_OID_INFO_OID_KEY, (void *)oid, 0 );
-    if( !pInfo )
-        keyalg = oid;
-    else
-        keyalg = to_string( pInfo->pwszName );
-
-    return keyalg;
-}
-
-static std::string alglenstr( CERT_PUBLIC_KEY_INFO * keyinfo )
-{
-    std::string keylen;
-
-    DWORD dwPublicKeyLength = CertGetPublicKeyLength( X509_ASN_ENCODING, keyinfo );
-    if( dwPublicKeyLength )
-        keylen = to_dec_string( (uint32_t)dwPublicKeyLength );
-
-    return keylen;
-}
-
-struct MSSPI_CERT
-{
-    PCCERT_CONTEXT cert;
-    std::string subject;
-    std::string issuer;
-    std::string serial;
-    std::string keyid;
-    std::string sha1;
-    std::string alg_sig;
-    std::string alg_key;
-
-    MSSPI_CERT( PCCERT_CONTEXT certin )
-    {
-        cert = certin;
-    }
-
-    ~MSSPI_CERT()
-    {
-        if( cert )
-            CertFreeCertificateContext( cert );
-    }
-};
-
-MSSPI_CERT_HANDLE msspi_cert_open( const char * certbuf, size_t len )
-{
-    MSSPIEHTRY;
-
-    PCCERT_CONTEXT cert = NULL;
-
-    if( !len )
-    {
-        SetLastError( ERROR_BAD_ARGUMENTS );
-        return NULL;
-    }
-
-    cert = CertCreateCertificateContext( X509_ASN_ENCODING, (BYTE *)certbuf, (DWORD)len );
-    if( !cert )
-    {
-        std::vector<BYTE> certbufder;
-        DWORD dwData;
-        if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
-        {
-            certbufder.resize( dwData );
-            if( CryptStringToBinaryA( certbuf, (DWORD)len, CRYPT_STRING_BASE64_ANY, certbufder.data(), &dwData, NULL, NULL ) )
-                cert = CertCreateCertificateContext( X509_ASN_ENCODING, certbufder.data(), dwData );
-        }
-
-        if( !cert )
-            return NULL; // last error included
-    }
-
-    return new MSSPI_CERT( cert );
-
-    MSSPIEHCATCH_RET( NULL );
-}
-
-MSSPI_CERT_HANDLE msspi_cert_next( MSSPI_CERT_HANDLE ch )
-{
-    MSSPIEHTRY;
-
-    MSSPI_CERT_HANDLE ch_next = NULL;
-
-    PCCERT_CHAIN_CONTEXT PeerChain;
-    CERT_CHAIN_PARA ChainPara;
-    memset( &ChainPara, 0, sizeof( ChainPara ) );
-    ChainPara.cbSize = sizeof( ChainPara );
-
-    if( CertGetCertificateChain(
-        NULL,
-        ch->cert,
-        NULL,
-        ch->cert->hCertStore,
-        &ChainPara,
-        CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL,
-        NULL,
-        &PeerChain ) )
-    {
-        if( PeerChain->cChain > 0 && PeerChain->rgpChain[0]->cElement > 1 )
-        {
-            PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[1]->pCertContext;
-            ch_next = msspi_cert_open( (const char *)cert->pbCertEncoded, (size_t)cert->cbCertEncoded );
-        }
-
-        CertFreeCertificateChain( PeerChain );
-    }
-
-    return ch_next;
-
-    MSSPIEHCATCH_RET( NULL );
-}
-
-void msspi_cert_close( MSSPI_CERT_HANDLE ch )
-{
-    MSSPIEHTRY;
-
-    delete ch;
-
-    MSSPIEHCATCH_0;
-}
-
-char msspi_cert_subject( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
-{
-    MSSPIEHTRY;
-
-    ch->subject = certname( &ch->cert->pCertInfo->Subject, quotes != 0 ).c_str();
-    // cppcheck-suppress danglingTemporaryLifetime
-    if( !ch->subject.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->subject.c_str();
-    *len = ch->subject.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_issuer( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len, char quotes )
-{
-    MSSPIEHTRY;
-
-    ch->issuer = certname( &ch->cert->pCertInfo->Issuer, quotes != 0 ).c_str();
-    // cppcheck-suppress danglingTemporaryLifetime
-    if( !ch->issuer.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->issuer.c_str();
-    *len = ch->issuer.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_serial( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
-{
-    MSSPIEHTRY;
-
-    if( !ch->cert->pCertInfo->SerialNumber.pbData || !ch->cert->pCertInfo->SerialNumber.cbData )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    ch->serial = to_hex_string( ch->cert->pCertInfo->SerialNumber.pbData, ch->cert->pCertInfo->SerialNumber.cbData );
-    if( !ch->serial.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->serial.c_str();
-    *len = ch->serial.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_keyid( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
-{
-    MSSPIEHTRY;
-
-    std::vector<BYTE> prop = certprop( ch->cert, CERT_KEY_IDENTIFIER_PROP_ID );
-    if( !prop.size() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    ch->keyid = to_hex_string( prop.data(), prop.size() );
-    if( !ch->keyid.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->keyid.c_str();
-    *len = ch->keyid.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_sha1( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
-{
-    MSSPIEHTRY;
-
-    std::vector<BYTE> prop = certprop( ch->cert, CERT_SHA1_HASH_PROP_ID );
-    if( !prop.size() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    ch->sha1 = to_hex_string( prop.data(), prop.size() );
-    if( !ch->sha1.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->sha1.c_str();
-    *len = ch->sha1.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_alg_sig( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
-{
-    MSSPIEHTRY;
-
-    if( !ch->cert->pCertInfo->SignatureAlgorithm.pszObjId )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    ch->alg_sig = algstr( ch->cert->pCertInfo->SignatureAlgorithm.pszObjId );
-    if( !ch->alg_sig.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    *buf = ch->alg_sig.c_str();
-    *len = ch->alg_sig.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_alg_key( MSSPI_CERT_HANDLE ch, const char ** buf, size_t * len )
-{
-    MSSPIEHTRY;
-
-    if( !ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    ch->alg_key = algstr( ch->cert->pCertInfo->SubjectPublicKeyInfo.Algorithm.pszObjId );
-    if( !ch->alg_key.length() )
-    {
-        SetLastError( ERROR_NOT_FOUND );
-        return 0;
-    }
-
-    std::string bitlen = alglenstr( &ch->cert->pCertInfo->SubjectPublicKeyInfo );
-    if( bitlen.length() > 0 )
-        ch->alg_key += " (" + bitlen + " бит)";
-
-    *buf = ch->alg_key.c_str();
-    *len = ch->alg_key.length();
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_time_issued( MSSPI_CERT_HANDLE ch, struct tm * time )
-{
-    MSSPIEHTRY;
-
-    SYSTEMTIME stime;
-    if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotBefore, &stime ) )
-        return 0; // last error included
-
-    time->tm_year = stime.wYear;
-    time->tm_mon = stime.wMonth;
-    time->tm_mday = stime.wDay;
-    time->tm_hour = stime.wHour;
-    time->tm_min = stime.wMinute;
-    time->tm_sec = stime.wSecond;
-    time->tm_wday = -1;
-    time->tm_yday = -1;
-    time->tm_isdst = -1;
-
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-char msspi_cert_time_expired( MSSPI_CERT_HANDLE ch, struct tm * time )
-{
-    MSSPIEHTRY;
-
-    SYSTEMTIME stime;
-    if( !FileTimeToSystemTime( &ch->cert->pCertInfo->NotAfter, &stime ) )
-        return 0; // last error included
-
-    time->tm_year = stime.wYear;
-    time->tm_mon = stime.wMonth;
-    time->tm_mday = stime.wDay;
-    time->tm_hour = stime.wHour;
-    time->tm_min = stime.wMinute;
-    time->tm_sec = stime.wSecond;
-    time->tm_wday = -1;
-    time->tm_yday = -1;
-    time->tm_isdst = -1;
-
-    return 1;
-
-    MSSPIEHCATCH_RET( 0 );
-}
-
-#endif /* NO_MSSPI_CERT */
+#ifdef MSSPI_USE_MSSPI_CERT
+#include "msspi_cert.hpp"
+#endif /* MSSPI_USE_MSSPI_CERT */
