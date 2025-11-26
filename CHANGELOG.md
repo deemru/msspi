@@ -12,6 +12,7 @@
 - Changed [`msspi_get_peerchain()`](MSSPI.md#msspi_get_peerchain) prototype, moved online/offline logic to [`msspi_set_verify_offline()`](MSSPI.md#msspi_set_verify_offline)
 - Renamed `msspi_verify()` to [`msspi_get_verify_status()`](MSSPI.md#msspi_get_verify_status)
 - Renamed `msspi_verify_peer_in_store()` to [`msspi_get_peercert_in_store_status()`](MSSPI.md#msspi_get_peercert_in_store_status)
+- Added `CertGetSubjectCertificateFromStore()` to CAPIX
 
 ---
 
