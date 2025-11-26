@@ -2870,7 +2870,7 @@ int msspi_get_peercerts( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, s
     MSSPIEHCATCH_HRET( 0 );
 }
 
-uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain = false );
+uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain );
 
 int msspi_get_peerchain( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
@@ -3052,7 +3052,7 @@ int msspi_get_issuerlist( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, 
     MSSPIEHCATCH_HRET( 0 );
 }
 
-static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain = false )
+static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain )
 {
     uint32_t result = ERROR_INTERNAL_ERROR;
 
@@ -3180,16 +3180,16 @@ int msspi_get_verify_status( MSSPI_HANDLE h, uint32_t * status )
 
     if( !h->is.verify_revocation )
     {
-        verify_final = msspi_verify_internal( h, false );
+        verify_final = msspi_verify_internal( h, false, false );
     }
     else
     {
-        uint32_t verify_full = msspi_verify_internal( h, true );
+        uint32_t verify_full = msspi_verify_internal( h, true, false );
         if( verify_full == ERROR_SUCCESS || verify_full == ERROR_INTERNAL_ERROR )
             verify_final = verify_full;
         else // we got error in verify_full (but maybe more priority error exists)
         {
-            uint32_t verify_no_revocation = msspi_verify_internal( h, false );
+            uint32_t verify_no_revocation = msspi_verify_internal( h, false, false );
             if( verify_no_revocation == ERROR_SUCCESS )
                 verify_final = verify_full; // it was revocation error
             else
