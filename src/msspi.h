@@ -6,7 +6,7 @@
 
 #define MSSPI_VERSION_MAJOR 1
 #define MSSPI_VERSION_MINOR 0
-#define MSSPI_VERSION_PATCH 0
+#define MSSPI_VERSION_PATCH 1
 
 #define MSSPI_VERSION \
     ( ( MSSPI_VERSION_MAJOR << 16 ) | ( MSSPI_VERSION_MINOR << 8 ) | MSSPI_VERSION_PATCH )
@@ -25,8 +25,10 @@ uint32_t msspi_version( void );
 #define TLS1_2_VERSION  0x0303
 #define TLS1_3_VERSION  0x0304
 
+#define DTLS1_2_VERSION 0xFEFD
+
 int msspi_is_version_supported( int version );
-int msspi_is_cipher_supported( int cipher );
+int msspi_is_cipher_supported( int cipher, int dtls );
 
 typedef struct MSSPI * MSSPI_HANDLE;
 
@@ -36,28 +38,31 @@ typedef int ( * msspi_cert_cb )( void * cb_arg );
 
 MSSPI_HANDLE msspi_open( void * cb_arg, msspi_read_cb read_cb, msspi_write_cb write_cb );
 
+int msspi_set_client( MSSPI_HANDLE h, int enable );
+
+int msspi_set_dtls( MSSPI_HANDLE h, int enable );
+int msspi_set_dtls_peeraddr( MSSPI_HANDLE h, const uint8_t * peeraddr, size_t peeraddr_len );
+int msspi_set_dtls_mtu( MSSPI_HANDLE h, size_t mtu );
+
+int msspi_set_version( MSSPI_HANDLE h, int min, int max );
+int msspi_set_cipherlist( MSSPI_HANDLE h, const uint8_t * cipherlist, size_t cipherlist_len );
 int msspi_set_hostname( MSSPI_HANDLE h, const uint8_t * hostname, size_t hostname_len );
-int msspi_set_cachestring( MSSPI_HANDLE h, const uint8_t * cachestring, size_t cachestring_len );
 int msspi_set_alpn( MSSPI_HANDLE h, const uint8_t * alpn, size_t alpn_len );
+int msspi_set_peerauth( MSSPI_HANDLE h, int enable );
+int msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert );
+
 int msspi_set_certstore( MSSPI_HANDLE h, const uint8_t * store, size_t store_len );
+int msspi_set_credprovider( MSSPI_HANDLE h, const uint8_t * credprovider, size_t credprovider_len );
+int msspi_set_pin_cache( MSSPI_HANDLE h, int enable );
+int msspi_set_cachestring( MSSPI_HANDLE h, const uint8_t * cachestring, size_t cachestring_len );
+
 int msspi_set_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t cert_len );
 int msspi_add_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t cert_len );
 int msspi_set_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len );
 int msspi_add_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len );
 int msspi_set_mycert_options( MSSPI_HANDLE h, int silent, const uint8_t * pin, size_t pin_len, int selftest );
-int msspi_set_peerauth( MSSPI_HANDLE h, int enable );
-int msspi_set_cert_cb( MSSPI_HANDLE h, msspi_cert_cb cert );
-int msspi_set_client( MSSPI_HANDLE h, int enable );
-int msspi_set_dtls( MSSPI_HANDLE h, int enable );
-int msspi_set_pin_cache( MSSPI_HANDLE h, int enable );
-int msspi_set_version( MSSPI_HANDLE h, int min, int max );
-int msspi_set_cipherlist( MSSPI_HANDLE h, const uint8_t * cipherlist, size_t cipherlist_len );
-int msspi_set_credprovider( MSSPI_HANDLE h, const uint8_t * credprovider, size_t credprovider_len );
+
 int msspi_set_input( MSSPI_HANDLE h, const uint8_t * input, size_t input_len );
-int msspi_set_verify_offline( MSSPI_HANDLE h, int enable );
-int msspi_set_verify_revocation( MSSPI_HANDLE h, int enable );
-int msspi_set_dtls_peeraddr( MSSPI_HANDLE h, const uint8_t * peeraddr, size_t peeraddr_len );
-int msspi_set_dtls_mtu( MSSPI_HANDLE h, size_t mtu );
 
 int msspi_connect( MSSPI_HANDLE h );
 int msspi_accept( MSSPI_HANDLE h );
@@ -117,11 +122,14 @@ typedef struct _SecPkgContext_CipherInfo
 
 #endif /* SECPKGCONTEXT_CIPHERINFO_V1 */
 
+int msspi_set_verify_offline( MSSPI_HANDLE h, int enable );
+int msspi_set_verify_revocation( MSSPI_HANDLE h, int enable );
+
 int msspi_get_cipherinfo( MSSPI_HANDLE h, const SecPkgContext_CipherInfo ** cipherinfo );
 int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** version_str, size_t * version_str_len );
 int msspi_get_mycert( MSSPI_HANDLE h, const uint8_t ** cert, size_t * cert_len );
 int msspi_get_peercerts( MSSPI_HANDLE h, const uint8_t ** certs, size_t * certs_lens, size_t * certs_count );
-int msspi_get_peerchain( MSSPI_HANDLE h, int online, const uint8_t ** certs, size_t * certs_lens, size_t * certs_count );
+int msspi_get_peerchain( MSSPI_HANDLE h, const uint8_t ** certs, size_t * certs_lens, size_t * certs_count );
 int msspi_get_peernames( MSSPI_HANDLE h, const uint8_t ** subject, size_t * subject_len, const uint8_t ** issuer, size_t * issuer_len );
 int msspi_get_issuerlist( MSSPI_HANDLE h, const uint8_t ** certs, size_t * certs_lens, size_t * certs_count );
 int msspi_get_alpn( MSSPI_HANDLE h, const uint8_t ** alpn, size_t * alpn_len );
@@ -150,8 +158,8 @@ int msspi_get_alpn( MSSPI_HANDLE h, const uint8_t ** alpn, size_t * alpn_len );
 #define SECBUFFER_ALERT 17
 #endif
 
-int msspi_verify( MSSPI_HANDLE h, uint32_t * verify_result );
-int msspi_verify_peer_in_store( MSSPI_HANDLE h, const uint8_t * store, size_t store_len );
+int msspi_get_verify_status( MSSPI_HANDLE h, uint32_t * status );
+int msspi_get_peercert_in_store_status( MSSPI_HANDLE h, const uint8_t * store, size_t store_len, uint32_t * status );
 
 int msspi_close( MSSPI_HANDLE h );
 
