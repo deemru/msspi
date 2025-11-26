@@ -1967,14 +1967,22 @@ int msspi_set_version( MSSPI_HANDLE h, int min, int max )
 
     h->grbitEnabledProtocols = 0;
 
-    if( ( !min || min <= TLS1_VERSION ) && ( !max || TLS1_VERSION <= max ) )
-        h->grbitEnabledProtocols |= SP_PROT_TLS1;
-    if( ( !min || min <= TLS1_1_VERSION ) && ( !max || TLS1_1_VERSION <= max ) )
-        h->grbitEnabledProtocols |= SP_PROT_TLS1_1;
-    if( ( !min || min <= TLS1_2_VERSION ) && ( !max || TLS1_2_VERSION <= max ) )
-        h->grbitEnabledProtocols |= SP_PROT_TLS1_2;
-    if( ( !min || min <= TLS1_3_VERSION ) && ( !max || TLS1_3_VERSION <= max ) )
-        h->grbitEnabledProtocols |= SP_PROT_TLS1_3;
+    if( h->is.dtls )
+    {
+        if( ( !min || min <= DTLS1_2_VERSION ) && ( !max || DTLS1_2_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_DTLS1_2;
+    }
+    else
+    {
+        if( ( !min || min <= TLS1_VERSION ) && ( !max || TLS1_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_TLS1;
+        if( ( !min || min <= TLS1_1_VERSION ) && ( !max || TLS1_1_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_TLS1_1;
+        if( ( !min || min <= TLS1_2_VERSION ) && ( !max || TLS1_2_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_TLS1_2;
+        if( ( !min || min <= TLS1_3_VERSION ) && ( !max || TLS1_3_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_TLS1_3;
+    }
 
     return 1;
 
@@ -2663,6 +2671,12 @@ int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** 
                 tlsproto = "TLSv1.3";
                 tlsprotonum = TLS1_3_VERSION;
                 break;
+            case DTLS1_2_VERSION:
+            case SP_PROT_DTLS1_2_SERVER:
+            case SP_PROT_DTLS1_2_CLIENT:
+                tlsproto = "DTLSv1.2";
+                tlsprotonum = DTLS1_2_VERSION;
+                break;
             default:
                 break;
         }
@@ -2689,6 +2703,8 @@ int msspi_is_version_supported( int version )
         return 0; // last error included
 
     msspi_set_client( h, 1 );
+    if( version == DTLS1_2_VERSION )
+        msspi_set_dtls( h, 1 );
     msspi_set_version( h, version, version );
     int supported = h->grbitEnabledProtocols == 0 ? 0 : credentials_api( h );
     msspi_close( h );
@@ -2698,16 +2714,23 @@ int msspi_is_version_supported( int version )
     return supported;
 }
 
-int msspi_is_cipher_supported( int cipher )
+int msspi_is_cipher_supported( int cipher, int dtls )
 {
     MSSPI_HANDLE h = msspi_open( NULL, (msspi_read_cb)(uintptr_t)-1, (msspi_write_cb)(uintptr_t)-1 );
     if( !h )
         return 0; // last error included
 
     msspi_set_client( h, 1 );
-    msspi_set_version( h, TLS1_VERSION, TLS1_3_VERSION );
+    msspi_set_dtls( h, dtls ? 1 : 0 );
+
+    if( dtls )
+        msspi_set_version( h, DTLS1_2_VERSION, DTLS1_2_VERSION );
+    else
+        msspi_set_version( h, TLS1_VERSION, TLS1_3_VERSION );
+
     h->ciphers.push_back( ALG_TYPE_CIPHER_SUITE | (ALG_ID)cipher );
     int supported = credentials_api( h );
+
     msspi_close( h );
 
     if( !supported )
@@ -2847,45 +2870,16 @@ int msspi_get_peercerts( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, s
     MSSPIEHCATCH_HRET( 0 );
 }
 
-int msspi_get_peerchain( MSSPI_HANDLE h, int online, const uint8_t ** bufs, size_t * lens, size_t * count )
+uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain = false );
+
+int msspi_get_peerchain( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
     MSSPIEHTRY_h;
 
     if( !h->peerchain.size() )
     {
-        if( !h->peercert && !msspi_get_peercerts( h, NULL, NULL, NULL ) )
+        if( !msspi_verify_internal( h, false, true ) )
             return 0; // last error included
-
-        if( !h->peercert )
-        {
-            SetLastError( ERROR_NOT_FOUND );
-            return 0;
-        }
-
-        PCCERT_CHAIN_CONTEXT PeerChain;
-        CERT_CHAIN_PARA ChainPara;
-        memset( &ChainPara, 0, sizeof( ChainPara ) );
-        ChainPara.cbSize = sizeof( ChainPara );
-
-        if( CertGetCertificateChain(
-            NULL,
-            h->peercert,
-            NULL,
-            h->peercert->hCertStore,
-            &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | ( online ? (DWORD)0 : CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL ),
-            NULL,
-            &PeerChain ) )
-        {
-            if( PeerChain->cChain > 0 )
-                for( DWORD i = 0; i < PeerChain->rgpChain[0]->cElement; i++ )
-                {
-                    PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[i]->pCertContext;
-                    h->peerchain.push_back( std::vector<BYTE>( cert->pbCertEncoded, cert->pbCertEncoded + cert->cbCertEncoded ) );
-                }
-
-            CertFreeCertificateChain( PeerChain );
-        }
     }
 
     if( !h->peerchain.size() )
@@ -3058,7 +3052,7 @@ int msspi_get_issuerlist( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, 
     MSSPIEHCATCH_HRET( 0 );
 }
 
-static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
+static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain = false )
 {
     uint32_t result = ERROR_INTERNAL_ERROR;
 
@@ -3090,7 +3084,7 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
         ChainPara.cbSize = sizeof( ChainPara );
 
         LPSTR Usages[1] = { (LPSTR)( h->is.client ? szOID_PKIX_KP_SERVER_AUTH : szOID_PKIX_KP_CLIENT_AUTH ) };
-        if( is_cert_usage( h->peercert, (const char *)Usages[0] ) != CERT_USAGE::EVERYTHING )
+        if( !just_chain && is_cert_usage( h->peercert, (const char *)Usages[0] ) != CERT_USAGE::EVERYTHING )
         {
             ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_AND;
             ChainPara.RequestedUsage.Usage.cUsageIdentifier = 1;
@@ -3107,6 +3101,22 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
             NULL,
             &PeerChain ) )
             break;
+
+        if( just_chain )
+        {
+            if( !h->peerchain.size() )
+            {
+                if( PeerChain->cChain > 0 )
+                    for( DWORD i = 0; i < PeerChain->rgpChain[0]->cElement; i++ )
+                    {
+                        PCCERT_CONTEXT cert = PeerChain->rgpChain[0]->rgpElement[i]->pCertContext;
+                        h->peerchain.push_back( std::vector<BYTE>( cert->pbCertEncoded, cert->pbCertEncoded + cert->cbCertEncoded ) );
+                    }
+            }
+
+            CertFreeCertificateChain( PeerChain );
+            return ERROR_SUCCESS;
+        }
 
         std::wstring whost;
         HTTPSPolicyCallbackData polHttps;
@@ -3156,11 +3166,11 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation )
     return result;
 }
 
-int msspi_verify( MSSPI_HANDLE h, uint32_t * verify_result )
+int msspi_get_verify_status( MSSPI_HANDLE h, uint32_t * status )
 {
     MSSPIEHTRY_h;
 
-    if( !verify_result )
+    if( !status )
     {
         SetLastError( ERROR_BAD_ARGUMENTS );
         return 0;
@@ -3190,15 +3200,21 @@ int msspi_verify( MSSPI_HANDLE h, uint32_t * verify_result )
     if( verify_final == ERROR_INTERNAL_ERROR )
         return 0; // last error included
 
-    *verify_result = verify_final;
+    *status = verify_final;
     return 1;
 
     MSSPIEHCATCH_HRET( 0 );
 }
 
-int msspi_verify_peer_in_store( MSSPI_HANDLE h, const uint8_t * store, size_t len )
+int msspi_get_peercert_in_store_status( MSSPI_HANDLE h, const uint8_t * store, size_t len, uint32_t * status )
 {
     MSSPIEHTRY_h;
+
+    if( !status )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
+        return 0;
+    }
 
     HCERTSTORE hStore = 0;
     PCCERT_CONTEXT certfound = NULL;
@@ -3228,9 +3244,16 @@ int msspi_verify_peer_in_store( MSSPI_HANDLE h, const uint8_t * store, size_t le
     }
 
     if( certfound )
+    {
         CertFreeCertificateContext( certfound );
+        *status = ERROR_SUCCESS;
+    }
+    else
+    {
+        *status = ERROR_NOT_FOUND;
+    }
 
-    return certfound ? 1 : 0;
+    return 1;
 
     MSSPIEHCATCH_HRET( 0 );
 }
