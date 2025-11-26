@@ -2870,7 +2870,7 @@ int msspi_get_peercerts( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, s
     MSSPIEHCATCH_HRET( 0 );
 }
 
-uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain );
+static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool just_chain );
 
 int msspi_get_peerchain( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, size_t * count )
 {
