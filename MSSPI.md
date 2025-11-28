@@ -459,16 +459,18 @@ Sets a custom cache string for credential caching. **Call before [`msspi_set_myc
 int msspi_set_mycert(MSSPI_HANDLE h, const uint8_t *cert, size_t cert_len);
 ```
 
-Sets the certificate. Works with client or server certificates depending on [`msspi_set_client()`](#msspi_set_client). **Call this LAST** after all credential-affecting parameters (version, cipherlist, hostname, peerauth, cachestring).
+Sets the working certificate by searching for a certificate based on input data in the certificate store (defaults to "MY", configurable via [`msspi_set_certstore()`](#msspi_set_certstore)). Sets client or server certificates depending on [`msspi_set_client()`](#msspi_set_client). **Call this LAST** after all credential-affecting parameters (version, cipherlist, hostname, peerauth, cachestring).
 
 **Supported input formats:**
 - **DER format**: Binary certificate data
 - **PEM/BASE64 format**: Base64-encoded certificate (with or without PEM headers)
-- **SHA1 hash (thumbprint)**: Hex string representing the certificate's SHA1 hash (searches in certificate store)
-- **Key Identifier**: Hex string representing the certificate's key identifier (searches in certificate store)
-- **Subject string**: Certificate subject name as string (searches in certificate store)
+- **SHA1 hash**: Hex string representing the certificate's SHA1 hash
+- **Key Identifier**: Hex string representing the certificate's key identifier
+- **Subject string**: Certificate subject name
 
 The function first tries to parse the input as DER or PEM certificate. If that fails, it attempts to find the certificate in the Windows certificate store (configured via [`msspi_set_certstore()`](#msspi_set_certstore)) using the hash, key identifier, or subject string.
+
+**Note:** When searching in the certificate store, only certificates with an associated private key (having the `CERT_KEY_PROV_INFO_PROP_ID` property) are accepted.
 
 **Parameters:**
 - `h`: Handle
@@ -485,11 +487,9 @@ The function first tries to parse the input as DER or PEM certificate. If that f
 int msspi_add_mycert(MSSPI_HANDLE h, const uint8_t *cert, size_t cert_len);
 ```
 
-Adds an additional certificate. Works with client or server certificates depending on [`msspi_set_client()`](#msspi_set_client). **Call this LAST** after all credential-affecting parameters.
+Adds an additional working certificate. Behaves the same as [`msspi_set_mycert()`](#msspi_set_mycert) but adds the certificate instead of replacing existing ones.
 
-**Supported input formats:** Same as [`msspi_set_mycert()`](#msspi_set_mycert) - DER, PEM/BASE64, SHA1 hash (hex), Key Identifier (hex), or Subject string.
-
-**Server mode behavior:** When multiple server certificates are added using `msspi_add_mycert()`, the server processes them in the order they were added during ClientHello handling and session parameter negotiation. The first certificate that successfully matches the client's parameters will be used.
+**Server mode behavior:** Multiple server certificates can be set using [`msspi_set_mycert()`](#msspi_set_mycert) followed by `msspi_add_mycert()`. The server processes them in the order they were added during ClientHello handling and session parameter negotiation. The first certificate that successfully matches the client's parameters will be used.
 
 **Parameters:**
 - `h`: Handle
