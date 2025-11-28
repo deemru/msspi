@@ -2,6 +2,9 @@
 
 ## 1.0.2
 
+- Fixed regression in [`msspi_set_mycert()`](MSSPI.md#msspi_set_mycert) where SHA1/KeyID/Subject certificate lookup failed
+- Updated documentation for [`msspi_set_mycert()`](MSSPI.md#msspi_set_mycert) and [`msspi_add_mycert()`](MSSPI.md#msspi_add_mycert)
+
 ---
 
 ## 1.0.1

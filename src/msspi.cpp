@@ -2394,22 +2394,16 @@ static PCCERT_CONTEXT findcert( const uint8_t * certData, size_t len, const char
 {
     PCCERT_CONTEXT certprobe = NULL;
 
-    if( len )
+    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, certData, (DWORD)len ); // DER format
+    if( !certprobe )
     {
-        certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, certData, (DWORD)len );
-        if( !certprobe )
+        std::vector<BYTE> clientCertDer;
+        DWORD dwData;
+        if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
         {
-            std::vector<BYTE> clientCertDer;
-            DWORD dwData;
-            if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, NULL, &dwData, NULL, NULL ) )
-            {
-                clientCertDer.resize( dwData );
-                if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, clientCertDer.data(), &dwData, NULL, NULL ) )
-                    certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, clientCertDer.data(), dwData );
-            }
-
-            if( !certprobe )
-                return NULL;
+            clientCertDer.resize( dwData );
+            if( CryptStringToBinaryA( (const char *)certData, (DWORD)len, CRYPT_STRING_BASE64_ANY, clientCertDer.data(), &dwData, NULL, NULL ) )
+                certprobe = CertCreateCertificateContext( X509_ASN_ENCODING, clientCertDer.data(), dwData ); // PEM format
         }
     }
 
@@ -2428,13 +2422,13 @@ static PCCERT_CONTEXT findcert( const uint8_t * certData, size_t len, const char
         if( !hStore )
             continue;
 
-        if( certprobe )
+        if( certprobe ) // DER/PEM format
         {
             certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, certprobe, 0 );
             if( certfound )
                 break;
         }
-        else
+        else // SHA1/KeyID/Subject
         {
             std::vector<BYTE> bb = from_hex_string( (const char *)certData, len );
             if( !bb.empty() )
@@ -2457,7 +2451,8 @@ static PCCERT_CONTEXT findcert( const uint8_t * certData, size_t len, const char
                     break;
             }
 
-            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, certData, NULL );
+            std::string subject( (const char *)certData, len );
+            certfound = CertFindCertificateInStore( hStore, X509_ASN_ENCODING, 0, CERT_FIND_SUBJECT_STR_A, subject.c_str(), NULL );
             if( certfound )
                 break;
         }
