@@ -2,6 +2,8 @@
 
 ## 1.0.3
 
+- Safer definition of shared TLS/DTLS version constants
+
 ---
 
 ## 1.0.2
