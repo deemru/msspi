@@ -140,11 +140,25 @@ Checks if a TLS/DTLS version is supported by the system.
 ### Protocol Version Constants
 
 ```c
-#define TLS1_VERSION    0x0301
-#define TLS1_1_VERSION  0x0302
-#define TLS1_2_VERSION  0x0303
-#define TLS1_3_VERSION  0x0304
+#ifndef TLS1_VERSION
+#define TLS1_VERSION 0x0301
+#endif
+
+#ifndef TLS1_1_VERSION
+#define TLS1_1_VERSION 0x0302
+#endif
+
+#ifndef TLS1_2_VERSION
+#define TLS1_2_VERSION 0x0303
+#endif
+
+#ifndef TLS1_3_VERSION
+#define TLS1_3_VERSION 0x0304
+#endif
+
+#ifndef DTLS1_2_VERSION
 #define DTLS1_2_VERSION 0xFEFD
+#endif
 ```
 
 ---

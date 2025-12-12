@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3
+
+- Fixed broken logic regression in [`msspi_get_peerchain()`](MSSPI.md#msspi_get_peerchain)
+- Safer definition of shared TLS/DTLS version constants
+
+---
+
 ## 1.0.2
 
 - Fixed regression in [`msspi_set_mycert()`](MSSPI.md#msspi_set_mycert) where SHA1/KeyID/Subject certificate lookup failed

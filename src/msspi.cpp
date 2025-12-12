@@ -2873,7 +2873,8 @@ int msspi_get_peerchain( MSSPI_HANDLE h, const uint8_t ** bufs, size_t * lens, s
 
     if( !h->peerchain.size() )
     {
-        if( !msspi_verify_internal( h, false, true ) )
+        uint32_t just_chain_result = msspi_verify_internal( h, false, true );
+        if( just_chain_result != ERROR_SUCCESS )
             return 0; // last error included
     }
 
