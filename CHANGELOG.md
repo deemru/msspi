@@ -2,6 +2,7 @@
 
 ## 1.0.3
 
+- Fixed broken logic regression in [`msspi_get_peerchain()`](MSSPI.md#msspi_get_peerchain)
 - Safer definition of shared TLS/DTLS version constants
 
 ---
