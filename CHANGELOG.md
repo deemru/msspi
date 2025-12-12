@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+
+---
+
 ## 1.0.3
 
 - Fixed broken logic regression in [`msspi_get_peerchain()`](MSSPI.md#msspi_get_peerchain)
