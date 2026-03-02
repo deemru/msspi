@@ -130,6 +130,13 @@ typedef char *PSZ;
 #define CONST               const
 #endif
 
+/* Дублирование определения в compiler_attributes.h и support_base_defs.h */
+#if defined __GNUC__
+#define CPRO_CHECK_RESULT __attribute__ ((__warn_unused_result__))
+#else // __GNUC__
+#define CPRO_CHECK_RESULT
+#endif // __GNUC__
+
 /*Определения из WinNT.h */
 /* Basics*/
 
@@ -197,31 +204,6 @@ typedef DWORDLONG *PDWORDLONG;
 #define DECLSPEC_IMPORT
 #endif
 
-#if 0
-#if defined (UNIX) || (defined (CSP_LITE) && defined (CSP_INTERNAL))
-# if defined (UNIX) 
-#  ifdef STDC_HEADERS
-#    include <stdlib.h>
-#    include <stddef.h>
-#  else /* STDC_HEADERS */
-#    ifdef HAVE_STDLIB_H
-#      include <stdlib.h>
-#    endif
-#  endif /* STDC_HEADERS */
-#  include <wchar.h>
-# else /* (defined (CSP_LITE) && defined (CSP_INTERNAL)) */
-#  include "csplitecrt.h"
-# endif
-  ...
-#else
-# if defined (CSP_LITE)
-#  include "reader/ddk4.h"
-# else /* !defined (CSP_LITE) */
-#  include <WinDef.h>
-# endif
-#endif
-#endif
-
 #ifdef CSP_LITE
 # ifndef CSP_DRIVER
 #   include "csplitecrt.h"
@@ -235,14 +217,8 @@ typedef DWORDLONG *PDWORDLONG;
 #   endif
 # endif
 #else
-# ifdef STDC_HEADERS
-#   include <stdlib.h>
-#   include <stddef.h>
-# else /* STDC_HEADERS */
-#   ifdef HAVE_STDLIB_H
-#     include <stdlib.h>
-#   endif
-# endif /* STDC_HEADERS */
+# include <stdlib.h>
+# include <stddef.h>
 # include <wchar.h>
 #endif /* CSP_LITE */
 
@@ -254,9 +230,11 @@ typedef CONST wchar_t *LPCWSTR, *PCWSTR;
 
 #if defined( UNICODE )
 typedef wchar_t TCHAR, *PTCHAR;
+typedef wchar_t _TUCHAR;
 typedef wint_t _TINT;
 #else
 typedef char TCHAR, *PTCHAR;
+typedef unsigned char _TUCHAR;
 typedef int _TINT;
 #endif
 
@@ -292,7 +270,7 @@ typedef HANDLE HLOCAL;
 #include <winnt.h>
 #endif  NT_INCLUDED */
 
-/* Types use for passing & returning polymorphic values 
+/* Types use for passing & returning polymorphic values
 typedef UINT_PTR            WPARAM;
 typedef LONG_PTR            LPARAM;
 typedef LONG_PTR            LRESULT;
@@ -323,6 +301,9 @@ typedef ULONG_PTR DWORD_PTR, *PDWORD_PTR;
 #define HIWORD(l)           ((WORD)((DWORD_PTR)(l) >> 16))
 #define LOBYTE(w)           ((BYTE)((DWORD_PTR)(w) & 0xff))
 #define HIBYTE(w)           ((BYTE)((DWORD_PTR)(w) >> 8))
+
+/* Возможно новые константы не стоит добавлять из-за очень похожих в limits.h */
+#define MAXDWORD 0xffffffff
 
 typedef int (CALLBACK *FARPROC)(void);
 typedef int (CALLBACK *NEARPROC)(void);
@@ -444,7 +425,7 @@ WideCharToMultiByte(
 
 /*Конец определений из WinNls.h*/
 
-WINBASEAPI DWORD WINAPI GetLastError(void);
+WINBASEAPI DWORD WINAPI GetLastError(void) CPRO_CHECK_RESULT;
 
 WINBASEAPI void WINAPI SetLastError(DWORD dwErr);   //Sets error code
 
@@ -461,7 +442,7 @@ FormatMessage(
     OUT LPSTR lpBuffer,
     IN DWORD nSize,
     IN void *Arguments
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define FormatMessageA FormatMessage
 
@@ -486,7 +467,7 @@ FormatMessageA(
     OUT LPSTR lpBuffer,
     IN DWORD nSize,
     IN void *Arguments
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINBASEAPI
 DWORD
@@ -499,7 +480,7 @@ FormatMessageW(
     OUT LPWSTR lpBuffer,
     IN DWORD nSize,
     IN void *Arguments
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #    define FormatMessage FormatMessageW
@@ -616,52 +597,52 @@ typedef LONG_PTR SSIZE_T, *PSSIZE_T;
                                    FILE_EXECUTE             |\
                                    SYNCHRONIZE)
 
-#define FILE_SHARE_READ                 0x00000001  
-#define FILE_SHARE_WRITE                0x00000002  
-#define FILE_SHARE_DELETE               0x00000004  
-#define FILE_ATTRIBUTE_READONLY             0x00000001  
-#define FILE_ATTRIBUTE_HIDDEN               0x00000002  
-#define FILE_ATTRIBUTE_SYSTEM               0x00000004  
-#define FILE_ATTRIBUTE_DIRECTORY            0x00000010  
-#define FILE_ATTRIBUTE_ARCHIVE              0x00000020  
-#define FILE_ATTRIBUTE_DEVICE               0x00000040  
-#define FILE_ATTRIBUTE_NORMAL               0x00000080  
-#define FILE_ATTRIBUTE_TEMPORARY            0x00000100  
-#define FILE_ATTRIBUTE_SPARSE_FILE          0x00000200  
-#define FILE_ATTRIBUTE_REPARSE_POINT        0x00000400  
-#define FILE_ATTRIBUTE_COMPRESSED           0x00000800  
-#define FILE_ATTRIBUTE_OFFLINE              0x00001000  
-#define FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  0x00002000  
-#define FILE_ATTRIBUTE_ENCRYPTED            0x00004000  
-#define FILE_NOTIFY_CHANGE_FILE_NAME    0x00000001   
-#define FILE_NOTIFY_CHANGE_DIR_NAME     0x00000002   
-#define FILE_NOTIFY_CHANGE_ATTRIBUTES   0x00000004   
-#define FILE_NOTIFY_CHANGE_SIZE         0x00000008   
-#define FILE_NOTIFY_CHANGE_LAST_WRITE   0x00000010   
-#define FILE_NOTIFY_CHANGE_LAST_ACCESS  0x00000020   
-#define FILE_NOTIFY_CHANGE_CREATION     0x00000040   
-#define FILE_NOTIFY_CHANGE_SECURITY     0x00000100   
-#define FILE_ACTION_ADDED                   0x00000001   
-#define FILE_ACTION_REMOVED                 0x00000002   
-#define FILE_ACTION_MODIFIED                0x00000003   
-#define FILE_ACTION_RENAMED_OLD_NAME        0x00000004   
-#define FILE_ACTION_RENAMED_NEW_NAME        0x00000005   
-#define MAILSLOT_NO_MESSAGE             ((DWORD)-1) 
-#define MAILSLOT_WAIT_FOREVER           ((DWORD)-1) 
-#define FILE_CASE_SENSITIVE_SEARCH      0x00000001  
-#define FILE_CASE_PRESERVED_NAMES       0x00000002  
-#define FILE_UNICODE_ON_DISK            0x00000004  
-#define FILE_PERSISTENT_ACLS            0x00000008  
-#define FILE_FILE_COMPRESSION           0x00000010  
-#define FILE_VOLUME_QUOTAS              0x00000020  
-#define FILE_SUPPORTS_SPARSE_FILES      0x00000040  
-#define FILE_SUPPORTS_REPARSE_POINTS    0x00000080  
-#define FILE_SUPPORTS_REMOTE_STORAGE    0x00000100  
-#define FILE_VOLUME_IS_COMPRESSED       0x00008000  
-#define FILE_SUPPORTS_OBJECT_IDS        0x00010000  
-#define FILE_SUPPORTS_ENCRYPTION        0x00020000  
-#define FILE_NAMED_STREAMS              0x00040000  
-#define FILE_READ_ONLY_VOLUME           0x00080000  
+#define FILE_SHARE_READ                 0x00000001
+#define FILE_SHARE_WRITE                0x00000002
+#define FILE_SHARE_DELETE               0x00000004
+#define FILE_ATTRIBUTE_READONLY             0x00000001
+#define FILE_ATTRIBUTE_HIDDEN               0x00000002
+#define FILE_ATTRIBUTE_SYSTEM               0x00000004
+#define FILE_ATTRIBUTE_DIRECTORY            0x00000010
+#define FILE_ATTRIBUTE_ARCHIVE              0x00000020
+#define FILE_ATTRIBUTE_DEVICE               0x00000040
+#define FILE_ATTRIBUTE_NORMAL               0x00000080
+#define FILE_ATTRIBUTE_TEMPORARY            0x00000100
+#define FILE_ATTRIBUTE_SPARSE_FILE          0x00000200
+#define FILE_ATTRIBUTE_REPARSE_POINT        0x00000400
+#define FILE_ATTRIBUTE_COMPRESSED           0x00000800
+#define FILE_ATTRIBUTE_OFFLINE              0x00001000
+#define FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  0x00002000
+#define FILE_ATTRIBUTE_ENCRYPTED            0x00004000
+#define FILE_NOTIFY_CHANGE_FILE_NAME    0x00000001
+#define FILE_NOTIFY_CHANGE_DIR_NAME     0x00000002
+#define FILE_NOTIFY_CHANGE_ATTRIBUTES   0x00000004
+#define FILE_NOTIFY_CHANGE_SIZE         0x00000008
+#define FILE_NOTIFY_CHANGE_LAST_WRITE   0x00000010
+#define FILE_NOTIFY_CHANGE_LAST_ACCESS  0x00000020
+#define FILE_NOTIFY_CHANGE_CREATION     0x00000040
+#define FILE_NOTIFY_CHANGE_SECURITY     0x00000100
+#define FILE_ACTION_ADDED                   0x00000001
+#define FILE_ACTION_REMOVED                 0x00000002
+#define FILE_ACTION_MODIFIED                0x00000003
+#define FILE_ACTION_RENAMED_OLD_NAME        0x00000004
+#define FILE_ACTION_RENAMED_NEW_NAME        0x00000005
+#define MAILSLOT_NO_MESSAGE             ((DWORD)-1)
+#define MAILSLOT_WAIT_FOREVER           ((DWORD)-1)
+#define FILE_CASE_SENSITIVE_SEARCH      0x00000001
+#define FILE_CASE_PRESERVED_NAMES       0x00000002
+#define FILE_UNICODE_ON_DISK            0x00000004
+#define FILE_PERSISTENT_ACLS            0x00000008
+#define FILE_FILE_COMPRESSION           0x00000010
+#define FILE_VOLUME_QUOTAS              0x00000020
+#define FILE_SUPPORTS_SPARSE_FILES      0x00000040
+#define FILE_SUPPORTS_REPARSE_POINTS    0x00000080
+#define FILE_SUPPORTS_REMOTE_STORAGE    0x00000100
+#define FILE_VOLUME_IS_COMPRESSED       0x00008000
+#define FILE_SUPPORTS_OBJECT_IDS        0x00010000
+#define FILE_SUPPORTS_ENCRYPTION        0x00020000
+#define FILE_NAMED_STREAMS              0x00040000
+#define FILE_READ_ONLY_VOLUME           0x00080000
 
 #define FILE_BEGIN           0
 #define FILE_CURRENT         1
@@ -692,7 +673,8 @@ typedef LONG_PTR SSIZE_T, *PSSIZE_T;
 
 HLOCAL WINAPI LocalAlloc(
     IN UINT uFlags,
-    IN SIZE_T uBytes);
+    IN SIZE_T uBytes
+    ) CPRO_CHECK_RESULT;
 
 HLOCAL WINAPI LocalFree(
     IN HLOCAL hMem );

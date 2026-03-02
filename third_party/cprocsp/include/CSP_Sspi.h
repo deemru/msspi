@@ -60,7 +60,7 @@ extern "C" {
 
 #ifndef ISSP_LEVEL
 #error  You must define one of SECURITY_WIN32, SECURITY_KERNEL, or
-#error  SECURITY_MAC 
+#error  SECURITY_MAC
 #endif // !ISSP_LEVEL
 
 
@@ -85,7 +85,7 @@ typedef LONG SECURITY_STATUS;
 #define SEC_ENTRY __stdcall
 #else
 #define SEC_ENTRY
-#endif 
+#endif
 
 // end_ntifs
 
@@ -313,8 +313,8 @@ typedef struct _SecBufferDesc {
 #define SECBUFFER_NEGOTIATION_INFO  8   // Hints from the negotiation pkg
 #define SECBUFFER_PADDING           9   // non-data padding
 #define SECBUFFER_STREAM            10  // whole encrypted message
-#define SECBUFFER_MECHLIST          11  
-#define SECBUFFER_MECHLIST_SIGNATURE 12 
+#define SECBUFFER_MECHLIST          11
+#define SECBUFFER_MECHLIST_SIGNATURE 12
 #define SECBUFFER_TARGET            13
 #define SECBUFFER_CHANNEL_BINDINGS  14
 #define SECBUFFER_ALERT             17
@@ -1612,7 +1612,7 @@ SecMakeSPN(
     OUT PULONG Length OPTIONAL,
     IN BOOLEAN Allocate
     );
-    
+
 NTSTATUS
 NTAPI
 SecMakeSPNEx(
@@ -1948,7 +1948,7 @@ SaslSetContextOption(
     PVOID Value,
     ULONG Size
     );
-    
+
 
 SECURITY_STATUS
 SEC_ENTRY
@@ -1971,7 +1971,7 @@ SaslGetContextOption(
 #endif
 
 //
-// This is the legacy credentials structure.  
+// This is the legacy credentials structure.
 // The EX version below is preferred.
 
 // begin_ntifs
@@ -2013,7 +2013,7 @@ typedef struct _SEC_WINNT_AUTH_IDENTITY_A {
 #define PSEC_WINNT_AUTH_IDENTITY PSEC_WINNT_AUTH_IDENTITY_A
 #define _SEC_WINNT_AUTH_IDENTITY _SEC_WINNT_AUTH_IDENTITY_A
 #endif // UNICODE
-                                                               
+
 #endif //_AUTH_IDENTITY_DEFINED                                 // ntifs
 
 // begin_ntifs
@@ -2059,12 +2059,12 @@ typedef struct _SEC_WINNT_AUTH_IDENTITY_EXA {
 #ifdef UNICODE
 #define SEC_WINNT_AUTH_IDENTITY_EX  SEC_WINNT_AUTH_IDENTITY_EXW    // ntifs
 #define PSEC_WINNT_AUTH_IDENTITY_EX PSEC_WINNT_AUTH_IDENTITY_EXW   // ntifs
-#else 
+#else
 #define SEC_WINNT_AUTH_IDENTITY_EX  SEC_WINNT_AUTH_IDENTITY_EXA
-#endif 
+#endif
 
 // begin_ntifs
-#endif // SEC_WINNT_AUTH_IDENTITY_VERSION       
+#endif // SEC_WINNT_AUTH_IDENTITY_VERSION
 
 
 //

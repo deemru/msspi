@@ -1,19 +1,19 @@
 /*
  * Copyright (c) 2000, компания Крипто-Про
- * 
+ *
  * Разрешается повторное распространение и использование как в виде исходного
  * кода, так и в двоичной форме, с изменениями или без, при соблюдении
  * следующих условий:
- * 
- * 1) При повторном распространении исходного кода должно оставаться 
- *    указанное выше уведомление об авторском праве, этот список условий 
+ *
+ * 1) При повторном распространении исходного кода должно оставаться
+ *    указанное выше уведомление об авторском праве, этот список условий
  *    и последующий отказ от гарантий.
- * 
+ *
  * 2) При повторном распространении двоичного кода должно сохраняться
  *    указанная выше информация об авторском праве, этот список условий
  *    и последующий отказ от гарантий в документации и/или в других материалах,
  *    поставляемых при распространении.
- * 
+ *
  * ЭТА ПРОГРАММА ПРЕДОСТАВЛЕНА БЕСПЛАТНО ВЛАДЕЛЬЦАМИ АВТОРСКИХ ПРАВ И/ИЛИ
  * ДРУГИМИ СТОРОНАМИ "КАК ОНА ЕСТЬ" БЕЗ КАКОГО-ЛИБО ВИДА ГАРАНТИЙ, ВЫРАЖЕННЫХ
  * ЯВНО ИЛИ ПОДРАЗУМЕВАЕМЫХ, ВКЛЮЧАЯ, НО НЕ ОГРАНИЧИВАЯСЬ ИМИ, ПОДРАЗУМЕВАЕМЫЕ
@@ -28,19 +28,19 @@
  * ТРЕТЬИХ ЛИЦ, ИЛИ ОТКАЗОМ ПРОГРАММЫ РАБОТАТЬ СОВМЕСТНО С ДРУГИМИ ПРОГРАММАМИ),
  * ДАЖЕ ЕСЛИ ТАКОЙ ВЛАДЕЛЕЦ ИЛИ ДРУГОЕ ЛИЦО БЫЛИ ИЗВЕЩЕНЫ О ВОЗМОЖНОСТИ
  * ТАКИХ УБЫТКОВ.
- * 
+ *
  * Copyright (c) 2000, Crypto-Pro Company All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1) Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
- * 
+ *
  * 2) Redistributions in binary form must reproduce the above copyright notice,
  *    this list of conditions and the following disclaimer in the documentation
  *    and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -63,7 +63,7 @@
 
 #ifndef _WINCRYPTEX_USE_EXTERNAL_TYPES
 
-#  ifndef HAVE_CONFIG_H
+#  ifndef HAVE_CPRO_CONFIG_H
 #    ifdef __APPLE__
 #      ifndef UNIX
 #        define UNIX
@@ -76,7 +76,7 @@
 #        endif /*__LP64__*/
 #      endif /*SIZEOF_VOID_P*/
 #    endif /*__APPLE__*/
-#  endif 
+#  endif
 
 #  if defined UNIX || defined CSP_LITE
 #    include "CSP_WinCrypt.h"
@@ -284,10 +284,16 @@ extern "C" {
 #define CP_KC1_GR3410_2001_REGISTRY_PROV CP_KC1_GR3410_2001_REGISTRY_PROV_A
 #endif //!UNICODE
 
+#ifdef UNICODE
+#define CP_CERT_STORE_PROV_FILENAME_T CERT_STORE_PROV_FILENAME_W
+#else //!UNICODE
+#define CP_CERT_STORE_PROV_FILENAME_T CERT_STORE_PROV_FILENAME_A
+#endif //!UNICODE
+
 #define CRYPTOPRO_TRUSTED_CERT_STORE_NAME_A "CryptoProTrustedStore"
 #define CRYPTOPRO_TRUSTED_CERT_STORE_NAME_W L"CryptoProTrustedStore"
 
-#ifndef UNIX 
+#ifndef UNIX
 #define PROV_TYPE_CNG ((DWORD)(-1))
 #endif // !UNIX
 
@@ -323,7 +329,7 @@ extern "C" {
 
 /* Дополнительные типы кодирования.
  * В Platform SDK определены только CRYPT_ASN_ENCODING (1),
- * CRYPT_NDR_ENCODING (2) и значения выше 0x10000 (PKCS7). 
+ * CRYPT_NDR_ENCODING (2) и значения выше 0x10000 (PKCS7).
  *
  * Additional Encoding Types
  */
@@ -337,7 +343,7 @@ extern "C" {
 
 #define CERT_URL_OBJECT_CACHE_DATA_PROP_ID	0x00008001
 
-/* 
+/*
  * Дополнительные флаги AcquireContext. Глобальные установки криптопровайдера.
  *
  * Addional AcquireContext flags. Global cryptoprovider settings.
@@ -353,7 +359,7 @@ extern "C" {
 
 #define ACQUIRE_CONTEXT_SUPPORTED_FLAGS		(CRYPT_GENERAL | CRYPT_NOSERIALIZE | CRYPT_REBOOT | CRYPT_PROMT_INSERT_MEDIA | CRYPT_UECDATACONTEXT | CRYPT_CMS_HIGHLOAD_NOSERIALIZE | CRYPT_NO_CONTAINER_CACHE | CRYPT_LOCAL_PASSWORD_CACHE)
 
-/* 
+/*
  * Дополнительные флаги PFXImportCertStore
  *
  * Addional PFXImportCertStore flags
@@ -366,7 +372,7 @@ extern "C" {
     #define CRYPT_USER_PROTECTED_STRONG         0x00100000
 #endif
 
-/* 
+/*
  * Дополнительные флаги PFXExportCertStoreEx
  *
  * Addional PFXExportCertStoreEx flags
@@ -391,7 +397,7 @@ extern "C" {
 /* флаг для запоминания пароля в реестре */
 #define CP_CRYPT_SAVE_PASSWORD 0x00001000
 
-/* Флаг, указывающий, что запрошенная функциональность будет применена 
+/* Флаг, указывающий, что запрошенная функциональность будет применена
  * только к текущему контексту провайдера */
 #define CP_CRYPT_CACHE_ONLY 0x00002000
 
@@ -400,7 +406,7 @@ extern "C" {
 #define CP_CRYPT_CONTAINER_ONLY CP_CRYPT_CACHE_ONLY
 
  /* Флаг, указывающий, что из PP_USER_CERTSTORE/PP_ROOT_CERTSTORE
- * будет возвращено сериализованное store в виде блоба. 
+ * будет возвращено сериализованное store в виде блоба.
  * Также флаг применим для CryptSetProvParam(PP_ROOT_CERTSTORE)
  */
 #define CP_CRYPT_SERIALIZED_STORE 0x00004000
@@ -412,7 +418,7 @@ extern "C" {
 #define CPCMSG_CADES_DISABLE_CERT_SEARCH    (0x00000400)
 
 /* Дополнительные флаги CryptMsgOpenToEncode, CryptMsgUpdate, CryptMsgControl,
- * определяющие какие данные (контент/атрибуты) будут хэшироваться 
+ * определяющие какие данные (контент/атрибуты) будут хэшироваться
  * на pin-pad/SafeTouch. */
 #define CPCMSG_DTBS_CONTENT                 (0x00000800)
 #define CPCMSG_DTBS_ATTRIBUTE               (0x00001000)
@@ -424,18 +430,21 @@ extern "C" {
 #define CPCRYPT_MESSAGE_CADES_DISABLE	    (CPCMSG_CADES_DISABLE)
 
 /* Дополнительные флаги CryptSignMessage, определяющие
- * какие данные (контент/атрибуты) будут хэшироваться 
+ * какие данные (контент/атрибуты) будут хэшироваться
  * на pin-pad/SafeTouch. */
 #define CPCRYPT_MESSAGE_DTBS_CONTENT	    (CPCMSG_DTBS_CONTENT)
 #define CPCRYPT_MESSAGE_DTBS_ATTRIBUTE	    (CPCMSG_DTBS_ATTRIBUTE)
 
 /* ???? Флаг CryptGenKey, определяющий ключи, используемые совместно с ФКН.*/
-#define CRYPT_ECCNEGATIVE	0x00000400 
-#define CRYPT_PUBLICCOMPRESS	0x00000800 
+#define CRYPT_ECCNEGATIVE	0x00000400
+#define CRYPT_PUBLICCOMPRESS	0x00000800
 
 /* флаги CryptSetKeyParam KP_ADDX для сложения/вычитания */
 #define EC_PLUS 0
 #define EC_MINUS 1
+
+/* флаг CryptSetKeyParam KP_AUTH_TAG для сохранения в контексте ключа тэга аутентификации сообщения */
+#define SAVE_AUTH_TAG		0x100
 
 /* флаг GenKey для разрешения/запрета ДХ для ключей подписи (переопределяем CRYPT_SGCKEY) */
 #define	CP_CRYPT_DH_ALLOWED        0x00002000
@@ -502,6 +511,8 @@ extern "C" {
 #define CP_ECC_PLAIN_SIGNATURE_CNG_REVERSED		(0x00000020) // формат подписи (s|r) в LittleEndian
 #define CP_PSEUDO_RANDOM_K_ONLY				(0x00000040) // отключает новый формат выработки k
 #define CRYPT_RSA_PSS					(0x00000080) // подпись с PSS-паддингом
+#define CP_ECC_SIGNATURE_RECOVERY_ID			(0x00000100) // для ECDSA подписи дополнительно возвращает recovery id в последнем байте
+#define CP_KDF_FOR_SIGN_PUBLIC_KEY			(0x00000200) // для схемы KDF For Sign возвращает открытый ключ, соответствующий полученному листовому ключу
 
 #define CMS_BLOCKLEN_TAG			'B'
 
@@ -532,9 +543,12 @@ extern "C" {
 #define ALG_SID_KEXP_2015_K			37
 #define ALG_SID_MGM_EXPORT_M			41
 #define ALG_SID_MGM_EXPORT_K			42
+#define ALG_SID_CTR_OMAC_EXPORT_M		43
+#define ALG_SID_CTR_OMAC_EXPORT_K		44
 /* GR3412 sub_ids*/
 #define ALG_SID_GR3412_2015_M			48
 #define ALG_SID_GR3412_2015_K			49
+#define ALG_SID_KDF_CTR				46
 /* Hash sub ids */
 #define ALG_SID_G28147_MAC			31
 #define ALG_SID_G28147_CHV			48
@@ -557,6 +571,26 @@ extern "C" {
 #define ALG_SID_SHA3_256			78
 #define ALG_SID_SHA3_384			79
 #define ALG_SID_SHA3_512			80
+
+/* Keccak Hash ids */
+#define ALG_SID_KECCAK_224			88
+#define ALG_SID_KECCAK_256			89
+#define ALG_SID_KECCAK_384			90
+#define ALG_SID_KECCAK_512			91
+
+/* Shake Hash ids */
+#define ALG_SID_SHAKE_128			92
+#define ALG_SID_SHAKE_256			93
+
+/* Blake2 Hash ids */
+#define ALG_SID_BLAKE2B_160			94
+#define ALG_SID_BLAKE2B_256			95
+#define ALG_SID_BLAKE2B_384			96
+#define ALG_SID_BLAKE2B_512			97
+#define ALG_SID_BLAKE2S_128			98
+#define ALG_SID_BLAKE2S_160			99
+#define ALG_SID_BLAKE2S_224			100
+#define ALG_SID_BLAKE2S_256			101
 
 /* GOST R 34.11-2012 hash sub ids */
 #define ALG_SID_GR3411_2012_256			33
@@ -589,6 +623,7 @@ extern "C" {
 
 #define ALG_SID_HASH_TO_CURVE			85
 #define ALG_SID_HASH_TO_FIELD			86
+#define ALG_SID_KDF_CMAC			87
 
 #define ALG_SID_NO_HASH				84
 
@@ -631,6 +666,11 @@ extern "C" {
 #define CALG_MDC2 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_MDC2)
 
+#ifndef CALG_RIPEMD160
+#define CALG_RIPEMD160 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_RIPEMD160)
+#endif
+
 #ifndef CALG_SHA_224
 #define CALG_SHA_224 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHA_224)
@@ -662,6 +702,48 @@ extern "C" {
 
 #define CALG_SHA3_512 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHA3_512)
+
+#define CALG_KECCAK_224 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_KECCAK_224)
+
+#define CALG_KECCAK_256 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_KECCAK_256)
+
+#define CALG_KECCAK_384 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_KECCAK_384)
+
+#define CALG_KECCAK_512 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_KECCAK_512)
+
+#define CALG_SHAKE_128 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHAKE_128)
+
+#define CALG_SHAKE_256 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHAKE_256)
+
+#define CALG_BLAKE2B_160 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2B_160)
+
+#define CALG_BLAKE2B_256 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2B_256)
+
+#define CALG_BLAKE2B_384 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2B_384)
+
+#define CALG_BLAKE2B_512 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2B_512)
+
+#define CALG_BLAKE2S_128 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2S_128)
+
+#define CALG_BLAKE2S_160 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2S_160)
+
+#define CALG_BLAKE2S_224 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2S_224)
+
+#define CALG_BLAKE2S_256 \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_BLAKE2S_256)
 
 #define CALG_GR3411 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_GR3411)
@@ -829,6 +911,12 @@ extern "C" {
 #define CALG_MGM_EXPORT_K \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_MGM_EXPORT_K)
 
+#define CALG_CTR_OMAC_EXPORT_M \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_CTR_OMAC_EXPORT_M)
+
+#define CALG_CTR_OMAC_EXPORT_K \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_CTR_OMAC_EXPORT_K)
+
 #define CALG_TLS1PRF_2012_256 \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_TLS1PRF_2012_256)
 
@@ -887,6 +975,9 @@ extern "C" {
 #define CALG_PRO12_DIVERS \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_PRO12DIVERS)
 
+#define CALG_CTR_DIVERS \
+    (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KDF_CTR)
+
 #define CALG_KDF_TREE_GOSTR3411_2012_256 \
     (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK | ALG_SID_KDF_TREE_GOSTR3411_2012_256)
 #define CALG_KDF_TREE_HMAC_SHA_256 \
@@ -894,6 +985,15 @@ extern "C" {
 
 #define CALG_ANSI_X963_KDF \
     (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_ANSI_X963_KDF)
+
+#define CALG_KDF_CMAC \
+    (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_KDF_CMAC)
+
+#define ALG_TYPE_KEM				(15 << 9)
+#define ALG_SID_GOST_CLASSIC_MCELIECE		1
+#define CALG_GOST_CLASSIC_MCELIECE		(ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_KEM | ALG_SID_GOST_CLASSIC_MCELIECE)
+#define ALG_SID_GOST_CLASSIC_MCELIECE_EPHEM	2
+#define CALG_GOST_CLASSIC_MCELIECE_EPHEM	(ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_KEM | ALG_SID_GOST_CLASSIC_MCELIECE_EPHEM)
 
 #ifndef CALG_ECDSA
     #ifndef ALG_SID_ECDSA
@@ -957,9 +1057,21 @@ extern "C" {
 #define szOID_ECC_CURVE_P521    "1.3.132.0.35"
 #endif
 
+#ifndef szOID_ECC_CURVE_SECP256K1
+// iso(1) identified-organization(3) certicom(132) curve(0) 10
+#define szOID_ECC_CURVE_SECP256K1   "1.3.132.0.10"
+#endif
+
+#ifndef szOID_ECC_CURVE_BRAINPOOLP256R1
+// iso(1) identified-organization(3) teletrust(36) algorithm(3) signature-algorithm(3) ecSign(2) ecStdCurvesAndGeneration(8) ellipticCurve(1) versionOne(1) 7
+#define szOID_ECC_CURVE_BRAINPOOLP256R1	    "1.3.36.3.3.2.8.1.1.7"
+#endif
+
 #define szOID_EC_DH		    "1.3.132.1.12"
 #define szOID_ECC_CURVE_P192	    "1.2.840.10045.3.1.1"
 #define szOID_ECC_CURVE_P224	    "1.3.132.0.33"
+
+#define szOID_ECC_CURVE_25519	    "1.3.6.1.4.1.11591.15.1"
 
 #define szOID_ED25519		    "1.3.101.112"
 
@@ -1194,7 +1306,7 @@ extern "C" {
 #define CRYPT_MIXDUPLICATE	0x00000002
 
 /*Тип ключевого блоба для диверсификации ключей с помощью
-    функции CPImportKey в режиме ключа импорта CALG_PRO_EXPORT*/
+    функции CryptImportKey в режиме ключа импорта CALG_PRO_EXPORT*/
 #define DIVERSKEYBLOB	0x70
 
 /*Тип ключевого блоба для передачи параметров в протоколе подписи FKC*/
@@ -1202,6 +1314,12 @@ extern "C" {
 
 /*Тип ключевого блоба для диверсификации дерева ключей*/
 #define KDF_TREE_DIVERSBLOB	0x72
+
+/*Тип ключевого блоба для диверсификации через CMAC*/
+#define KDF_CMAC_DIVERSBLOB	0x73
+
+/*Тип ключевого блоба для упаковывания результата функции Encap в KEM */
+#define KEM_ENCAP_BLOB		0x74
 
 /*Тип ключевого блоба PKCS#1 */
 #define PKCS1KEYBLOB			    0x18
@@ -1219,7 +1337,7 @@ extern "C" {
 #define RSA_CKM_AES_ENCRYPT_DATA            0x12
 
 /* Дополнительные параметры криптопровайдера */
-#if !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 36) 
+#if !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 36)
 #define PP_LAST_ERROR 90 //deprecated
 #endif
 #define PP_ENUMOIDS_EX 91
@@ -1288,7 +1406,7 @@ extern "C" {
 #define PP_UEC_CHANGE_PIN1 157
 #define PP_LICENSE 158
 #define PP_RESERVED2	     159
-#define PP_RESERVED3         160	
+#define PP_RESERVED3         160
 #define PP_THREAD_ID 161
 #define PP_CREATE_THREAD_CSP 162
 #define PP_HANDLE_COUNT 163
@@ -1307,11 +1425,11 @@ extern "C" {
 #define PP_EXCHANGE_KEY_FP 212
 #define PP_SUPPORTED_FLAGS 213
 
-/* Флаги, используемые в GetProvParam для получения текущего и максимального значий хэндлов.*/
+/* Флаги, используемые в CryptGetProvParam для получения текущего и максимального значий хэндлов.*/
 #define CRYPT_CUR_HANDLES 0
 #define CRYPT_MAX_HANDLES 1
 
-/*Флаги, испльзуемые в GetProvParam(PP_CPU_USAGE и PP_MEMORY_USAGE) */
+/*Флаги, испльзуемые в CryptGetProvParam(PP_CPU_USAGE и PP_MEMORY_USAGE) */
 #define CPU_USAGE 0
 #define CPU_USAGE_BY_PROC 1
 #define VIRTUAL_MEMORY_TOTAL 0
@@ -1337,6 +1455,9 @@ extern "C" {
 #define PP_CARRIER_FREE_SPACE 229
 #define PP_MEDIA_TYPE 231
 
+#define PP_READ_VERIFY_FOR_SIGN_CERTS 232
+#define PP_SET_VERIFY_FOR_SIGN_CRL 233
+
 /* Флаг, используемый при перечислении для получения свойств контейнера через
     поле property_flags. Возможные значения CRYPT_PROPERTY* приведены ниже. */
 #define CRYPT_PROPERTIES 0x400
@@ -1344,9 +1465,13 @@ extern "C" {
 /* Флаг, позволяющий при перечислении выбирать только экспортируемые контейнеры.*/
 #define CRYPT_FILTER_EXPORTABLE 0x200
 
-/* Флаг, позволяющий при перечислении выбирать только контейнеры с ключами, 
+/* Флаг, позволяющий при перечислении выбирать только контейнеры с ключами,
     совпадающими с типом криптопровайдера.*/
 #define CRYPT_FILTER_PROVIDER_TYPE 0x100
+
+/* Флаг, используемый при перечислении считывателей, для получения заданного пользователем имени носителя
+*/
+#define CRYPT_TOKEN_LABEL 0x80
 
 /* Флаг, используемый при перечислении считывателей, для получения только подключенных считывателей
 */
@@ -1396,11 +1521,11 @@ extern "C" {
     флагов CRYPT_PROPERTY_EXPORTABLE и CRYPT_PROPERTY_MINOR_INFO. */
 #define CRYPT_PROPERTY_VERSION_2 0x02
 
-/* Ответ перечисления считывателей, означающий отсутствие носителя в считывателе. 
+/* Ответ перечисления считывателей, означающий отсутствие носителя в считывателе.
    Возвращается в виде ASCIIZ-строки. */
 #define ERR_CRYPT_MEDIA_NO_MEDIA "NO_MEDIA"
 
-/* Ответ перечисления считывателей, означающий, что вставлен не-ФКН. Для ФКН-провайдеров. 
+/* Ответ перечисления считывателей, означающий, что вставлен не-ФКН. Для ФКН-провайдеров.
    Возвращается в виде ASCIIZ-строки. */
 #define ERR_CRYPT_MEDIA_NO_FKC "NO_FKC"
 
@@ -1412,7 +1537,7 @@ extern "C" {
    Возвращается в виде ASCIIZ-строки. */
 #define ERR_CRYPT_MEDIA_NO_UNIQUE "NO_UNIQUE"
 
-/* Ответ перечисления считывателей, означающий, что вставлен испорченный носитель. 
+/* Ответ перечисления считывателей, означающий, что вставлен испорченный носитель.
    Не-ФКН-провайдер может возвращать эту ошибку для ФК-носителя.
    Возвращается в виде ASCIIZ-строки. */
 #define ERR_CRYPT_MEDIA_INVALID "INVALID_MEDIA"
@@ -1453,6 +1578,7 @@ extern "C" {
 #define HP_HMAC_VERIFICATION_VALUE 0x0028
 #define HP_SIGN_VERIFICATION_VALUE 0x0029
 #define HP_CERTIFICATE	    0x0030
+#define HP_KDF_FOR_SIGN	    0x0031
 
 /* Дополнительные параметры ключа */
 #define KP_START_DATE	43
@@ -1475,6 +1601,8 @@ extern "C" {
 #define KP_AUTH_TAG	112
 #define KP_AUTH_DATA	113
 #define KP_OAEP_HASH	114
+
+#define KP_KEM_OID KP_DHOID
 
 #define KP_MULX		0x800000f1
 #define KP_ADDX		0x800000f3
@@ -1638,6 +1766,16 @@ extern "C" {
 #define szOID_GostR3410_2001_CryptoPro_XchA_ParamSet	"1.2.643.2.2.36.0"	/* ГОСТ Р 34.10 256 бит, параметры обмена по умолчанию */
 #define szOID_GostR3410_2001_CryptoPro_XchB_ParamSet 	"1.2.643.2.2.36.1"	/* ГОСТ Р 34.10 256 бит, параметры обмена 1 */
 
+/* OID for GENERIC SECRET keys */
+#define szOID_GENERIC_SECRET				"1.2.643.2.2.31.111"
+#define szOID_GOST_GENERIC_SECRET			"1.2.643.2.2.31.113"
+
+/* OIDs for Gost Classic McEliece */
+#define szOID_CryptoPro_kems_gost_classic_mceliece_test		"1.2.643.2.2.51.1.0"
+#define szOID_CryptoPro_kems_gost_classic_mceliece348864	"1.2.643.2.2.51.1.1"
+#define szOID_CryptoPro_kems_gost_classic_mceliece6960119	"1.2.643.2.2.51.1.2"
+#define OID_KEM_GOST_CLASSIC_MCELIECE_DEFAULT			szOID_CryptoPro_kems_gost_classic_mceliece348864
+
 /* OIDs for private key container extensions */
 /* Расширения контейнера. Поддерживаются начиная с CSP 3.6 */
 #define szOID_CryptoPro_private_keys_extension_intermediate_store "1.2.643.2.2.37.3.1"
@@ -1661,9 +1799,17 @@ extern "C" {
 
 #define szOID_CryptoPro_private_keys_extension_container_string_config "1.2.643.2.2.37.3.17"
 
+#define szOID_CryptoPro_private_keys_extension_verifycation_value_flags "1.2.643.2.2.37.3.19"
+#define szOID_CryptoPro_private_keys_extension_kdf_for_sign_algorithm "1.2.643.2.2.37.3.20"
+
 /* OIDs for certificate and CRL extensions */
 /* Метод сопоставления CRL с сертификатом издателя. */
 #define szOID_CryptoPro_extensions_certificate_and_crl_matching_technique "1.2.643.2.2.49.1"
+/* Проверочное значение мастер-ключа системы. */
+#define szOID_CryptoPro_extensions_certificate_and_crl_master_key_id "1.2.643.2.2.49.3"
+/* Минимальное количество поручений для подтверждения транзакции. */
+#define szOID_CryptoPro_extensions_certificate_and_crl_vnsfs_number "1.2.643.2.2.49.4"
+
 /* Средство электронной подписи владельца */
 #define szCPOID_SubjectSignTool "1.2.643.100.111"
 /* Средства электронной подписи и УЦ издателя*/
@@ -1721,11 +1867,11 @@ extern "C" {
 #define OID_CipherTestHash	szOID_Gost28147_89_CryptoPro_Oscar_1_0_ParamSet
 #define OID_CipherRIC1		szOID_Gost28147_89_CryptoPro_RIC_1_ParamSet
 
-#define OID_CipherTC26_1	szOID_Gost28147_89_TC26_A_ParamSet	
-#define OID_CipherTC26_2	szOID_Gost28147_89_TC26_B_ParamSet	
-#define OID_CipherTC26_3	szOID_Gost28147_89_TC26_C_ParamSet	
-#define OID_CipherTC26_4	szOID_Gost28147_89_TC26_D_ParamSet	
-#define OID_CipherTC26_5	szOID_Gost28147_89_TC26_E_ParamSet	
+#define OID_CipherTC26_1	szOID_Gost28147_89_TC26_A_ParamSet
+#define OID_CipherTC26_2	szOID_Gost28147_89_TC26_B_ParamSet
+#define OID_CipherTC26_3	szOID_Gost28147_89_TC26_C_ParamSet
+#define OID_CipherTC26_4	szOID_Gost28147_89_TC26_D_ParamSet
+#define OID_CipherTC26_5	szOID_Gost28147_89_TC26_E_ParamSet
 #define OID_CipherTC26_6	szOID_Gost28147_89_TC26_F_ParamSet
 
 #define OID_CipherRSTC26_1	szOID_Gost28147_89_TC26_Z_ParamSet
@@ -1850,13 +1996,13 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 /*! \ingroup ProCSPData
 *  \brief Режим блочного шифрования с обратной связью на базе ГОСТ 28147-89, шифр-текст блока всегда является IV для следующего
 */
-#define CRYPT_MODE_CBCSTRICT	1 
+#define CRYPT_MODE_CBCSTRICT	1
 
 /* Режим блочного шифрования с обратной связью на базе ГОСТ 28147-89, согласно RFC 4357.*/
 /*! \ingroup ProCSPData
 *  \brief Режим блочного шифрования с обратной связью на базе ГОСТ 28147-89, согласно RFC 4357
 */
-#define CRYPT_MODE_CBCRFC4357	31 
+#define CRYPT_MODE_CBCRFC4357	31
 
 /* Режим шифрования "гаммирование" по ГОСТ 28147-89.*/
 /*! \ingroup ProCSPData
@@ -1942,6 +2088,11 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 #define MAX_UNIQUE_LEN			256
 
 /*! \ingroup ProCSPData
+*  \brief Максимальная разрешённая длина имени носителя, заданного пользователем (без терминального символа)
+*/
+#define MAX_TOKEN_LABEL_LEN		128
+
+/*! \ingroup ProCSPData
 *  \brief Максимальная разрешённая длина типа носителя (без терминального символа).
 */
 #define MAX_MEDIA_TYPE_NAME_LEN		64
@@ -1993,6 +2144,8 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 
 #define EDDSA_MAGIC			0x374a5200
 #define CV25519_MAGIC			EDDSA_MAGIC
+
+#define MCELIECE_KEM_MAGIC		0x374a5202
 
 /*! \ingroup ProCSPData
  *  \brief Текущее значение версии ключевого блоба
@@ -2116,13 +2269,18 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 /*! \ingroup ProCSPData
 * \brief ANDROID OS */
 #define VER_OS_ANDROID 7
-/*! \ingroup ProCSPData
-* \brief BITVISOR_OS */
-#define VER_OS_BITVISOR 8
+
+//#define VER_OS_BITVISOR 8
+
 /*! \ingroup ProCSPData
 * \brief UCLIBC runtime
 */
 #define VER_OS_UCLIBC 9
+
+/*! \ingroup ProCSPData
+* \brief KasperskyOS
+*/
+#define VER_OS_KASPERSKY 10
 
 /*! \ingroup ProCSPData
  *
@@ -2132,49 +2290,51 @@ typedef struct _CRYPT_X509_GR3410_2012_PARAMETERS {
 typedef struct _PROV_PP_VERSION_EX {
     DWORD PKZI_Build;	/*!< Версия ПКЗИ. */
     DWORD SKZI_Build;	/*!< Версия СКЗИ. */
-    DWORD TypeDebRel;	/*!< Тип сборки: VER_TYPE_DEBUG, VER_TYPE_RELEASE. */
-    DWORD Architecture;	/*!< Аппаратная архитектура: VER_ARCH_IA32, 
-			 * VER_ARCH_IA64, VER_ARCH_SPARC32, VER_ARCH_SPARC64,
-			 * VER_ARCH_AMD64, VER_ARCH_ARM, VER_ARCH_ARM64,
-			 * VER_ARCH_PPC32, VER_ARCH_PPC64, VER_ARCH_MIPS32,
-			 * VER_ARCH_E2K32, VER_ARCH_E2K64, VER_ARCH_RISCV64.
+    DWORD TypeDebRel;	/*!< Тип сборки: \ref VER_TYPE_DEBUG, \ref VER_TYPE_RELEASE. */
+    DWORD Architecture;	/*!< Аппаратная архитектура: \ref VER_ARCH_IA32,
+			 * \ref VER_ARCH_IA64, \ref VER_ARCH_SPARC32, \ref VER_ARCH_SPARC64,
+			 * \ref VER_ARCH_AMD64, \ref VER_ARCH_ARM, \ref VER_ARCH_ARM64,
+			 * \ref VER_ARCH_PPC32, \ref VER_ARCH_PPC64, \ref VER_ARCH_MIPS32,
+			 * \ref VER_ARCH_E2K32, \ref VER_ARCH_E2K64, \ref VER_ARCH_RISCV64.
 			 */
-    DWORD OS;		/*!< Тип ОС: VER_OS_WINDOWS, VER_OS_SOLARIS,
-			 * VER_OS_FREEBSD, VER_OS_LINUX, VER_OS_AIX,
-			 * VER_OS_DARWIN, VER_OS_IOS, VER_OS_ANDROID,
-			 * VER_OS_BITVISOR, VER_OS_UCLIBC.
+    DWORD OS;		/*!< Тип ОС: \ref VER_OS_WINDOWS, \ref VER_OS_SOLARIS,
+			 * \ref VER_OS_FREEBSD, \ref VER_OS_LINUX, \ref VER_OS_AIX,
+			 * \ref VER_OS_DARWIN, \ref VER_OS_IOS, \ref VER_OS_ANDROID,
+			 * \ref VER_OS_UCLIBC, \ref VER_OS_KASPERSKY.
 			 */
 } PROV_PP_VERSION_EX;
 
 /*! \ingroup ProCSPData
  *
- * \brief Заголовок результата встроенного тестирования и контроля 
+ * \brief Заголовок результата встроенного тестирования и контроля
  *        целостности СКЗИ.
  */
 typedef struct _SELFTEST_HEADER {
     DWORD PKZI_Build;	  /*!< Версия ПКЗИ. */
     DWORD SKZI_Build;	  /*!< Версия СКЗИ. */
-    DWORD TypeDebRel;	  /*!< Тип сборки: VER_TYPE_DEBUG, VER_TYPE_RELEASE. */
-    DWORD Architecture;	  /*!< Аппаратная архитектура: VER_ARCH_IA32, 
-			   * VER_ARCH_IA64, VER_ARCH_SPARC32, VER_ARCH_SPARC64,
-			   * VER_ARCH_AMD64, VER_ARCH_ARM, VER_ARCH_ARM64,
-			   * VER_ARCH_PPC32, VER_ARCH_PPC64.
+    DWORD TypeDebRel;	  /*!< Тип сборки: \ref VER_TYPE_DEBUG, \ref VER_TYPE_RELEASE. */
+    DWORD Architecture;	  /*!< Аппаратная архитектура: \ref VER_ARCH_IA32,
+			   * \ref VER_ARCH_IA64, \ref VER_ARCH_SPARC32, \ref VER_ARCH_SPARC64,
+			   * \ref VER_ARCH_AMD64, \ref VER_ARCH_ARM, \ref VER_ARCH_ARM64,
+			   * \ref VER_ARCH_PPC32, \ref VER_ARCH_PPC64.
 			   */
-    DWORD OS;		  /*!< Тип ОС: VER_OS_WINDOWS, VER_OS_SOLARIS,
-			   * VER_OS_FREEBSD, VER_OS_LINUX, VER_OS_AIX.
+    DWORD OS;		  /*!< Тип ОС: \ref VER_OS_WINDOWS, \ref VER_OS_SOLARIS,
+			   * \ref VER_OS_FREEBSD, \ref VER_OS_LINUX, \ref VER_OS_AIX,
+			   * \ref VER_OS_DARWIN, \ref VER_OS_IOS, \ref VER_OS_ANDROID,
+			   * \ref VER_OS_UCLIBC, \ref VER_OS_KASPERSKY.
 			   */
-    DWORD TesterFlags;	  /*!< Битовый вектор ошибок встроенных тестов, 
+    DWORD TesterFlags;	  /*!< Битовый вектор ошибок встроенных тестов,
 			   * включает результат контроля целостности.
 			   * В случае успеха, должен быть равен 0.
 			   */
-    DWORD TotalChecksums; /*!< Количество модулей, информация о которых 
-			   * была записана в поле Checksums структуры 
-			   * PROV_PP_SELFTEST.
+    DWORD TotalChecksums; /*!< Количество модулей, информация о которых
+			   * была записана в поле Checksums структуры
+			   * \ref PROV_PP_SELFTEST.
 			   */
-    DWORD UnwrittenChecksums; 
+    DWORD UnwrittenChecksums;
 			  /*!< Количество модулей, информация о которых
-			   * не была записана в поле Checksums структуры 
-			   * PROV_PP_SELFTEST по причине недостаточного
+			   * не была записана в поле Checksums структуры
+			   * \ref PROV_PP_SELFTEST по причине недостаточного
 			   * количества памяти, выделенной для структуры.
 			   * Если памяти достаточно, равно 0. */
 } SELFTEST_HEADER;
@@ -2205,14 +2365,14 @@ typedef struct _SELFTEST_CHECKSUM_ELEMENT {
 
 /*! \ingroup ProCSPData
  *
- * \brief Результат встроенного тестирования и контроля 
+ * \brief Результат встроенного тестирования и контроля
  *        целостности СКЗИ.
  */
 typedef struct _PROV_PP_SELFTEST {
     SELFTEST_HEADER Header;	/*!< Заголовок \ref SELFTEST_HEADER. */
     SELFTEST_CHECKSUM_ELEMENT Checksums[1];
-				/*!< Массив \ref SELFTEST_CHECKSUM_ELEMENT 
-				 * размера Header.TotalChecksums. 
+				/*!< Массив \ref SELFTEST_CHECKSUM_ELEMENT
+				 * размера Header.TotalChecksums.
 				 */
 } PROV_PP_SELFTEST;
 
@@ -2227,8 +2387,8 @@ typedef struct _PROV_PP_SELFTEST {
  * \req_wincryptex
  * \sa _PUBLICKEYSTRUC
  * \sa PCRYPT_SIMPLEBLOB
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_SIMPLEBLOB_HEADER {
     BLOBHEADER BlobHeader;
@@ -2241,19 +2401,19 @@ typedef struct _CRYPT_SIMPLEBLOB_HEADER {
                      */
     ALG_ID EncryptKeyAlgId;
                     /*!< Определяет алгоритм экспорта ключа. Этот алгоритм является
-                     * параметром ключа экспорта. См. \ref #CPGetKeyParam.
+                     * параметром ключа экспорта. См. \ref CryptGetKeyParam.
                      */
 } CRYPT_SIMPLEBLOB_HEADER;
 /*!
  * \ingroup ProCSPData
  *
  * \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_SIMPLEBLOB полностью описывает ключевой блоб
- * типа SIMPLEBLOB для ключей "КриптоПро CSP". 
+ * типа SIMPLEBLOB для ключей "КриптоПро CSP".
  *
  * \req_wincryptex
  * \sa CRYPT_SIMPLEBLOB_HEADER
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_SIMPLEBLOB {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
@@ -2299,8 +2459,8 @@ typedef struct _CRYPT_SIMPLEBLOB {
  *
  * \req_wincryptex
  * \sa CRYPT_SIMPLEBLOB_HEADER
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_SIMPLEBLOB_K {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
@@ -2315,7 +2475,7 @@ typedef struct _CRYPT_SIMPLEBLOB_K {
      * См. \ref G28147_KEYLEN.
      */
     BYTE    bMacKey[SIMPLE_EXPORT_K_IMIT_SIZE];
-    /*!< Имитовставка длины SIMPLE_EXPORT_K_IMIT_SIZE по ГОСТ Р 34.13-2015 на ключ. Рассчитывается
+    /*!< Имитовставка длины \ref SIMPLE_EXPORT_K_IMIT_SIZE по ГОСТ Р 34.13-2015 на ключ. Рассчитывается
      * до зашифрования и проверяется после расшифрования.
      * См. \ref SIMPLE_EXPORT_K_IMIT_SIZE.
      */
@@ -2340,13 +2500,13 @@ typedef struct _CRYPT_SIMPLEBLOB_K {
 /*!
 * \ingroup ProCSPData
 *
-* \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_SIMPLEBLOB полностью описывает ключевой блоб
+* \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_SIMPLEBLOB_512 полностью описывает ключевой блоб
 * типа SIMPLEBLOB для ключей "КриптоПро CSP".
 *
 * \req_wincryptex
 * \sa CRYPT_SIMPLEBLOB_HEADER
-* \sa CPExportKey
-* \sa CPGetKeyParam
+* \sa CryptExportKey
+* \sa CryptGetKeyParam
 */
 typedef struct _CRYPT_SIMPLEBLOB_512 {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
@@ -2390,13 +2550,13 @@ typedef struct _CRYPT_SIMPLEBLOB_512 {
 *
 * \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_SIMPLEBLOB_KEXP15 полностью описывает ключевой блоб
 * типа SIMPLEBLOB при использовании алгоритма KEXP15 для экспорта ключей "КриптоПро CSP".
-* В поле tSimpleBlobHeader.BlobHeader.bVersion должна быть указана константа KEXP15_BLOB_VERSION.
+* В поле tSimpleBlobHeader.BlobHeader.bVersion должна быть указана константа \ref KEXP15_BLOB_VERSION.
 * В поле tSimpleBlobHeader.Magic должен быть указан KEXP15_MAGIC.
 *
 * \req_wincryptex
 * \sa CRYPT_SIMPLEBLOB_HEADER
-* \sa CPExportKey
-* \sa CPImportKey
+* \sa CryptExportKey
+* \sa CryptImportKey
 */
 typedef struct _CRYPT_SIMPLEBLOB_KEXP15 {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
@@ -2418,12 +2578,12 @@ typedef struct _CRYPT_SIMPLEBLOB_KEXP15 {
  * \ingroup ProCSPData
  *
  * \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_OPAQUEBLOB полностью описывает ключевой блоб
- * типа OPAQUEKEYLOB для ключей "КриптоПро CSP". 
+ * типа OPAQUEKEYLOB для ключей "КриптоПро CSP".
  *
  * \req_wincryptex
  * \sa CRYPT_SIMPLEBLOB_HEADER
- * \sa CPExportKey
- * \sa CPImportKey
+ * \sa CryptExportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_OPAQUEBLOB {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
@@ -2498,7 +2658,17 @@ typedef struct _CRYPT_OPAQUEBLOB {
                      */
 }   CRYPT_OPAQUEBLOB, *PCRYPT_OPAQUEBLOB;
 
-
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Псевдоструктура (т. е. недоопределенная структура) CRYPT_OPAQUEHASHBLOB полностью описывает ключевой блоб
+ * типа OPAQUEHASHBLOB для ключей "КриптоПро CSP".
+ *
+ * \req_wincryptex
+ * \sa CRYPT_SIMPLEBLOB_HEADER
+ * \sa CryptExportKey
+ * \sa CryptImportKey
+ */
 typedef struct _CRYPT_OPAQUEHASHBLOB {
     CRYPT_SIMPLEBLOB_HEADER tSimpleBlobHeader;
                     /*!< Общий заголовок ключевого блоба типа SIMPLEBLOB "КриптоПро CSP".
@@ -2528,6 +2698,35 @@ typedef struct _CRYPT_OPAQUEHASHBLOB {
     BYTE    bCheckSum[sizeof(DWORD)];
 }   CRYPT_OPAQUEHASHBLOB;
 
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Структура CRYPT_HP_KDF_FOR_SIGN_DATA содержит данные
+ * для HP_KDF_FOR_SIGN.
+ *
+ * \req_wincryptex
+ * \sa CryptSetHashParam
+ */
+typedef struct _CRYPT_HP_KDF_FOR_SIGN_DATA {
+    DWORD dwDiversAlg;
+    /*!< Алгоритм диверсификации.
+     */
+    ALG_ID aiResultKey;
+    /*!< Алгоритм результирующего ключа.
+     */
+    char *szCurveOid;
+    /*!< Идентификатор кривой.
+     */
+    DWORD dwDiversDataLen;
+    /*!< Длина данных для диверсификации ключа.
+     */
+    BYTE *pbDiversData;
+    /*!< Данные для диверсификации ключа.
+     * Длина массива равна dwDiversDataLen.
+     */
+} CRYPT_HP_KDF_FOR_SIGN_DATA, *LPCRYPT_HP_KDF_FOR_SIGN_DATA;
+
+#define KDF_TREE_GOSTR3411_2012_256_FOR_SIGN	1
 
 /*!
  * \ingroup ProCSPData
@@ -2537,8 +2736,8 @@ typedef struct _CRYPT_OPAQUEHASHBLOB {
  *
  * \req_wincryptex
  * \sa CRYPT_PUBKEY_INFO_HEADER
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_PUBKEYPARAM {
     DWORD Magic;
@@ -2561,8 +2760,8 @@ typedef struct _CRYPT_PUBKEYPARAM {
  * \req_wincryptex
  * \sa _PUBLICKEYSTRUC
  * \sa CRYPT_PUBKEYPARAM
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_PUBKEY_INFO_HEADER {
     BLOBHEADER BlobHeader;
@@ -2581,12 +2780,12 @@ typedef struct _CRYPT_PUBKEY_INFO_HEADER {
  * \ingroup ProCSPData
  *
  * \brief Псевдоструктура CRYPT_PUBLICKEYBLOB полностью описывает ключевой блоб
- * типа PUBLICKEYBLOB для ключей "КриптоПро CSP". 
+ * типа PUBLICKEYBLOB для ключей "КриптоПро CSP".
  *
  * \req_wincryptex
  * \sa CRYPT_PUBKEY_INFO_HEADER
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_PUBLICKEYBLOB {
     CRYPT_PUBKEY_INFO_HEADER tPublicKeyParam;
@@ -2624,8 +2823,8 @@ typedef struct _CRYPT_PUBLICKEYBLOB {
  *
  * \req_wincryptex
  * \sa CRYPT_PUBKEY_INFO_HEADER
- * \sa CPExportKey
- * \sa CPGetKeyParam
+ * \sa CryptExportKey
+ * \sa CryptGetKeyParam
  */
 typedef struct _CRYPT_PRIVATEKEYBLOB {
     CRYPT_PUBKEY_INFO_HEADER tPublicKeyParam;
@@ -2655,7 +2854,7 @@ typedef struct _CRYPT_PRIVATEKEYBLOB {
  *
  * \req_wincryptex
  * \sa CRYPT_DIVERSBLOB
- * \sa CPImportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_DIVERSBLOBHEADER {
     BLOBHEADER BlobHeader;
@@ -2694,7 +2893,7 @@ typedef struct _CRYPT_DIVERSBLOBHEADER {
  *
  * \req_wincryptex
  * \sa CRYPT_DIVERSBLOBHEADER
- * \sa CPImportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_DIVERSBLOB {
     CRYPT_DIVERSBLOBHEADER DiversBlobHeader;
@@ -2712,10 +2911,10 @@ typedef struct _CRYPT_DIVERSBLOB {
  * \brief Структура CRYPT_KDF_TREE_DIVERSBLOB_HEADER описывает блоб
  * типа KDF_TREE_DIVERSBLOB для процедуры диверсификации КриптоПро CSP,
  * предусматривающей возможность выработки нескольких ключей.
- * 
+ *
  * \req_wincryptex
  * \sa CRYPT_KDF_TREE_DIVERSBLOB
- * \sa CPImportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_KDF_TREE_DIVERSBLOB_HEADER {
     BLOBHEADER  BlobHeader;
@@ -2745,7 +2944,7 @@ typedef struct _CRYPT_KDF_TREE_DIVERSBLOB_HEADER {
  *
  * \req_wincryptex
  * \sa CRYPT_KDF_TREE_DIVERSBLOB
- * \sa CPImportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_KDF_TREE_DIVERS_INFO {
     DWORD       L_value;
@@ -2768,7 +2967,7 @@ typedef struct _CRYPT_KDF_TREE_DIVERS_INFO {
  * \req_wincryptex
  * \sa CRYPT_KDF_TREE_DIVERSBLOB_HEADER
  * \sa CRYPT_KDF_TREE_DIVERS_INFO
- * \sa CPImportKey
+ * \sa CryptImportKey
  */
 typedef struct _CRYPT_KDF_TREE_DIVERSBLOB {
     CRYPT_KDF_TREE_DIVERSBLOB_HEADER KdfTreeBlobHeader;
@@ -2787,16 +2986,65 @@ typedef struct _CRYPT_KDF_TREE_DIVERSBLOB {
                 */
 } CRYPT_KDF_TREE_DIVERSBLOB, *LPCRYPT_KDF_TREE_DIVERSBLOB;
 
+/* Определения для структуры CRYPT_KDF_CMAC_DIVERSBLOB*/
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Структура CRYPT_KDF_CMAC_DIVERS_INFO содержит алгоритм
+ * диверсификации, номер результирующего ключа, длины Seed и Label
+ * для процедуры диверсификации ключей КриптоПро CSP.
+ *
+ * \req_wincryptex
+ * \sa CRYPT_KDF_CMAC_DIVERSBLOB
+ * \sa CryptImportKey
+ */
+typedef struct _CRYPT_KDF_CMAC_DIVERS_INFO {
+    ALG_ID      aiDiversAlgId;
+    /*!< Определяет алгоритм диверсификации ключей */
+    DWORD	dwIterNum;
+    /*!< Определяет номер результирующего ключа */
+    DWORD       dwLabelLen;
+    /*!< Длина значения Label для алгоритма диверсификации */
+    DWORD       dwSeedLen;
+    /*!< Длина значения Seed для алгоритма диверсификации */
+} CRYPT_KDF_CMAC_DIVERS_INFO, *LPCRYPT_KDF_CMAC_DIVERS_INFO;
+
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Структура CRYPT_KDF_CMAC_DIVERSBLOB описывает блоб
+ * типа KDF_CMAC_DIVERSBLOB для процедуры диверсификации ключей КриптоПро CSP.
+ *
+ * \req_wincryptex
+ * \sa CRYPT_KDF_CMAC_DIVERS_INFO
+ * \sa CryptImportKey
+ */
+typedef struct _CRYPT_KDF_CMAC_DIVERSBLOB {
+    BLOBHEADER  BlobHeader;
+    /*!< Общий заголовок блоба, диверсифицирующего ключ.
+    */
+    CRYPT_KDF_CMAC_DIVERS_INFO KdfCmacDiversInfo;
+    /*!< Структура, содержащая общую информацию о
+    * диверсификации: алгоритм диверсификации, номер результирующего ключа,
+    * длины Seed и Label.
+    */
+    BYTE        bDiversData[1/*массив переменной длины байтов*/];
+    /*!< Данные, по которым диверсифицируется ключ.
+     */
+} CRYPT_KDF_CMAC_DIVERSBLOB, *LPCRYPT_KDF_CMAC_DIVERSBLOB;
+
+/* Определения для структуры KEM_ENCAP_BLOB*/
+typedef CRYPT_SIMPLEBLOB_HEADER CRYPT_KEM_ENCAP_BLOB_HEADER;
 
 /*!
 * \ingroup ProCSPData
 *
 * \brief Структура CRYPT_KEYSET_INFO содержит информацию
 * о ключе, сохраненном в контейнере.
-* key_spec - константа, по которой может быть получен хендл ключа функцией \ref CPGetUserKey.
+* key_spec - константа, по которой может быть получен хендл ключа функцией \ref CryptGetUserKey().
 * alg_id - идентификатор алгоритма ключа.
 * \req_wincryptex
-* \sa CPGetKeyParam
+* \sa CryptGetKeyParam
 */
 typedef struct _CRYPT_KEYSET_INFO {
     DWORD key_spec;
@@ -2812,7 +3060,7 @@ typedef struct _CRYPT_KEYSET_INFO {
 * count принимает значение от 0 до 2, в зависимости от числа постоянных ключей в контейнере.
 * В массиве описываются присутствующие в контейнере постоянные ключи.
 * \req_wincryptex
-* \sa CPGetKeyParam
+* \sa CryptGetKeyParam
 */
 typedef struct _CRYPT_KEYSET_ENUM {
     DWORD count;
@@ -2822,12 +3070,12 @@ typedef struct _CRYPT_KEYSET_ENUM {
 /*!
 * \ingroup ProCSPData
 *
-* \brief Флаг CRYPT_KEYSET_ENUM_FLAG передается в функцию \ref CPGetKeyParam с параметром PP_CONTAINER_STATUS.
+* \brief Флаг CRYPT_KEYSET_ENUM_FLAG передается в функцию \ref CryptGetKeyParam() с параметром PP_CONTAINER_STATUS.
 * Если получен такой запрос, возвращается структура \ref CRYPT_KEYSET_ENUM, в которой перечислены
-* присутствующие в контейнере постоянные ключи. 
+* присутствующие в контейнере постоянные ключи.
 * Получение параметра не требует аутентификации.
 * \req_wincryptex
-* \sa CPGetKeyParam
+* \sa CryptGetKeyParam
 */
 #define CRYPT_KEYSET_ENUM_FLAG 1
 
@@ -2837,10 +3085,10 @@ typedef struct _CRYPT_KEYSET_ENUM {
 *
 * \brief Структура CRYPT_KEY_EXHAUSTION_INFO содержит информацию
 * о текущих значениях параметров нагрузки на ключ КриптоПро CSP и
-* предусматривает их изменение в большую сторону с помощью вызова CPSetKeyParam.
+* предусматривает их изменение в большую сторону с помощью вызова \ref CryptSetKeyParam().
 *
 * \req_wincryptex
-* \sa CPSetKeyParam
+* \sa CryptSetKeyParam
 */
 typedef struct _CRYPT_KEY_EXHAUSTION_INFO {
     ULONGLONG	 ullAccCipherTextLen;
@@ -2887,10 +3135,10 @@ typedef ULONGLONG HDISPMESSAGECONTEXT;
 /*!
 * \ingroup ProCSPData
 *
-* \brief Структура для передачи параметров от оконного интерфейса 
+* \brief Структура для передачи параметров от оконного интерфейса
 *
 * \req_wincryptex
-* \sa CPSetProvParam
+* \sa CryptSetProvParam
 */
 typedef struct {
     DWORD param_type;			/*!< Тип параметра */
@@ -2931,10 +3179,10 @@ typedef struct {
 #define CRYPT_PIN_FKC_EKE 	7
 /*! \brief Тип аутентификации: функции для вызова из окна ввода пароля */
 #define CRYPT_PIN_WND		8
-/*! \brief Тип пароля: разбивка контейнера на части. Имена контейнеров не записываются в информацию о разделённом контейнере. 
+/*! \brief Тип пароля: разбивка контейнера на части. Имена контейнеров не записываются в информацию о разделённом контейнере.
  * Разделенный контейнер открывается на виртуальном считывателе.  */
 #define CRYPT_PIN_NK_NONAME 9
- /*! \brief Тип пароля: разбивка контейнера на части. Используются имена контейнеров. Разделенный контейнер открывается на виртуальном считывателе. 
+ /*! \brief Тип пароля: разбивка контейнера на части. Используются имена контейнеров. Разделенный контейнер открывается на виртуальном считывателе.
   * Используется только для получения информации об аутентификации. Для задания аутентификации не применяется. */
 #define CRYPT_PIN_NK_VIRTUAL 10
 
@@ -2944,7 +3192,7 @@ typedef struct {
  * \brief Структура передачи информации из диалога ввода пароля для предъявления или смены пароля
  *
  * \req_wincryptex
- * \sa CPSetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct
 {
@@ -2961,7 +3209,7 @@ typedef struct
 #define CRYPT_PIN_WND_PARAM_CLEAR   0 /*!< Тип передаваемой информации.  Очистка установленнного ранее указателя на служебную информацию. */
 #define CRYPT_PIN_WND_PARAM_INFO    1 /*!< Тип передаваемой информации.  Передается указатель на служебную информацию, переданную диалогу ввода пароля, для установки в качестве параметров контекста криптопровайдера. */
 #define CRYPT_PIN_WND_PARAM_AUTH    2 /*!< Тип передаваемой информации.  Передается информация об аутентификации. */
-#define CRYPT_PIN_WND_PARAM_BOTH    (CRYPT_PIN_WND_PARAM_INFO | CRYPT_PIN_WND_PARAM_AUTH )/*!< Тип передаваемой информации.  Передается указатель на служебную информацию, переданную диалогу ввода пароля и информация об аутентификации. Установка переданного указателя 
+#define CRYPT_PIN_WND_PARAM_BOTH    (CRYPT_PIN_WND_PARAM_INFO | CRYPT_PIN_WND_PARAM_AUTH )/*!< Тип передаваемой информации.  Передается указатель на служебную информацию, переданную диалогу ввода пароля и информация об аутентификации. Установка переданного указателя
 				       *   в качестве параметров контекста криптопровайдера не производится. */
 
 /*!
@@ -2970,7 +3218,7 @@ typedef struct
 * \brief Структура передачи информации из диалога ввода пароля
 *
 * \req_wincryptex
-* \sa CPSetProvParam
+* \sa CryptSetProvParam
 */
 typedef struct
 {
@@ -2985,7 +3233,7 @@ typedef struct
  * \brief Структура передачи информации для слияния частей контейнера
  *
  * \req_wincryptex
- * \sa CPSetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct _CRYPT_PIN_NK_PARAM {
     short n; /*!< Количество передаваемых частей. */
@@ -3013,17 +3261,17 @@ typedef union _CRYPT_PIN_SOURCE {
  *     зашифровано содержимое другого контейнера.
  *
  * \req_wincryptex
- * \sa CPSetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct _CRYPT_PIN_PARAM {
     BYTE type;
     /*!< Тип данных.
- *  CRYPT_PIN_PASSWD - пароль или PIN,
- *  CRYPT_PIN_ENCRYPTION - HANDLE контейнера зашифрования.
- *  CRYPT_PIN_QUERY - тип и значение выбираются в окне,
- *  CRYPT_PIN_CLEAR - очистить пароль.
- *  CRYPT_PIN_NK - разбить на части k из n.
- *  CRYPT_PIN_WND - информация из диалогового окна ввода пароля.
+ *  \ref CRYPT_PIN_PASSWD - пароль или PIN,
+ *  \ref CRYPT_PIN_ENCRYPTION - HANDLE контейнера зашифрования.
+ *  \ref CRYPT_PIN_QUERY - тип и значение выбираются в окне,
+ *  \ref CRYPT_PIN_CLEAR - очистить пароль.
+ *  \ref CRYPT_PIN_NK - разбить на части k из n.
+ *  \ref CRYPT_PIN_WND - информация из диалогового окна ввода пароля.
  */
      CRYPT_PIN_SOURCE dest; /*!< Данные соответствующего типа */
 } CRYPT_PIN_PARAM;
@@ -3035,17 +3283,17 @@ typedef struct _CRYPT_PIN_PARAM {
  * \brief Длина идентификатора разбиения виртуальнгого контейнера
  *
  * \req_wincryptex
- * \sa CPGetProvParam, CRYPT_NK_INFO_PARAM, CRYPT_PIN_INFO
+ * \sa CryptGetProvParam, CRYPT_NK_INFO_PARAM, CRYPT_PIN_INFO
  */
 #define CRYPT_NK_IDENTIFIER_LEN 8
 
  /*!
   * \ingroup ProCSPData
   *
-  * \brief Флаг, указывающий, что во флагах CPSetProvParam передается индекс части.
+  * \brief Флаг, указывающий, что во флагах \ref CryptSetProvParam() передается индекс части.
   *
   * \req_wincryptex
-  * \sa CPSetProvParam, PP_NK_SYNC
+  * \sa CryptSetProvParam, PP_NK_SYNC
   */
 #define CRYPT_NK_PART_INDEX 0x100000
 
@@ -3056,7 +3304,7 @@ typedef struct _CRYPT_PIN_PARAM {
  * \brief Структура получения информации о контейнере разделенного на части.
  *
  * \req_wincryptex
- * \sa CPGetProvParam
+ * \sa CryptGetProvParam
  */
 typedef struct _CRYPT_NK_INFO_PARAM {
     short n; /*!< Количество частей, на которые разделен контейнер. */
@@ -3070,7 +3318,7 @@ typedef struct _CRYPT_NK_INFO_PARAM {
  * \brief Структура для получения информации о пароле на контейнер.
  *
  * \req_wincryptex
- * \sa CPGetProvParam
+ * \sa CryptGetProvParam
  */
 typedef struct _CRYPT_PASSWD_INFO_PARAM {
     unsigned min_passwd_length; /*!< Минимальный допустимый размер пароля. */
@@ -3086,7 +3334,7 @@ typedef struct _CRYPT_PASSWD_INFO_PARAM {
 * \brief Структура для получения информации о пароле на контейнер.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_PASSWD_INFO_PARAM, CRYPT_NK_INFO_PARAM
+* \sa CryptGetProvParam, CRYPT_PASSWD_INFO_PARAM, CRYPT_NK_INFO_PARAM
 */
 typedef union _CRYPT_PIN_INFO_SOURCE {
     CRYPT_PASSWD_INFO_PARAM passwd;
@@ -3100,17 +3348,17 @@ typedef union _CRYPT_PIN_INFO_SOURCE {
 * \brief Структура для получения информации о пароле на контейнер.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_PIN_INFO_SOURCE
+* \sa CryptGetProvParam, CRYPT_PIN_INFO_SOURCE
 */
 typedef struct _CRYPT_PIN_INFO {
     BYTE type; /*!< Тип данных.
- *  CRYPT_PIN_UNKNOWN - тип неизвестен
- *  CRYPT_PIN_PASSWD - пароль или PIN,
- *  CRYPT_PIN_ENCRYPTION - HANDLE контейнера зашифрования.
- *  CRYPT_PIN_NK - получение N, K, имен частей. На эфемерном считывателе в конец массива имен дописывает идентификатор разбиения.
- *  CRYPT_PIN_HARDWARE_PROTECTION - тип защиты определяется аппаратным модулем
- *  CRYPT_PIN_CLEAR - пароль для аутентентификации не требуется либо установлен по умолчанию
- *  CRYPT_PIN_NK_NONAME - получение N, K, идентификатор разбиения в поле parts.
+ *  \ref CRYPT_PIN_UNKNOWN - тип неизвестен
+ *  \ref CRYPT_PIN_PASSWD - пароль или PIN,
+ *  \ref CRYPT_PIN_ENCRYPTION - HANDLE контейнера зашифрования.
+ *  \ref CRYPT_PIN_NK - получение N, K, имен частей. На эфемерном считывателе в конец массива имен дописывает идентификатор разбиения.
+ *  \ref CRYPT_PIN_HARDWARE_PROTECTION - тип защиты определяется аппаратным модулем
+ *  \ref CRYPT_PIN_CLEAR - пароль для аутентентификации не требуется либо установлен по умолчанию
+ *  \ref CRYPT_PIN_NK_NONAME - получение N, K, идентификатор разбиения в поле parts.
  */
      CRYPT_PIN_INFO_SOURCE dest; /*!< Данные соответствующего типа */
 } CRYPT_PIN_INFO;
@@ -3124,7 +3372,7 @@ typedef struct _CRYPT_PIN_INFO {
  * \brief Структура получения информации о пароле контейнера для аутентификации по EKE
  *
  * \req_wincryptex
- * \sa CPSetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct _CRYPT_FKC_EKE_AUTH_INFO_PARAM {
     unsigned min_passwd_length; /*!< Минимальный допустимый размер пароля. */
@@ -3157,7 +3405,7 @@ typedef struct _CRYPT_FKC_EKE_AUTH_INFO_PARAM {
 * \brief структура для получения счетчиков аутентификаций.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_FKC_PIN_INFO, CRYPT_FKC_PIN_INFO_SOURCE
+* \sa CryptGetProvParam, CRYPT_FKC_PIN_INFO, CRYPT_FKC_PIN_INFO_SOURCE
 */
 typedef struct
 {
@@ -3172,9 +3420,9 @@ typedef struct
 * \brief Структура для получения информации о пароле на контейнер.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_PIN_INFO_SOURCE, CRYPT_FKC_EKE_AUTH_INFO_PARAM
+* \sa CryptGetProvParam, CRYPT_PIN_INFO_SOURCE, CRYPT_FKC_EKE_AUTH_INFO_PARAM
 */
-typedef union _CRYPT_FKC_PIN_INFO_SOURCE 
+typedef union _CRYPT_FKC_PIN_INFO_SOURCE
 {
     CRYPT_PIN_INFO_SOURCE passwd; /*!< обычный пароль. */
     CRYPT_FKC_EKE_AUTH_INFO_PARAM eke_passwd; /*!< пароль по EKE. */
@@ -3187,12 +3435,12 @@ typedef union _CRYPT_FKC_PIN_INFO_SOURCE
 * \brief Структура для получения информации о пароле на контейнер.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_FKC_PIN_INFO_SOURCE
+* \sa CryptGetProvParam, CRYPT_FKC_PIN_INFO_SOURCE
 */
 typedef struct _CRYPT_FKC_PIN_INFO {
     BYTE type;
     /*!< Тип данных.
-     *  CRYPT_PIN_FKC_EKE - пароль передается FKC контейнеру по EKE.
+     *  \ref CRYPT_PIN_FKC_EKE - пароль передается FKC контейнеру по EKE.
      *  Другие типы как в CSP.
      */
      CRYPT_FKC_PIN_INFO_SOURCE dest; /*!< Данные соответствующего типа */
@@ -3212,7 +3460,7 @@ typedef struct _CRYPT_FKC_PIN_INFO {
 
 /*! \brief Тип парольной аутентификации: PUK. Разрешает смену других аутентификаций носителя.*/
 #define CRYPT_AUTH_TYPE_PUK 1
-/*! \brief Тип парольной аутентификации: ADMIN. Разрешает запись в корень носителя, например, может разрешать создание контейнера. 
+/*! \brief Тип парольной аутентификации: ADMIN. Разрешает запись в корень носителя, например, может разрешать создание контейнера.
            Может быть единственной аутентификацией на носителе, и разрешать доступ на изменение любого контейнера. */
 #define CRYPT_AUTH_TYPE_ADMIN 2
 /*! \brief Тип парольной аутентификации: CONT. Разрешает изменение контейнера. Действует только для одного контейнера. */
@@ -3237,11 +3485,11 @@ typedef struct _CRYPT_FKC_PIN_INFO {
 * \brief Структура для получения информации об аутентификации.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, CRYPT_AUTH_INFO
+* \sa CryptGetProvParam, CRYPT_AUTH_INFO
 */
 typedef struct {
-    BYTE auth_type; /*! \brief Тип аутентификации по месту предъявления (CRYPT_AUTH_TYPE_PUK, CRYPT_AUTH_TYPE_CONT, ...) */
-    BYTE auth_alg;  /*! \brief Алгоритм аутентификации (CRYPT_AUTH_ALG_SELF, CRYPT_AUTH_ALG_SIMPLE, ...) */
+    BYTE auth_type; /*! \brief Тип аутентификации по месту предъявления (\ref CRYPT_AUTH_TYPE_PUK, \ref CRYPT_AUTH_TYPE_CONT, ...) */
+    BYTE auth_alg;  /*! \brief Алгоритм аутентификации (\ref CRYPT_AUTH_ALG_SELF, \ref CRYPT_AUTH_ALG_SIMPLE, ...) */
     DWORD min_length; /*! \brief Минимальная длина пароля */
     DWORD max_length; /*! \brief Максимальная длина пароля */
 } CRYPT_AUTH_INFO_AUTH;
@@ -3257,7 +3505,10 @@ typedef struct {
 #define CRYPT_AUTH_INFO_HARDWARE_RESET_ROOT_DEF 256 /* \brief Флаг: Для сброса аутентификации администратора требуется выполнить аппаратное действие. 256 - да, 0 - нет. */
 #define CRYPT_AUTH_INFO_CHANGE_WITH_VERIFY 512 /* \brief Флаг: Для изменения аутентификации необходимо предъявление проверочной аутентификации в той же команде. 512 - да, 0 - нет. */
 #define CRYPT_AUTH_INFO_COMMON_AUTH 1024 /* \brief Флаг: Аутентификация администратора является общей для этого и других апплетов на данном носителе. 1024 - да, 0 - нет. */
-#define CRYPT_AUTH_INFO_MAIN_CAN_NOT_CHANGE_ITSELF 2048 /* \brief Флаг: Под основной аутентификацией нельзя сменить ее пароль. 2048 - нельзя, 0 - можно. */
+#define CRYPT_AUTH_INFO_MAIN_CAN_NOT_CHANGE_ITSELF 2048 /* \brief Флаг: Под аутентификацией администратора нельзя сменить ее пароль. 2048 - нельзя, 0 - можно. */
+#define CRYPT_AUTH_INFO_UNSUPPORTED_CHANGE_ADMIN 4096 /* \brief Флаг: Носитель не поддерживает смену пароля аутентификации администратора. 4096 - да, 0 - нет. */
+#define CRYPT_AUTH_INFO_UNSUPPORTED_CHANGE_PUK 8192 /* \brief Флаг: Носитель не поддерживает смену пароля аутентификации смены аутентификационных данных. 8192 - да, 0 - нет. */
+
 
 /*!
 * \ingroup ProCSPData
@@ -3265,19 +3516,27 @@ typedef struct {
 * \brief Структура для получения информации об аутентификациях в контексте.
 *
 * \req_wincryptex
-* \sa CPGetProvParam, PP_AUTH_INFO
+* \sa CryptGetProvParam, PP_AUTH_INFO
 */
 typedef struct {
     DWORD auth_count; /* \brief Число аутентификаций в контексте. */
-    DWORD flags;    /* \brief Флаги набора аутентификаций. Могут быть установлены CRYPT_AUTH_INFO_DEF_ADMIN, CRYPT_AUTH_INFO_ADMIN_IS_CONT, CRYPT_AUTH_INFO_ADMIN_IS_PUK */
+    DWORD flags;    /* \brief Флаги набора аутентификаций. Могут быть установлены \ref CRYPT_AUTH_INFO_DEF_ADMIN, \ref CRYPT_AUTH_INFO_ADMIN_IS_CONT, \ref CRYPT_AUTH_INFO_ADMIN_IS_PUK */
     CRYPT_AUTH_INFO_AUTH auth[1]; /* \brief Массив аутентификаций размера auth_count. */
 } CRYPT_AUTH_INFO;
 
 
 #define CRYPT_MAX_PIN_LENGTH 160
 
+/*!
+* \ingroup ProCSPData
+*
+* \brief Структура задания информации об аутентификациях в контексте.
+*
+* \req_wincryptex
+* \sa CryptGetProvParam, PP_SET_AUTH
+*/
 typedef struct {
-    BYTE action;    /*! Предполагаемое действие: CRYPT_AUTH_PASSWD, CRYPT_AUTH_QUERY, CRYPT_AUTH_CLEAR, CRYPT_AUTH_RESET_TRIES. */
+    BYTE action;    /*! Предполагаемое действие: \ref CRYPT_AUTH_PASSWD, \ref CRYPT_AUTH_QUERY, \ref CRYPT_AUTH_CLEAR, \ref CRYPT_AUTH_RESET_TRIES. */
     BYTE changed_auth_type; /*! Тип изменяемой аутентификации */
     CHAR changed_pin[CRYPT_MAX_PIN_LENGTH + 1]; /*! Пароль изменяемой аутентификации, если надо, LPSTR */
     BYTE verify_auth_type; /*! \brief Тип предъявляемой аутентификации */
@@ -3294,11 +3553,11 @@ typedef struct
  * \ingroup ProCSPData
  *
  * \brief Значения параметра "проверка открытого ключа в операции Диффи-Хеллмана".
- * При установке параметра передается переменной типа DWORD. 
+ * При установке параметра передается переменной типа DWORD.
  *
  * \req_wincryptex
- * \sa CPGetProvParam
- * \sa CPSetProvParam
+ * \sa CryptGetProvParam
+ * \sa CryptSetProvParam
  * \sa CRYPT_FKC_DH_CHECK
  */
 typedef enum _CRYPT_FKC_DH_CHECK_VAL
@@ -3312,11 +3571,11 @@ typedef enum _CRYPT_FKC_DH_CHECK_VAL
  *
  * \brief Структура для получения статуса проверки открытого ключа.
  * Получает и устанавливает параметр "проверка открытого ключа в операции Диффи-Хеллмана"
- * для провайдеров FKC ( PP_FKC_DH_CHECK ). 
+ * для провайдеров FKC ( PP_FKC_DH_CHECK ).
  *
  * \req_wincryptex
- * \sa CPGetProvParam
- * \sa CPSetProvParam
+ * \sa CryptGetProvParam
+ * \sa CryptSetProvParam
  * \sa CRYPT_FKC_DH_CHECK_VAL
  */
 typedef struct _CRYPT_FKC_DH_CHECK
@@ -3331,8 +3590,8 @@ typedef struct _CRYPT_FKC_DH_CHECK
  * \brief Структура для получения и установки настроек кэширования контейнеров.
  *
  * \req_wincryptex
- * \sa CPGetProvParam
- * \sa CPSetProvParam
+ * \sa CryptGetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct _CRYPT_CACHE_SIZE {
     DWORD cache_size; /*!< Размер кэша. */
@@ -3344,18 +3603,18 @@ typedef struct _CRYPT_CACHE_SIZE {
 * \ingroup ProCSPData
 *
 * \brief Структура для получения и установки различных открытых параметров ключевого контейнера.
-* Параметры TContainerParamType_AuthServer, TContainerParamType_SignServer, TContainerParamType_OAuth2_AuthToken и TContainerParamType_OAuth2_IdToken 
+* Параметры TContainerParamType_AuthServer, TContainerParamType_SignServer, TContainerParamType_OAuth2_AuthToken и TContainerParamType_OAuth2_IdToken
 * передаются в виде нуль-терминированных ASCII-строк. TContainerParamType_CertificateID в виде DWORD.
 * \req_wincryptex
-* \sa CPGetProvParam
-* \sa CPSetProvParam
+* \sa CryptGetProvParam
+* \sa CryptSetProvParam
 */
 typedef enum _TContainerParamType {
     TContainerParamType_Header,
     TContainerParamType_AuthServer,
-    TContainerParamType_SignServer, 
-    TContainerParamType_OAuth2_AuthToken, 
-    TContainerParamType_OAuth2_IdToken, 
+    TContainerParamType_SignServer,
+    TContainerParamType_OAuth2_AuthToken,
+    TContainerParamType_OAuth2_IdToken,
     TContainerParamType_Username,
     TContainerParamType_Password,
     TContainerParamType_Certificate,
@@ -3376,8 +3635,8 @@ typedef struct _CRYPT_CONTAINER_PARAM {
 * \brief Структура для получения и установки настроек поддержки разных типов носителей.
 *
 * \req_wincryptex
-* \sa CPGetProvParam
-* \sa CPSetProvParam
+* \sa CryptGetProvParam
+* \sa CryptSetProvParam
 */
 
 typedef struct _CRYPT_CARRIER_TYPES {
@@ -3391,8 +3650,8 @@ typedef struct _CRYPT_CARRIER_TYPES {
 * \defgroup CarrierTypeFlags Флаги, используемые в параметрах PP_CARRIER_TYPES.
 *
 * \req_wincryptex
-* \sa CPGetProvParam
-* \sa CPSetProvParam
+* \sa CryptGetProvParam
+* \sa CryptSetProvParam
 *
 * \{
 */
@@ -3445,7 +3704,7 @@ typedef struct _CRYPT_CARRIER_TYPES {
 * \defgroup CarrierFlags Флаги, возвращаемые через CryptGetProvParam(PP_ENUMREADERS, CRYPT_MEDIA) и CryptGetProvParam(PP_CARRIER_FLAGS)
 *
 * \req_wincryptex
-* \sa CPGetProvParam
+* \sa CryptGetProvParam
 *
 * \{
 */
@@ -3498,7 +3757,7 @@ typedef struct _CRYPT_CARRIER_TYPES {
 * сериализованную псевдоструктуру.
 *
 * \req_wincryptex
-* \sa CPGetProvParam
+* \sa CryptGetProvParam
 */
 typedef struct _CRYPT_ENUMREADER_INFO {
     char    szNickName[1]; /*!< NickName считывателя - NULL-терминированная строка. */
@@ -3513,12 +3772,12 @@ typedef struct _CRYPT_ENUMREADER_INFO {
 * сериализованную псевдоструктуру.
 *
 * \req_wincryptex
-* \sa CPGetProvParam
+* \sa CryptGetProvParam
 */
 typedef struct _CRYPT_ENUMREADER_INFO_MEDIA {
     char    szNickName[1]; /*!< NickName считывателя - NULL-терминированная строка. */
     char    szName[1]; /*!< Имя считывателя - NULL-терминированная строка. */
-    char    szMedia[1]; 
+    char    szMedia[1];
     	/*!< NULL-терминированная cтрока с UNIQUE-именем носителя или статусом, если UNIQUE не удалось получить:
          * <table><tr><th>\b szMedia</th><th>Описание</th></tr>
          * <tr><td>
@@ -3573,7 +3832,7 @@ typedef struct _CRYPT_ENUMREADER_INFO_MEDIA {
 * сериализованную псевдоструктуру.
 *
 * \req_wincryptex
-* \sa CPGetProvParam
+* \sa CryptGetProvParam
 */
 typedef struct _CRYPT_ENUMRANDOMS_INFO {
     char    szNickName[1]; /*!< NickName ДСЧ - NULL-терминированная строка. */
@@ -3585,11 +3844,11 @@ typedef struct _CRYPT_ENUMRANDOMS_INFO {
 /*!
  * \ingroup ProCSPData
  *
- * \brief Структура передачи информации для получения и установки разделённого значения параметра R для ЭЦП 
+ * \brief Структура передачи информации для получения и установки разделённого значения параметра R для ЭЦП
  *  на базе функционального ключевого носителя.
  *
- * \sa CPGetHashParam
- * \sa CPSetHashParam
+ * \sa CryptGetHashParam
+ * \sa CryptSetHashParam
  */
 typedef struct _CRYPT_HASH_BLOB_EX {
     CRYPT_PUBKEY_INFO_HEADER tPublicKeyParam;
@@ -3601,8 +3860,8 @@ typedef struct _CRYPT_HASH_BLOB_EX {
  *
  * \brief Структура для задания периодов действия ключей во вновь создаваемом контейнере
  *
- * \sa CPGetProvParam
- * \sa CPSetProvParam
+ * \sa CryptGetProvParam
+ * \sa CryptSetProvParam
  */
 typedef struct _CRYPT_KEY_PERIOD {
     LONG privateKeySeconds;		/*!< Период действия закрытого ключа, в секундах. */
@@ -3615,6 +3874,7 @@ typedef struct _CRYPT_KEY_PERIOD {
 #define CSP_INFO_KCARDS_CHANGES	(3)     /* "\\local\\Kcard_changes" --- количество смен карт канала "К" */
 #define CSP_INFO_NUMBER_KCARDS	(4)     /* "\\local\\number_Kcard_sessions" --- количество выпущенных в последний раз карт канала "К" */
 #define CSP_INFO_NUMBER_KEYS	(5)     /* "\\local\\number_keys" --- количество выпущенных  */
+#define CSP_INFO_CURRENT_RPC_SESSION_COUNT (6) /* current rpc session count in cryptsrv <= "\\config\\parameters\max_rpc_session". Included in version 3 of CSP_INFO*/
 #define CSP_INFO_FUTURE_SIZE	(10)
 typedef struct
 {
@@ -3710,7 +3970,7 @@ typedef struct DSS_AUDIT_INFO_
  * инструкций (универсальную).
  * \sa CPC_FAST_CODE
  * \sa CPC_Kernel_Fpu_End_Callback
- * \sa CPSetProvParam()
+ * \sa CryptSetProvParam()
  * \sa CPCSetProvParam()
  */
 typedef BOOL CPCAPI CPC_Kernel_Fpu_Begin_Callback(
@@ -3768,7 +4028,7 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_Begin_Callback(
  *
  * \sa CPC_FAST_CODE
  * \sa CPC_Kernel_Fpu_Begin_Callback
- * \sa CPSetProvParam()
+ * \sa CryptSetProvParam()
  * \sa CPCSetProvParam()
  */
 typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
@@ -3907,13 +4167,13 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  * Если захват не удался, будет выполняться универсальный код функции.
  *
  * \note
- * Семантика работы функции CPCSetProvParam (CPC_FAST_CODE) следующая:
+ * Семантика работы функции CPCSetProvParam (\ref CPC_FAST_CODE) следующая:
  * сначала производится выставление всех наборов функций в медленные
  * (не использующие расширения), а затем - включение
  * быстрых в соответствии с переданными флагами.
  *
  * Пример заполнения структуры для выставления всех наборов функций в медленные с помощью
- * CPCSetProvParam (CPC_FAST_CODE).
+ * CPCSetProvParam (\ref CPC_FAST_CODE).
  *
  * \code
  * fastCodes.cp_kernel_fpu_begin = NULL;
@@ -3922,11 +4182,11 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  * fastCodes.UsesFunctions = CPC_FAST_CODE_USER;
  * fastCodes.UsedMask = 0;
  * \endcode
- * 
+ *
  * Пример заполнения структуры для включения быстрого кода для всех функций распараллеливаемого шифрования,
  * но с запретом использования AVX. Все наборы функций, кроме
  * CSP_OPERATION_CIPHER2, будут медленными.
- * 
+ *
  * \code
  * fastCodes.cp_kernel_fpu_begin = NULL;
  * fastCodes.cp_kernel_fpu_end = NULL;
@@ -3934,7 +4194,7 @@ typedef BOOL CPCAPI CPC_Kernel_Fpu_End_Callback(
  * fastCodes.UsesFunctions = CPC_FAST_CODE_USER;
  * fastCodes.UsedMask = CSP_FAST_CODE_DISABLE_AVX | CSP_OPERATION_CIPHER2;
  * \endcode
- * 
+ *
  * \note Важно, что бы другие функции определяемые пользователем в
  * конфигурации \ref CPC_CONFIG_ сохраняли возможность
  * использования расширений процессора текущим контекстом
@@ -4053,8 +4313,8 @@ typedef struct _CPC_FAST_CODE {
  * \defgroup ProCSPDataFast Переключатели кода
  * Значения переключателей кода на более быстрый (с использованием SSE2).
  *
- * При использовании в функции \ref CPGetProvParam (PP_FAST_CODE_FLAGS), 
- * в параметре pbData возвращаются флаги, определяющие набор 
+ * При использовании в функции \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS),
+ * в параметре pbData возвращаются флаги, определяющие набор
  * проверенных на включённый код функций.
  * Указание, какие функции проверять на включённый код, передаётся
  * во флагах \e dwFlags.
@@ -4077,26 +4337,26 @@ typedef struct _CPC_FAST_CODE {
  * из выбранных функций не сработала.
  * Поведение не выбранных флагов не определено.
  *
- * \sa #CPGetProvParam (PP_FAST_CODE_FLAGS)
+ * \sa CryptGetProvParam (PP_FAST_CODE_FLAGS)
  * \{
  */
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется для определения полноты набора установленных быстрых функций.
  */
 #define CSP_FAST_CODE_GET_FN	(1<<28)
 
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется для определения, может ли провайдер
  *  исполнять быстрый код на данной машине.
  */
 #define CSP_FAST_CODE_GET_SETFN	(1<<27)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по ECB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4105,7 +4365,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_ECB	(1)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по CBC.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4114,7 +4374,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_CBC	(1<<1)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по CNT.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4123,7 +4383,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_CNT	(1<<2)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по CNT.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4132,7 +4392,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_CNT	(1<<2)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по CFB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4141,7 +4401,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_CFB	(1<<3)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по ECB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4150,7 +4410,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_ECB	(1<<4)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по CBC.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4159,7 +4419,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_CBC	(1<<5)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по CFB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4168,7 +4428,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_CFB	(1<<6)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции маскирования ключа.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4177,7 +4437,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_MD_ECB	(1<<7)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в упрощенной функции хэширования.
  *  Флаг устанавливается только в режиме ядра ОС.
@@ -4187,7 +4447,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_GR3411SP	(1<<8)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции хэширования.
  *  Флаг устанавливается только в режиме ядра ОС.
@@ -4197,7 +4457,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_GR3411H	(1<<9)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции проверки хэша.
  *  Флаг устанавливается только в режиме ядра ОС.
@@ -4207,7 +4467,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_GR3411HV	(1<<10)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции хэш-преобразования.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4216,7 +4476,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_HASH	(1<<11)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции выработки имитовставки.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4225,7 +4485,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_IMIT	(1<<12)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции умножения.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4234,7 +4494,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_MULT	(1<<13)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код применяется
  *  в функциях умножения в UNIX-оподобных системах.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4243,7 +4503,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_MULT_ATT	(1<<13)
 
 /*!
-*  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+*  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
 *  Используется как флаг для проверки, какой код
 *  применяется в функции хэш-преобразования по ГОСТ Р 34.11-2012.
 *  Равен 1 в случае быстрого кода данной функции,
@@ -4252,7 +4512,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_HASH_2012	    (1<<14)
 
 /*!
-*  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+*  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
 *  Используется как флаг для проверки, какой код
 *  применяется в функции проверки хэша по ГОСТ Р 34.11-2012.
 *  Равен 1 в случае быстрого кода данной функции,
@@ -4261,25 +4521,25 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_HASH_2012HV   (1<<15)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, используется ли SSSE3 код. Выставлен, если код не используется.
  */
 #define CSP_FAST_CODE_DISABLE_SSSE3 (1<<16)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, используется ли AVX код. Выставлен, если код не используется.
  */
 #define CSP_FAST_CODE_DISABLE_AVX (1<<17)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Признак, что для захвата FPU используется TS-бит (Solaris, Linux).
  */
 #define CSP_FAST_CODE_RT_TS (1<<18)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по OFB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4288,7 +4548,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_OFB	(1<<19)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по OFB.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4297,7 +4557,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_OFB	(1<<19)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции зашифрования по CTR.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4306,7 +4566,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_E_CTR	(1<<20)
 
 /*!
- *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Используется как флаг для проверки, какой код
  *  применяется в функции расшифрования по CTR.
  *  Равен 1 в случае быстрого кода данной функции,
@@ -4315,7 +4575,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_D_CTR	(1<<20)
 
 /*!
-*  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+*  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
 *  Используется как флаг для проверки, какой код
 *  применяется в функции выработки имитовставки по ГОСТ Р 34.13-2015.
 *  Равен 1 в случае быстрого кода данной функции,
@@ -4324,7 +4584,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_IMIT_2015	(1<<21)
 
 /*!
- * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  * Используется как флаг для проверки, какой код
  * применяется в функциях AES шифрования.
  * Равен 1 в случае быстрого кода данной функции,
@@ -4333,7 +4593,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_AESNI (1<<22)
 
  /*!
- * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  * Используется как флаг для проверки, какой код
  * применяется в функциях RSA.
  * Равен 1 в случае быстрого кода данной функции,
@@ -4342,7 +4602,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_RSA (1<<23)
 
  /*!
- * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  * Используется как флаг для проверки, какой код
  * применяется в функциях GCM шифрования.
  * Равен 1 в случае быстрого кода данной функции,
@@ -4351,7 +4611,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_GHASH (1<<24)
 
 /*!
- * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  * Используется как флаг для проверки, какой код
  * применяется в функциях SHA2 хэширования.
  * Равен 1 в случае быстрого кода данной функции,
@@ -4360,7 +4620,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_SHA2 (1<<25)
 
 /*!
- * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  * Используется как флаг для проверки, какой код
  * применяется в функциях SHA1 хэширования.
  * Равен 1 в случае быстрого кода данной функции,
@@ -4369,7 +4629,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_SHA1 (1<<26)
 
  /*!
-  * \brief Флаг, возвращаемый функцей \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+  * \brief Флаг, возвращаемый функцей \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
   * Используется как флаг для проверки, какой код
   * применяется в функции аутентификации MGM.
   * Равен 1 в случае быстрого кода данной функции,
@@ -4378,76 +4638,76 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_FAST_CODE_MGM_AUTH (1<<29)
 
   /*!
-   *  \brief Флаг, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+   *  \brief Флаг, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
    *  Используется как флаг для проверки, используется ли AVX2 код. Выставлен, если код не используется.
    */
 #define CSP_FAST_CODE_DISABLE_AVX2 (1<<30)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций зашифрования.
  */
 #define CSP_FAST_CODE_ALL_ENCRYPT (CSP_FAST_CODE_E_ECB|CSP_FAST_CODE_E_CBC|CSP_FAST_CODE_E_CNT|CSP_FAST_CODE_E_CFB|CSP_FAST_CODE_E_OFB|CSP_FAST_CODE_E_CTR)
 
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций расшифрования.
  */
 #define CSP_FAST_CODE_ALL_DECRYPT (CSP_FAST_CODE_D_ECB|CSP_FAST_CODE_D_CBC|CSP_FAST_CODE_D_CNT|CSP_FAST_CODE_D_CFB|CSP_FAST_CODE_D_OFB|CSP_FAST_CODE_D_CTR)
 
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций хэширования.
  */
 #define CSP_FAST_CODE_ALL_HASH (CSP_FAST_CODE_HASH|CSP_FAST_CODE_GR3411SP|CSP_FAST_CODE_GR3411H|CSP_FAST_CODE_GR3411HV|CSP_FAST_CODE_HASH_2012|CSP_FAST_CODE_HASH_2012HV)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций умножения.
  */
 #define CSP_FAST_CODE_ALL_MULT (CSP_FAST_CODE_MULT|CSP_FAST_CODE_MULT_ATT)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций шифрования.
  */
 #define CSP_FAST_CODE_ALL_CRYPT (CSP_FAST_CODE_ALL_ENCRYPT|CSP_FAST_CODE_ALL_DECRYPT|CSP_FAST_CODE_MD_ECB|CSP_FAST_CODE_IMIT|CSP_FAST_CODE_IMIT_2015|CSP_FAST_CODE_MGM_AUTH)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций симметричной зарубежной криптографии.
  */
 #define CSP_FAST_CODE_CIPHER_FOREIGN (CSP_FAST_CODE_AESNI | CSP_FAST_CODE_GHASH)
 
  /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций хэширования зарубежной криптографии.
  */
 #define CSP_FAST_CODE_HASH_FOREIGN (CSP_FAST_CODE_SHA1 | CSP_FAST_CODE_SHA2)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги функций зарубежной криптографии.
  */
 #define CSP_FAST_CODE_ALL_FOREIGN (CSP_FAST_CODE_CIPHER_FOREIGN | CSP_FAST_CODE_HASH_FOREIGN | CSP_FAST_CODE_RSA)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги переключаемых функций криптопровайдера.
  */
 #define CSP_FAST_CODE_ALL_FUNCTIONS (CSP_FAST_CODE_ALL_CRYPT|CSP_FAST_CODE_ALL_HASH|CSP_FAST_CODE_ALL_MULT | CSP_FAST_CODE_ALL_FOREIGN)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги переключаемых функций
  *  криптопровайдера режима ядра ОС.
  */
 #define CSP_FAST_CODE_ALL_KERNEL_FUNCTIONS (CSP_FAST_CODE_ALL_CRYPT|CSP_FAST_CODE_ALL_HASH|CSP_FAST_CODE_RSA|CSP_FAST_CODE_HASH_FOREIGN)
 
 /*!
- *  \brief Набор флагов, возвращаемый функцией \ref CPGetProvParam (PP_FAST_CODE_FLAGS).
+ *  \brief Набор флагов, возвращаемый функцией \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS).
  *  Группирует все флаги переключаемых функций
  *  криптопровайдера пользовательского режима.
  */
@@ -4455,25 +4715,25 @@ typedef struct _CPC_FAST_CODE {
 
 
 /*!
- * \brief Флаг, используемый при вызове \ref CPGetProvParam (PP_FAST_CODE_FLAGS), запрашивает вариант кода
+ * \brief Флаг, используемый при вызове \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS), запрашивает вариант кода
  *  для всех функций провайдера в режиме ядра ОС.
  */
 #define CRYPT_FAST_CODE_ALL_KERNEL_FUNCTIONS	1
 
 /*!
- * \brief Флаг, используемый при вызове \ref CPGetProvParam (PP_FAST_CODE_FLAGS), запрашивает вариант кода
+ * \brief Флаг, используемый при вызове \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS), запрашивает вариант кода
  * для всех функций провайдера в режиме пользователя.
  */
 #define CRYPT_FAST_CODE_ALL_USER_FUNCTIONS	2
 
 /*!
- * \brief Флаг, используемый при вызове \ref CPGetProvParam (PP_FAST_CODE_FLAGS), запрашивает вариант кода
+ * \brief Флаг, используемый при вызове \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS), запрашивает вариант кода
  * для всех функций провайдера.
  */
 #define CRYPT_FAST_CODE_ALL_FUNCTIONS		(CRYPT_FAST_CODE_ALL_KERNEL_FUNCTIONS|CRYPT_FAST_CODE_ALL_USER_FUNCTIONS)
 
 /*!
- * \brief Флаг, используемый при вызове \ref CPGetProvParam (PP_FAST_CODE_FLAGS), запрашивает
+ * \brief Флаг, используемый при вызове \ref CryptGetProvParam() (PP_FAST_CODE_FLAGS), запрашивает
  * результат определения процессора.
  */
 #define CRYPT_FAST_CODE_GET_SETFN		8
@@ -4517,7 +4777,7 @@ typedef struct _CPC_FAST_CODE {
 
 /*!
  *  \brief Битовая маска для включения/выключения кода MMX в функции умножения.
- *  Задает значение идентификатора набора функций умножения по модулю P, 
+ *  Задает значение идентификатора набора функций умножения по модулю P,
  *  использующих расширения MMX и SSE2. Применяется только в пользовательском режиме.
  */
 #define CSP_OPERATION_MULT	(CSP_FAST_CODE_ALL_MULT)
@@ -4582,7 +4842,7 @@ typedef struct _CPC_FAST_CODE {
 #define CSP_OPERATION_ALL	(CSP_OPERATION_MULT | CSP_OPERATION_HASH | CSP_OPERATION_IMIT | CSP_OPERATION_CIPHER2 | CSP_OPERATION_CIPHER1 | CSP_OPERATION_FOREIGN)
 
 /*!
- *  \brief Битовая маска, означающая неопределенную установку функций. Применяется, если 
+ *  \brief Битовая маска, означающая неопределенную установку функций. Применяется, если
  *  нужно установить набор функций по умолчанию для данного процессора.
  */
 #define CSP_OPERATION_UNDEF	(0xFFFFFFFF)
@@ -4596,7 +4856,7 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
 
 
 //Deprecated Defines
-#if !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 363) 
+#if !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 363)
 #undef CP_GR3410_94_PROV
 #undef CP_KC1_GR3410_94_PROV
 #undef CP_KC2_GR3410_94_PROV
@@ -4611,7 +4871,7 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
 
 #endif
 
-#if !defined(CPCSP_USE_NON_STANDART_OIDS) && !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 36) 
+#if !defined(CPCSP_USE_NON_STANDART_OIDS) && !(defined(CPCSP_C_SOURCE ) && CPCSP_C_SOURCE - 0 < 36)
 
 #undef szOID_CP_GOST_R3410
 #undef szOID_CP_DH_EX
@@ -4694,6 +4954,8 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>CALG_KEXP_2015_K </td><td> Идентификатор алгоритма защищённого экспорта ключа ГОСТ Р 34.12-2015 Кузнечик.</td></tr>
  * <tr><td>CALG_MGM_EXPORT_M</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Магма в режиме MGM.</td></tr>
  * <tr><td>CALG_MGM_EXPORT_K</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Кузнечик в режиме MGM.</td></tr>
+ * <tr><td>CALG_CTR_OMAC_EXPORT_M</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Магма в режиме CTR OMAC.</td></tr>
+ * <tr><td>CALG_CTR_OMAC_EXPORT_K</td><td>Идентификатор алгоритма экспорта/импорта ключей с использованием алгоритма ГОСТ Р 34.12-2015 Кузнечик в режиме CTR OMAC.</td></tr>
  * <tr><td> CALG_TLS1PRF</td><td>Идентификатор алгоритма "производящей функции" (PRF) протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-94.</td></tr>
  * <tr><td> СALG_TLS1PRF_2012_256</td><td>Идентификатор алгоритма "производящей функции" (PRF) протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-2012.</td></tr>
  * <tr><td> CALG_TLS1_MASTER_HASH</td><td>Идентификатор алгоритма выработки объекта MASTER_HASH протокола TLS 1.0 на основе алгоритма хэширования в соответствии с ГОСТ Р 34.11-94.</td></tr>
@@ -4707,6 +4969,8 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td> CALG_PRO12_DIVERS</td><td>Идентификатор алгоритма КриптоПро диверсификации ключа по рекомендациям ТК26.</td></tr>
  * <tr><td> CALG_RIC_DIVERS</td><td>Идентификатор алгоритма РИК диверсификации ключа. </td></tr>
  * <tr><td> CALG_KDF_TREE_GOSTR3411_2012_256</td><td>Идентификатор алгоритма диверсификации ключа по рекомендациям ТК26 с использованием древовидной структуры. </td></tr>
+ * <tr><td> CALG_KDF_CMAC</td><td>Идентификатор алгоритма диверсификации ключа через вычисления CMAC.</td></tr>
+ * <tr><td> CALG_CTR_DIVERS</td><td>Идентификатор алгоритма диверсификации ключей на базе шифрования в режиме CTR.</td></tr>
  *</table>
  */
 
@@ -4739,9 +5003,11 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <table>
  * <tr><th>Параметр</th><th>Значение параметра</th></tr>
  * <tr><td>DIVERSKEYBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
-    функции CPImportKey в режиме CALG_PRO_DIVERS, CALG_RIC_DIVERS или CALG_PRO12_DIVERS</td></tr>
- * <tr><td>CRYPT_KDF_TREE_DIVERSBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
-    функции CPImportKey в режиме CALG_KDF_TREE_GOSTR3411_2012_256</td></tr>
+    функции \ref CryptImportKey() в режиме CALG_PRO_DIVERS, CALG_RIC_DIVERS, CALG_PRO12_DIVERS или CALG_CTR_DIVERS</td></tr>
+ * <tr><td>KDF_TREE_DIVERSBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
+    функции \ref CryptImportKey() в режиме CALG_KDF_TREE_GOSTR3411_2012_256</td></tr>
+ * <tr><td>KDF_CMAC_DIVERSBLOB</td><td>Тип ключевого блоба для диверсификации ключей с помощью
+    функции \ref CryptImportKey() в режиме CALG_KDF_CMAC</td></tr>
  *</table>
 */
 
@@ -4750,7 +5016,11 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><th>Параметр</th><th>Индекс</th><th>Значение параметра</th></tr>
  * <tr><td>szOID_CP_GOST_28147</td><td>"1.2.643.2.2.21"</td><td>Алгоритм шифрования ГОСТ 28147-89</td></tr>
  * <tr><td>szOID_CP_GOST_R3412_2015_M</td><td>"1.2.643.7.1.1.5.1"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Магма</td></tr>
+ * <tr><td>szOID_CP_GOST_R3412_2015_M_CTR_ACPKM</td><td>"1.2.643.7.1.1.5.1.1"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Магма CTR-ACPKM</td></tr>
+ * <tr><td>szOID_CP_GOST_R3412_2015_M_CTR_ACPKM_OMAC</td><td>"1.2.643.7.1.1.5.1.2"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Магма CTR-ACPKM-OMAC</td></tr>
  * <tr><td>szOID_CP_GOST_R3412_2015_K</td><td>"1.2.643.7.1.1.5.2"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Кузнечик</td></tr>
+ * <tr><td>szOID_CP_GOST_R3412_2015_K_CTR_ACPKM</td><td>"1.2.643.7.1.1.5.2.1"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Кузнечик CTR-ACPKM</td></tr>
+ * <tr><td>szOID_CP_GOST_R3412_2015_K_CTR_ACPKM_OMAC</td><td>"1.2.643.7.1.1.5.2.2"</td><td>Алгоритм шифрования ГОСТ Р 34.12-2015 Кузнечик CTR-ACPKM-OMAC</td></tr>
  * <tr><td>szOID_CP_GOST_R3411</td><td>"1.2.643.2.2.9"</td><td>Функция хэширования ГОСТ Р 34.11-94</td></tr>
  * <tr><td>szOID_CP_GOST_R3411_12_256</td><td>"1.2.643.7.1.1.2.2"</td><td>Функция хэширования ГОСТ Р 34.11-2012, длина выхода 256 бит</td></tr>
  * <tr><td>szOID_CP_GOST_R3411_12_512</td><td>"1.2.643.7.1.1.2.3"</td><td>Функция хэширования ГОСТ Р 34.11-2012, длина выхода 512 бит</td></tr>
@@ -4764,7 +5034,7 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
  * <tr><td>szOID_CP_GOST_R3411_12_256_R3410</td><td>"1.2.643.7.1.1.3.2"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 256 бит с алгоритмом хэширования ГОСТ Р 34.11-2012, длина выхода 256 бит</td></tr>
  * <tr><td>szOID_CP_GOST_R3411_12_512_R3410</td><td>"1.2.643.7.1.1.3.3"</td><td>Алгоритм цифровой подписи ГОСТ Р 34.10-2012 для ключей длины 512 бит с алгоритмом хэширования ГОСТ Р 34.11-2012, длина выхода 512 бит</td></tr>
  * <tr><td>szOID_KP_TLS_PROXY</td><td>"1.2.643.2.2.34.1"</td><td>Аудит TLS-трафика</td></tr>
- * <tr><td>szOID_KP_RA_CLIENT_AUTH</td><td>"1.2.643.2.2.34.2"</td><td>Идентификация пользователя на центре регистрации</td></tr>
+ * <tr><td>szOID_KP_RA_CLIENT_AUTH</td><td>"1.2.643.2.2.34.2"</td><td>Временный доступ к Центру Регистрации</td></tr>
  * <tr><td>szOID_KP_WEB_CONTENT_SIGNING</td><td>"1.2.643.2.2.34.3"</td><td>Подпись содержимого сервера Интернет</td></tr>
  *</table>
 */
@@ -4811,13 +5081,13 @@ typedef struct _CRYPT_LCD_QUERY_PARAM {
 
 /*! \} */
 
-/*! 
+/*!
  * \ingroup ProCSPData
  *
  * \brief Блоб с сериализованной псевдоструктурой с расширением.
  *
  * \req_wincryptex
- * \sa CPGetProvParam
+ * \sa CryptGetProvParam
  */
 typedef struct _CONTAINER_EXTENSION {
     BOOL bCritical; /*!< Флаг критического расширения. */
@@ -4873,7 +5143,7 @@ typedef struct _CPCMSG_OTHER_SIGNING_CERTIFICATE {
     CPOTHER_CERT_ID* rgCert;
     DWORD cPolicy;
     CERT_POLICY_INFO* rgPolicy;
-} CPCMSG_OTHER_SIGNING_CERTIFICATE, *PCPCMSG_OTHER_SIGNING_CERTIFICATE; 
+} CPCMSG_OTHER_SIGNING_CERTIFICATE, *PCPCMSG_OTHER_SIGNING_CERTIFICATE;
 
 typedef struct _CPCERT_PRIVATEKEY_USAGE_PERIOD {
     FILETIME *pNotBefore;
@@ -4885,6 +5155,13 @@ typedef struct _GOST_PRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE {
     BOOL useContainer;
 } GOST_PRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE, *PGOST_PRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE,
   PRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE, *PPRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE;
+
+typedef struct _PRIVATE_KEY_VERIFICATION_VALUE_FLAG {
+    BOOL bSignValueSignatureKey;
+    BOOL bSignValueExchangeKey;
+    BOOL bHmacValueSignatureKey;
+    BOOL bHmacValueExchangeKey;
+} PRIVATE_KEY_VERIFICATION_VALUE_FLAG, *PPRIVATE_KEY_VERIFICATION_VALUE_FLAG;
 /*! \endcond */
 
 #define CPPRIVATEKEY_USAGE_PERIOD_CERT_CHAIN_POLICY_SKIP_END_CERT_FLAG	    (0x00010000)
@@ -4892,8 +5169,8 @@ typedef struct _GOST_PRIVATE_KEY_TIME_VALIDITY_CONTROL_MODE {
 #define CPTIMESTAMP_SIGNING_CERT_CHAIN_POLICY_IGNORE_NOT_ONE_EKU_FLAG	    (0x00040000)
 
 typedef struct _CPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_PARA {
-    DWORD cbSize; 
-    FILETIME* pPrivateKeyUsedTime; 
+    DWORD cbSize;
+    FILETIME* pPrivateKeyUsedTime;
 } CPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_PARA,
 *PCPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_PARA,
 CPSIGNATURE_EXTRA_CERT_CHAIN_POLICY_PARA,
@@ -4911,10 +5188,10 @@ CPTIMESTAMP_SIGNING_EXTRA_CERT_CHAIN_POLICY_PARA,
 #define CPCERT_TRUST_IS_NOT_VALID_FOR_OCSP_SIGNING	    (0x00000040)
 
 typedef struct _CPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_STATUS {
-    DWORD cbSize; 
-    DWORD dwError; 
-    LONG lChainIndex; 
-    LONG lElementIndex; 
+    DWORD cbSize;
+    DWORD dwError;
+    LONG lChainIndex;
+    LONG lElementIndex;
 } CPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_STATUS,
 *PCPPRIVATEKEY_USAGE_PERIOD_EXTRA_CERT_CHAIN_POLICY_STATUS,
 CPSIGNATURE_EXTRA_CERT_CHAIN_POLICY_STATUS,
@@ -4980,23 +5257,23 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #endif // __cplusplus
 
 /*****************************************************
-		    CRYPT_PACKET 
+		    CRYPT_PACKET
 ******************************************************/
 /*! \ingroup ProCSPData
  * \defgroup CryptPacket  Шифрование и хэширование пакета
  *
- * Пакет - неделимый фрагмент данных, подаваемых на функции шифрования 
- * CPEncrypt(), CPCEncrypt(),CPDecrypt(), CPCDecrypt().
+ * Пакет - неделимый фрагмент данных, подаваемых на функции шифрования
+ * \ref CryptEncrypt(), \ref CPCEncrypt(), \ref CryptDecrypt(), \ref CPCDecrypt().
  * Пакет состоит из полей:
  * <table><tr><th>
- * Поле 
+ * Поле
  * </th><th>
  *      Описание
  * </th></tr><tr><td>
  * Предзаголовок пакета (DIVERSBLOB)
  * </td><td>
  *      Опциональное поле, содержащее блоб диверсификации ключа шифрования и хэширования по алгоритмам CALG_PRO_DIVERS и CALG_PRO12_DIVERS.
- *      Признак обработки поля - установленный флаг CP_CHP_STARTMIX. Поддерживается только при работе с ГОСТ 28147-89.
+ *      Признак обработки поля - установленный флаг \ref CP_CHP_STARTMIX. Поддерживается только при работе с ГОСТ 28147-89.
  * </td></tr><tr><td>
  * Заголовок пакета (HEADER)
  * </td><td>
@@ -5016,79 +5293,79 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * </td></tr><tr><td>
  * Значение функции хэширования пакета (HASH)
  * </td><td>
- *      Опциональное поле, может быть зашифровано. 
+ *      Опциональное поле, может быть зашифровано.
  * </td></tr>
- * </table> 
+ * </table>
  *
- * При шифровании пакетов поддерживаются режимы шифрования: CRYPT_MODE_CNT, CRYPT_MODE_CFB, CRYPT_MODE_CBCSTRICT, CRYPT_MODE_CTR, CRYPT_MODE_MGM.
+ * При шифровании пакетов поддерживаются режимы шифрования: \ref CRYPT_MODE_CNT, CRYPT_MODE_CFB, \ref CRYPT_MODE_CBCSTRICT, \ref CRYPT_MODE_CTR, \ref CRYPT_MODE_MGM.
  * Во всех режимах шифрования может быть использован флаг CRYPT_SIMPLEMIX_MODE.
- * В режимах шифрования CRYPT_MODE_CNT, CRYPT_MODE_CFB, CRYPT_MODE_CBCSTRICT может быть использован флаг CRYPT_PROMIX_MODE.
- * В режиме шифрования CRYPT_MODE_CTR может быть использован флаг CRYPT_ACPKM_MODE.
+ * В режимах шифрования \ref CRYPT_MODE_CNT, CRYPT_MODE_CFB, \ref CRYPT_MODE_CBCSTRICT может быть использован флаг CRYPT_PROMIX_MODE.
+ * В режиме шифрования \ref CRYPT_MODE_CTR может быть использован флаг CRYPT_ACPKM_MODE.
  *
  * В пакетном режиме шифрования длина пакетов остаётся неизменной.
  *
- * В режиме CBC общая длина шифруемых данных должна быть кратна 8, также должна быть кратной 8 длина 
- * каждого шифруемого элемента IOVEC, в противном случае возвращается ошибка NTE_BAD_DATA. 
+ * В режиме CBC общая длина шифруемых данных должна быть кратна 8, также должна быть кратной 8 длина
+ * каждого шифруемого элемента IOVEC, в противном случае возвращается ошибка NTE_BAD_DATA.
  * Пакеты обрабатываются с сохранением размера полей, паддинг в режиме CBC игнорируется.
  *
- * Флаги CP_CHP_IV_RANDOM, CP_CHP_IV_USER, CP_CHP_HASH_PACKET предназначены для обработки 
+ * Флаги \ref CP_CHP_IV_RANDOM, \ref CP_CHP_IV_USER, \ref CP_CHP_HASH_PACKET предназначены для обработки
  * пакетов в потоках с возможным нарушением порядка следования пакетов, с возможной потерей пакетов.
  *
- * Флаги CP_CHP_IV_CHAIN, CP_CHP_HASH_CHAIN, CP_CHP_HASH_NONE  предназначены для обработки пакетов в потоках,
+ * Флаги \ref CP_CHP_IV_CHAIN, \ref CP_CHP_HASH_CHAIN, \ref CP_CHP_HASH_NONE  предназначены для обработки пакетов в потоках,
  * гарантирующих доставку всех пакетов в неизменной последовательности.
- * 
- * Во всех режимах объект функции хэширования после завершения обработки пакета 
- * подготовлен для обработки следующего пакета. 
- * При этом, в случае CP_CHP_HASH_CHAIN и CP_CHP_HASH_NONE объект открыт для продолжения хэширования потока, 
- * в случае CP_CHP_HASH_PACKET объект инициализирован.
  *
- * При расшифровании пакета в случае его искажения в канале, приводящего к несовпадению  
- * значения HASH, передаваемого в составе пакета, с вновь рассчитанным значением, функция CPDecrypt() 
- * возвращают ошибку (FALSE), функции CPCDecrypt() и GetLastError() возвращают NTE_BAD_HASH, 
- * объект функции хэширования функциями CPDecrypt(), CPCDecrypt() не инициализируется. 
+ * Во всех режимах объект функции хэширования после завершения обработки пакета
+ * подготовлен для обработки следующего пакета.
+ * При этом, в случае \ref CP_CHP_HASH_CHAIN и \ref CP_CHP_HASH_NONE объект открыт для продолжения хэширования потока,
+ * в случае \ref CP_CHP_HASH_PACKET объект инициализирован.
+ *
+ * При расшифровании пакета в случае его искажения в канале, приводящего к несовпадению
+ * значения HASH, передаваемого в составе пакета, с вновь рассчитанным значением, функция \ref CryptDecrypt()
+ * возвращают ошибку (FALSE), функции \ref CPCDecrypt() и GetLastError() возвращают NTE_BAD_HASH,
+ * объект функции хэширования функциями \ref CryptDecrypt(), \ref CPCDecrypt() не инициализируется.
  * В этом случае приложение может получить рассчитанное значение HASH
- * вызовом CPGetHashParam() и должно принять решение о завершении обрабатываемого потока
- * (например: поток, обрабатываемый с флагом CP_CHP_HASH_CHAIN, должен быть закрыт; 
- * поток, обрабатываемый с флагом CP_CHP_HASH_PACKET может быть продолжен). 
+ * вызовом \ref CryptGetHashParam() и должно принять решение о завершении обрабатываемого потока
+ * (например: поток, обрабатываемый с флагом \ref CP_CHP_HASH_CHAIN, должен быть закрыт;
+ * поток, обрабатываемый с флагом \ref CP_CHP_HASH_PACKET может быть продолжен).
  * В случае продолжения обработки потока приложение должно открыть (создать новый) объект функции хэширования.
  *
- * Во входных параметрах функций шифрования и хэширования пакет может быть представлен как буфером, 
- * определяемым указателем pbData и длиной cbData, так и вектором IOVEC ввода/вывода, 
+ * Во входных параметрах функций шифрования и хэширования пакет может быть представлен как буфером,
+ * определяемым указателем pbData и длиной cbData, так и вектором IOVEC ввода/вывода,
  * определяемым указателем pbData на вершину массива структур \ref CSP_iovec и числом элементов массива cbData.
- * Режим использования векторной формы представления ввода/вывода определяется флагом CP_CRYPT_DATA_IOVEC, 
- * в настоящей версии СКЗИ режим CP_CRYPT_DATA_IOVEC является подрежимом пакетной обработки.
+ * Режим использования векторной формы представления ввода/вывода определяется флагом \ref CP_CRYPT_DATA_IOVEC,
+ * в настоящей версии СКЗИ режим \ref CP_CRYPT_DATA_IOVEC является подрежимом пакетной обработки.
  *
- * В режиме пакетной обработки возможно получение ключа шифрования и имитозащиты пакета диверсификацией 
- * базовых ключей, ассоциированных с hKey и hHash. Диверсификация осуществляется по алгоритму CALG_PRO_DIVERS/CALG_PRO12_DIVERS 
- * с использованием даных CRYPT_DIVERSBLOB, размещённых в предзаголовке пакета. 
- * Если используется представление данных в форме вектора ввода-вывода, 
+ * В режиме пакетной обработки возможно получение ключа шифрования и имитозащиты пакета диверсификацией
+ * базовых ключей, ассоциированных с hKey и hHash. Диверсификация осуществляется по алгоритму CALG_PRO_DIVERS/CALG_PRO12_DIVERS
+ * с использованием даных \ref CRYPT_DIVERSBLOB, размещённых в предзаголовке пакета.
+ * Если используется представление данных в форме вектора ввода-вывода,
  * блоб диверсификации должен передаваться в первой координате вектора целиком.
- * Признаком использования диверсификации ключей является установленный флаг CP_CHP_STARTMIX.
+ * Признаком использования диверсификации ключей является установленный флаг \ref CP_CHP_STARTMIX.
  * Диверсифицированное значение ключей сохраняется для использования для обработки последующих пакетов.
  * Диверсификация ключей не приводит к изменению значений базовых ключей.
  *
- * В режиме пакетной обработки с использованием алгоритма ГОСТ 28147-89 возможна SIMD параллельная обработка до 16 пакетов при использовании 
+ * В режиме пакетной обработки с использованием алгоритма ГОСТ 28147-89 возможна SIMD параллельная обработка до 16 пакетов при использовании
  * аппаратной платформы, поддерживающей расширения SSSE3, AVX.
- * Все пакеты обрабатываются на ключах  с одним значением для шифрования и 
+ * Все пакеты обрабатываются на ключах  с одним значением для шифрования и
  * с обним значением для функции хэшироваия.
- * Пакеты должны быть упакованы в массиве структур CSP_Multipacket. 
- * Признаком использования мультипакетной обработки является установленный флаг CP_CHP_MULTIPACKET.
+ * Пакеты должны быть упакованы в массиве структур \ref CSP_Multipacket.
+ * Признаком использования мультипакетной обработки является установленный флаг \ref CP_CHP_MULTIPACKET.
  * Пакеты могут быть представлены как линейным буфером, так и вектором IOVEC ввода/вывода.
- * Требуется, чтобы все пакеты были однотипными, тип пакетов определяется флагом CP_CRYPT_DATA_IOVEC.
- * В мультипакетном режиме использование предварительной диверсификации ключа, 
- * определяемой флагом CP_CHP_STARTMIX, не допускается.
+ * Требуется, чтобы все пакеты были однотипными, тип пакетов определяется флагом \ref CP_CRYPT_DATA_IOVEC.
+ * В мультипакетном режиме использование предварительной диверсификации ключа,
+ * определяемой флагом \ref CP_CHP_STARTMIX, не допускается.
  * См. \ref CryptMultipacket.
  *
  *
- * Флаг CP_CRYPT_NOKEYWLOCK используется для организации шифрования\расшифрования пакетов с использованием алгоритма ГОСТ 28147-89 в
+ * Флаг \ref CP_CRYPT_NOKEYWLOCK используется для организации шифрования\расшифрования пакетов с использованием алгоритма ГОСТ 28147-89 в
  * многопоточном режиме, при этом ключ шифрования\расшифрования блокируется только на чтение.
  * Для обеспечения данного режима при работе с криптопровайдером уровня ядра ОС необходимо заранее создать специальный объект
- * HCRYPTMODULE с помощью функции CPCGetProvParam() с флагом PP_CREATE_THREAD_CSP; данный объект в дальнейшем
- * следует передавать функциям CPCEncrypt() и CPCDecrypt() в качестве первого параметра.
+ * HCRYPTMODULE с помощью функции \ref CPCGetProvParam() с флагом PP_CREATE_THREAD_CSP; данный объект в дальнейшем
+ * следует передавать функциям \ref CPCEncrypt() и \ref CPCDecrypt() в качестве первого параметра.
  *
- * Использование флага CP_CRYPT_NOKEYWLOCK разрешается только совместно с флагом CP_CRYPT_HASH_PACKET, при значении параметра Final == TRUE;
+ * Использование флага \ref CP_CRYPT_NOKEYWLOCK разрешается только совместно с флагом \ref CP_CRYPT_HASH_PACKET, при значении параметра Final == TRUE;
  * использование флага при шифровании\расшифровании на ключе с режимом преобразования (KP_MIXMODE), отличным
- * от CRYPT_SIMPLEMIX_MODE, а также совместно с флагом CP_CHP_IV_CHAIN не допускается.
+ * от CRYPT_SIMPLEMIX_MODE, а также совместно с флагом \ref CP_CHP_IV_CHAIN не допускается.
  *
  * Пример
  * \code
@@ -5111,27 +5388,27 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  *   2.	Представление данных в виде IOVEC является производным от представления, определяемого флагами.
  *      Имеется ввиду, что IOVEC представляет данные, а описание структуры данных содержится во флагах.
  *
- *   3.	Максимальное количество элементов IOVEC зависит от реализации. 
+ *   3.	Максимальное количество элементов IOVEC зависит от реализации.
  * Любая реализация должна предоставлять возможность использовать 16 элементов IOVEC.
  *
  *   4. Поле длины элемента IOVEC >= 0.
  *
  *
- * Структура пакета и порядок обработки полей пакета определяются 
- * значениями флагов параметра dwFlags, 
- * объединяемыми операцией OR; значения флагов зависимы, не все 
- * сочетания значений полей допустимы. Для формирования флагов 
- * рекомендуется использовать макрос CP_CHP().
+ * Структура пакета и порядок обработки полей пакета определяются
+ * значениями флагов параметра dwFlags,
+ * объединяемыми операцией OR; значения флагов зависимы, не все
+ * сочетания значений полей допустимы. Для формирования флагов
+ * рекомендуется использовать макрос \ref CP_CHP().
  *
- * \sa #CPEncrypt (CP_CRYPT_HASH_PACKET)
- * \sa #CPDecrypt (CP_CRYPT_HASH_PACKET)
+ * \sa #CryptEncrypt (CP_CRYPT_HASH_PACKET)
+ * \sa #CryptDecrypt (CP_CRYPT_HASH_PACKET)
  * \sa #CP_CHP()
  * \{
  */
 
 /*!
  *  \brief Флаг - признак пакетной обработки данных, должен быть установлен, если используется обработка пакета,
- *  в противном случае dwFlags должен быть равен нулю, что соответствует обработке простого потока данных. 
+ *  в противном случае dwFlags должен быть равен нулю, что соответствует обработке простого потока данных.
  */
 #define CP_CRYPT_HASH_PACKET		(0x80)
 /*!
@@ -5143,86 +5420,86 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  */
 #define CP_CHP_ENCRYPT_HASH		(0x10)
 /*!
- *  \brief Флаг - признак мультипакетного режима работы. Параметр pbData должен указывать на массив структур 
- *  CSP_MultiPacket_ENC/CSP_Multipacket_DEC, в параметре cbData/reserved передаётся число структур в массиве (не должно превышать 16).
- *  В каждой из структур CSP_MultiPacket_ENC/CSP_Multipacket_DEC до вызова CPEncrypt()/CPDecrypt() соответственно в 
- *  поле dwResult должно быть записано значение 1. В случае ошибок, связанных с проверкой значений имитовставки одного 
- *  или нескольких пакетов (ошибка NTE_BAD_HASH), после выхода из функции в поле dwResult будет 0 только у тех пакетов, 
+ *  \brief Флаг - признак мультипакетного режима работы. Параметр pbData должен указывать на массив структур
+ *  \ref CSP_Multipacket_ENC / \ref CSP_Multipacket_DEC, в параметре cbData/reserved передаётся число структур в массиве (не должно превышать 16).
+ *  В каждой из структур \ref CSP_Multipacket_ENC / \ref CSP_Multipacket_DEC до вызова \ref CryptEncrypt() / \ref CryptDecrypt() соответственно в
+ *  поле dwResult должно быть записано значение 1. В случае ошибок, связанных с проверкой значений имитовставки одного
+ *  или нескольких пакетов (ошибка NTE_BAD_HASH), после выхода из функции в поле dwResult будет 0 только у тех пакетов,
  *  обработка которых завершилась с успешной проверкой значения имитовставки (значения функции хэширования).
  *  Мультипакетный режим поддерживается только для алгоритма шифрования ГОСТ 28147-89.
  */
 #define CP_CHP_MULTIPACKET		(0x20)
 /*!
-*  \brief Флаг - признак работы с блокировкой ключа только на чтение. 
+*  \brief Флаг - признак работы с блокировкой ключа только на чтение.
 *    Ситуации, при которой блокировка на чтение невозможна, сопоставляется ошибка NTE_BAD_FLAGS.
 */
 #define CP_CRYPT_NOKEYWLOCK		(0x40)
 /*!
- *  \brief Флаг хэширования вектора инициализации (IV). Если установлен, IV следует за заголовком пакета и хэшируется. 
+ *  \brief Флаг хэширования вектора инициализации (IV). Если установлен, IV следует за заголовком пакета и хэшируется.
  *  Если не установлен, IV, если присутствует в пакете, следует за заголовком пакета, но не хэшируется.
  */
 #define CP_CHP_IV_HEADER		(0x08)
 /*!
- *  \brief Флаг диверсификации ключа шифрования и хэширования по алгоритму CALG_PRO_DIVERS\CALG_PRO12_DIVERS. 
- *  Если используется представление данных в форме пакета, блоб диверсификации должен передаваться 
+ *  \brief Флаг диверсификации ключа шифрования и хэширования по алгоритму CALG_PRO_DIVERS\CALG_PRO12_DIVERS.
+ *  Если используется представление данных в форме пакета, блоб диверсификации должен передаваться
  *  в составе пакета в его начале.
- *  Если используется представление данных в форме вектора ввода-вывода, 
- *  блоб диверсификации должен передаваться в первой координате вектора целиком. 
- *  При обработке мультипакета (флаг CP_CHP_MULTIPACKET установлен) блоб диверсификации должен 
- *  передаваться в составе первого пакета, в этом случае все пакеты мультипакета обрабатваются 
+ *  Если используется представление данных в форме вектора ввода-вывода,
+ *  блоб диверсификации должен передаваться в первой координате вектора целиком.
+ *  При обработке мультипакета (флаг \ref CP_CHP_MULTIPACKET установлен) блоб диверсификации должен
+ *  передаваться в составе первого пакета, в этом случае все пакеты мультипакета обрабатваются
  *  на диверсифицированных ключах шифрования и имитозащиты.
  */
 #define CP_CHP_STARTMIX			(0x04)
 /*!
- *  \brief Маска управления IV. Представляет собой поле из 2 зависимых бит. 
- *  Нулевое значение поля соответствует CP_CHP_IV_CHAIN.
- *  Ненулевые значения соответствуют CP_CHP_IV_USER, CP_CHP_IV_RANDOM.
- *  Может быть установлен только один из флагов CP_CHP_IV_CHAIN, CP_CHP_IV_USER, CP_CHP_IV_RANDOM.
+ *  \brief Маска управления IV. Представляет собой поле из 2 зависимых бит.
+ *  Нулевое значение поля соответствует \ref CP_CHP_IV_CHAIN.
+ *  Ненулевые значения соответствуют \ref CP_CHP_IV_USER, \ref CP_CHP_IV_RANDOM.
+ *  Может быть установлен только один из флагов \ref CP_CHP_IV_CHAIN, \ref CP_CHP_IV_USER, \ref CP_CHP_IV_RANDOM.
  */
-#define CP_CHP_IV_MASK			(0x300) 
+#define CP_CHP_IV_MASK			(0x300)
 /*!
- *  \brief  Если флаг установлен, IV генерируется функцией CPEncrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) 
- *  (CPCEncrypt()) и передаётся в пакет. Функция CPDecrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCEncrypt())
- *  считывает IV из пакета. 
+ *  \brief  Если флаг установлен, IV генерируется функцией \ref CryptEncrypt() "CryptEncrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)"
+ *  (\ref CPCEncrypt()) и передаётся в пакет. Функция \ref CryptDecrypt() "CryptDecrypt(..., CP_CRYPT_HASH_PACKET  |CP_CHP_IV_CHAIN...,...)" (\ref CPCEncrypt())
+ *  считывает IV из пакета.
  */
 #define CP_CHP_IV_RANDOM		(0x100)
 /*!
- *  \brief  Если флаг установлен, приложение устанавливает IV в пакет, 
- *  функции CPEncrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCEncrypt()), 
- *  CPDecrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCEncrypt()) считывают IV из пакета. 
+ *  \brief  Если флаг установлен, приложение устанавливает IV в пакет,
+ *  функции \ref CryptEncrypt() "CryptEncrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)" (\ref CPCEncrypt()),
+ *  CPDecrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...) (CPCEncrypt()) считывают IV из пакета.
  */
 #define CP_CHP_IV_USER			(0x200)
 /*!
- *  \brief  Если флаг установлен, функции CPEncrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCEncrypt()), 
- *  CPDecrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCDecrypt()) получают IV пакета из контекста ключа.
+ *  \brief  Если флаг установлен, функции \ref CryptEncrypt() "CryptEncrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)" (\ref CPCEncrypt()),
+ *  \ref CryptDecrypt() "CryptDecrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)" (\ref CPCDecrypt()) получают IV пакета из контекста ключа.
  */
 #define CP_CHP_IV_CHAIN			(0x000)
 /*!
- *  \brief Маска управления значением хэш-функции пакета. Представляет собой поле из 2 зависимых бит. 
- *  Нулевое значение поля соответствует CP_CHP_HASH_NONE.
- *  Ненулевые значения соответствуют CP_CHP_HASH_CHAIN, CP_CHP_HASH_PACKET.
- *  Может быть установлен только один из флагов CP_CHP_HASH_NONE, CP_CHP_HASH_CHAIN, CP_CHP_HASH_PACKET.
+ *  \brief Маска управления значением хэш-функции пакета. Представляет собой поле из 2 зависимых бит.
+ *  Нулевое значение поля соответствует \ref CP_CHP_HASH_NONE.
+ *  Ненулевые значения соответствуют \ref CP_CHP_HASH_CHAIN, \ref CP_CHP_HASH_PACKET.
+ *  Может быть установлен только один из флагов \ref CP_CHP_HASH_NONE, \ref CP_CHP_HASH_CHAIN, \ref CP_CHP_HASH_PACKET.
  */
  #define CP_CHP_HASH_MASK		(0xC00)
 /*!
- *  \brief  Если флаг установлен, функция хэширования расчитывается на весь поток пакетов. 
+ *  \brief  Если флаг установлен, функция хэширования расчитывается на весь поток пакетов.
  *  В пакет значение хэш-функции не передаётся.
  */
 #define CP_CHP_HASH_NONE		(0x000)
 /*!
- *  \brief  Если флаг установлен, функция хэширования рассчитывается на поток пакетов, 
- *  текущее значение хэш-функции устанавливается в пакет функциями 
- *  CPEncrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_HASH_CHAIN...,...) (CPCEncrypt()).
- *  Функции CPDecrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCDecrypt()) сравнивают
+ *  \brief  Если флаг установлен, функция хэширования рассчитывается на поток пакетов,
+ *  текущее значение хэш-функции устанавливается в пакет функциями
+ *  \ref CryptEncrypt() "CryptEncrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_HASH_CHAIN...,...)" (\ref CPCEncrypt()).
+ *  Функции \ref CryptDecrypt() "CryptDecrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)" (\ref CPCDecrypt()) сравнивают
  *  рассчитанное значение хэш-функции со значением, полученным из пакета,
  *  и в случае несовпадения возвращают ошибку NTE_BAD_HASH.
  */
 #define CP_CHP_HASH_CHAIN		(0x400)
 /*!
- *  \brief  Если флаг установлен, функция хэширования рассчитывается на пакет, 
- *  значение хэш-функции устанавливается в пакет функциями 
- *  CPEncrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_HASH_CHAIN...,...) (CPCEncrypt()).
- *  Функции CPDecrypt(...,CP_CRYPT_HASH_PACKET|CP_CHP_IV_CHAIN...,...) (CPCDecrypt()) сравнивают
+ *  \brief  Если флаг установлен, функция хэширования рассчитывается на пакет,
+ *  значение хэш-функции устанавливается в пакет функциями
+ *  \ref CryptEncrypt() "CryptEncrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_HASH_CHAIN...,...)" (\ref CPCEncrypt()).
+ *  Функции \ref CryptDecrypt() "CryptDecrypt(..., CP_CRYPT_HASH_PACKET | CP_CHP_IV_CHAIN...,...)" (\ref CPCDecrypt()) сравнивают
  *  рассчитанное значение хэш-функции со значением, полученным из пакета,
  *  и в случае несовпадения возвращают ошибку NTE_BAD_HASH.
  */
@@ -5233,7 +5510,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  */
 #define CP_CHP_HASH_SIZE_MASK		(0xF000)
 /*!
- *  \brief Маска размера трейлера в байтах, значения 0 - 254 означают длину трейлера, 
+ *  \brief Маска размера трейлера в байтах, значения 0 - 254 означают длину трейлера,
  *  значение  255 означает: длина трейлера 0, значения хэш-функции в пакете шифруется.
  */
 #define CP_CHP_TRAILER_MASK		(0xFF0000)
@@ -5243,7 +5520,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_ENCRYPTED_TRAILER	(CP_CHP_TRAILER_MASK>>CP_CHP_TRAILER_SHIFT)
 
 /*!
- *  \brief Маска размера заголовка в байтах, размер может проинимать значения 0 - 255. 
+ *  \brief Маска размера заголовка в байтах, размер может проинимать значения 0 - 255.
  */
 #define CP_CHP_HEADER_MASK		(0xFF000000)
 
@@ -5253,7 +5530,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define BASE_AEAD_FLAGS	    (CP_CHP_IV_CHAIN | CP_CHP_HASH_PACKET)
 
 /*! \brief Макрос для формирования параметра dwFlags (флагов) функций
- *  CPEncrypt() и CPDecrypt()
+ *  \ref CryptEncrypt() и \ref CryptDecrypt()
  *
  *  Флаги (dwFlags) формируются на основе параметров пакета:
  *  - флагов порядка вычисления хэш-функции и выработки синхропосылки;
@@ -5314,33 +5591,33 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  */
 
 /*!
- *  \brief Сдвиг поля для маски CP_CHP_HASH_SIZE_MASK. 
+ *  \brief Сдвиг поля для маски \ref CP_CHP_HASH_SIZE_MASK.
  */
 #define CP_CHP_HASH_SIZE_SHIFT		(12)
 /*!
- *  \brief Сдвиг поля для маски CP_CHP_TRAILER_MASK. 
+ *  \brief Сдвиг поля для маски \ref CP_CHP_TRAILER_MASK.
  */
 #define CP_CHP_TRAILER_SHIFT		(16)
 /*!
- *  \brief Сдвиг поля для маски CP_CHP_HEADER_MASK. 
+ *  \brief Сдвиг поля для маски \ref CP_CHP_HEADER_MASK.
  */
 #define CP_CHP_HEADER_SHIFT		(24)
-/* 
+/*
     Aplication Packet (A-Packet, А-пакет)
     Структура Ф-пакета
     IV
     IV присутствует в А-пакете только тогда, когда он необходим для шифрования,
     т.е. IV типа RANDOM или USER присутствуют в А-пакете.
-    Если CP_CHP_IV_HEADER установлен, IV входит в состав хидера и только в этом случае IV хэшируется.
-    Если CP_CHP_IV_HEADER не установлен, IV не входит в состав хидера и должен присутствовать в А-пакете.
+    Если \ref CP_CHP_IV_HEADER установлен, IV входит в состав хидера и только в этом случае IV хэшируется.
+    Если \ref CP_CHP_IV_HEADER не установлен, IV не входит в состав хидера и должен присутствовать в А-пакете.
     IV типа RANDOM устанавливается в А-пакет и считывается из него функциями Encrypt()/Decrypt().
     IV типа USER устанавливается в А-пакет приложением, считывается из него функциями Encrypt()/Decrypt().
-    IV типа CHAIN устанавливается приложением на ключ функцией SetKeyParam(...,KP_IV,...), 
+    IV типа CHAIN устанавливается приложением на ключ функцией SetKeyParam(...,KP_IV,...),
     в А-пакет IV типа CHAIN не входит.
 
 */
 /*!
- *  \brief Размер поля IV для алгоритма ГОСТ 28147-89 в пакете. 
+ *  \brief Размер поля IV для алгоритма ГОСТ 28147-89 в пакете.
  */
 #define CP_CHP_IV_SIZE(f) (((f)&CP_CHP_IV_MASK)?(SEANCE_VECTOR_LEN):(0))
 
@@ -5349,7 +5626,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 */
 #define CP_CHP_IV_BLOB_SIZE(f, ivlen) (((f)&CP_CHP_IV_MASK)?(ivlen):(0))
 /*!
- *  \brief Указатель на поле IV для алгоритма ГОСТ 28147-89 в пакете. 
+ *  \brief Указатель на поле IV для алгоритма ГОСТ 28147-89 в пакете.
  */
 #define CP_CHP_IV_DATA(f,d,l) _CP_CHP_SAFE_CHECK_((d),(l),		\
 		_CP_CHP_ADD_((d),					\
@@ -5366,24 +5643,24 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 		CP_CHP_IV_BLOB_SIZE(f,ivlen)					\
 	    )
 
-/*  
+/*
     HEADER
     В размер хидера включён IV и хэшируются хидер и IV.
-    Таким образом всегда выполняется 
-    HashData(...,CP_CHP_HEADER_DATA(dwFlags,pbData,dwDataLen),CP_CHP_HEADER_SIZE(dwFlags));
+    Таким образом всегда выполняется
+    \ref CryptHashData() "CryptHashData(..., CP_CHP_HEADER_DATA(dwFlags, pbData, dwDataLen), CP_CHP_HEADER_SIZE(dwFlags))";
 */
 /*!
- *  \brief Указатель на поле заголовка в пакете, если заголовок присутствует. 
+ *  \brief Указатель на поле заголовка в пакете, если заголовок присутствует.
  */
 #define CP_CHP_HEADER_DATA(f,d,l) _CP_CHP_SAFE_CHECK_((d),(l),		\
 					(d), CP_CHP_PUREHEADER_SIZE(f))
 /*!
- *  \brief Размер поля заголовка пакета (исключая IV). 
+ *  \brief Размер поля заголовка пакета (исключая IV).
  */
 #define CP_CHP_PUREHEADER_SIZE(f)					\
 			(((f)&CP_CHP_HEADER_MASK)>>CP_CHP_HEADER_SHIFT)
 /*!
- *  \brief Размер хэшируемого поля заголовка пакета и поля IV (если IV хэшируется). 
+ *  \brief Размер хэшируемого поля заголовка пакета и поля IV (если IV хэшируется).
  */
 #define CP_CHP_HEADER_SIZE_INT(f,ivlen)	(CP_CHP_PUREHEADER_SIZE(f) +	\
 					(((f)&CP_CHP_IV_HEADER)		\
@@ -5393,10 +5670,10 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  /*!
   *  \brief Размер хэшируемого поля заголовка пакета и поля IV (если IV хэшируется) для алгоритма ГОСТ 28147-89.
   */
-#define CP_CHP_HEADER_SIZE(f) CP_CHP_HEADER_SIZE_INT(f, SEANCE_VECTOR_LEN) 
+#define CP_CHP_HEADER_SIZE(f) CP_CHP_HEADER_SIZE_INT(f, SEANCE_VECTOR_LEN)
 
 /*!
- *  \brief Суммарный размер поля заголовка пакета и поля IV. 
+ *  \brief Суммарный размер поля заголовка пакета и поля IV.
  */
 #define CP_CHP_REALHEADER_SIZE_INT(f, ivlen)   (CP_CHP_PUREHEADER_SIZE(f) +		\
 					CP_CHP_IV_BLOB_SIZE(f, ivlen))
@@ -5405,19 +5682,19 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
   *  \brief Суммарный размер поля заголовка пакета и поля IV для алгоритма ГОСТ 28147-89.
   */
 #define CP_CHP_REALHEADER_SIZE(f) CP_CHP_REALHEADER_SIZE_INT(f, SEANCE_VECTOR_LEN)
-/*  
+/*
     HASH
     Значение Хэша присутствует в А-пакете только для типов CHAIN и PACKET.
-    Для хэша типа PACKET либо CHAIN функция Encrypt() вычисляет и устанавливает значение хэша в пакет, 
-    функция Decrypt() вычисляет значение хэша и сравнивает его со значением из пакета, 
-    в случае несовпадения возвращается ошибка NTE_BAD_HASH (CRYPT_E_HASH_VALUE). 
+    Для хэша типа PACKET либо CHAIN функция Encrypt() вычисляет и устанавливает значение хэша в пакет,
+    функция Decrypt() вычисляет значение хэша и сравнивает его со значением из пакета,
+    в случае несовпадения возвращается ошибка NTE_BAD_HASH (CRYPT_E_HASH_VALUE).
     Приложение само может получить значение хэша на приёме вызовом функции GetHashParam(...,HP_HASHVAL,...).
     Хэш типа NONE обрабатывается приложением, его значение в А-пакетне помещается.
-    Значение хэша будет зашифрованно, если поле CP_CHP_TRAILER_MASK установлено в 0xff.
+    Значение хэша будет зашифрованно, если поле \ref CP_CHP_TRAILER_MASK установлено в 0xff.
 */
 
 /*!
- *  \brief Размер поля значения хэш-функции. 
+ *  \brief Размер поля значения хэш-функции.
  */
 #define CP_CHP_HASH_SIZE(f)						\
 		(sizeof(DWORD)*						\
@@ -5425,7 +5702,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 		    ?((f&CP_CHP_HASH_SIZE_MASK)>>CP_CHP_HASH_SIZE_SHIFT)\
 		    :0))
 /*!
- *  \brief Указатель на поле значения хэш-функции в пакете, если поле присутствует. 
+ *  \brief Указатель на поле значения хэш-функции в пакете, если поле присутствует.
  */
 #define CP_CHP_HASH_DATA(f,d,l)	_CP_CHP_SAFE_CHECK_((d),(l),		\
 		_CP_CHP_ADD_((d), (l)-CP_CHP_HASH_SIZE(f)),		\
@@ -5433,24 +5710,24 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 	    )
 
 /*!
- *  \brief Длина хэшируемого поля пакета(в случае, когда поле IV хэшируется). 
+ *  \brief Длина хэшируемого поля пакета(в случае, когда поле IV хэшируется).
  */
 #define CP_CHP_HASH_LEN(f,l) (l-CP_CHP_HASH_SIZE(f))
 /*!
- *  \brief Длина первого хэшируемого поля (в случае, когда поле IV не хэшируется). 
+ *  \brief Длина первого хэшируемого поля (в случае, когда поле IV не хэшируется).
  */
 #define CP_CHP_HASH_LEN_1(f)  CP_CHP_PUREHEADER_SIZE(f)
 
 
 /*!
- *  \brief Размер поля трейлера. 
+ *  \brief Размер поля трейлера.
  */
 #define CP_CHP_TRAILER_SIZE(f)						\
 		    ((((f)&CP_CHP_TRAILER_MASK)==CP_CHP_TRAILER_MASK)	\
 		    ?(0)						\
 		    :(((f)&CP_CHP_TRAILER_MASK)>>CP_CHP_TRAILER_SHIFT))	\
 /*!
- *  \brief Указатель на поле трейлера в пакете, если поле присутствует. 
+ *  \brief Указатель на поле трейлера в пакете, если поле присутствует.
  */
 #define CP_CHP_TRAILER_DATA(f,d,l)  _CP_CHP_SAFE_CHECK_((d),(l),	\
 		_CP_CHP_SUB_(CP_CHP_HASH_DATA((f),(d),(l)),		\
@@ -5459,7 +5736,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 	    )
 
 /*!
- *  \brief Размер тела пакета. 
+ *  \brief Размер тела пакета.
  */
 #define CP_CHP_PAYLOAD_SIZE_INT(f,l,ivlen) ((l) -			\
 				    CP_CHP_REALHEADER_SIZE_INT(f,ivlen) -	\
@@ -5472,7 +5749,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_PAYLOAD_SIZE(f,l) CP_CHP_PAYLOAD_SIZE_INT(f,l,SEANCE_VECTOR_LEN)
 
 /*!
- *  \brief Размер шифруемого поля пакета. 
+ *  \brief Размер шифруемого поля пакета.
  */
 #define CP_CHP_CIPHER_SIZE_INT(f,l,ivlen) (					\
 		(l) -							\
@@ -5488,7 +5765,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
   */
 #define CP_CHP_CIPHER_SIZE(f,l) CP_CHP_CIPHER_SIZE_INT(f,l,SEANCE_VECTOR_LEN)
 /*!
- *  \brief Указатель на шифруемое поле пакета. 
+ *  \brief Указатель на шифруемое поле пакета.
  */
 #define CP_CHP_CIPHER_DATA_INT(f,d,l,ivlen)   _CP_CHP_SAFE_CHECK_((d),(l),	\
 		_CP_CHP_ADD_((d), CP_CHP_REALHEADER_SIZE_INT(f,ivlen)),		\
@@ -5500,7 +5777,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_CIPHER_DATA(f,d,l)  CP_CHP_CIPHER_DATA_INT(f,d,l,SEANCE_VECTOR_LEN)
 
 /*!
- *  \brief Указатель на второе хэшируемое поле пакета (в случае, когда поле IV не хэшируется). 
+ *  \brief Указатель на второе хэшируемое поле пакета (в случае, когда поле IV не хэшируется).
  */
 #define CP_CHP_HASH_DATA_2_INT(f,d,l,ivlen)   CP_CHP_CIPHER_DATA_INT((f),(d),(l),(ivlen))
 
@@ -5510,7 +5787,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CHP_HASH_DATA_2(f,d,l)   CP_CHP_HASH_DATA_2_INT((f),(d),(l),SEANCE_VECTOR_LEN)
 
 /*!
- *  \brief Длина второго хэшируемого поля пакета (в случае, когда поле IV не хэшируется). 
+ *  \brief Длина второго хэшируемого поля пакета (в случае, когда поле IV не хэшируется).
  */
 #define CP_CHP_HASH_LEN_2_INT(f,l,ivlen)  (					\
 		CP_CHP_CIPHER_SIZE_INT(f,l,ivlen) + CP_CHP_TRAILER_SIZE(f) -	\
@@ -5528,13 +5805,13 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 /*! \ingroup ProCSPData
  * \defgroup CryptIOvec  Вектор ввода вывода
  *
- * Если при вызове функций шифрования CPEncrypt(),
- * CPCEncrypt(), CPDecrypt() или CPCDecrypt() в параметре dwFlags
- * установлены флаги CP_CRYPT_HASH_PACKET и  CP_CRYPT_DATA_IOVEC,
- * или при вызове функций хэширования CPHashData() и CPCHashData()
- * установлен флаг CP_HASH_DATA_IOVEC, то
+ * Если при вызове функций шифрования \ref CryptEncrypt(),
+ * \ref CPCEncrypt(), \ref CryptDecrypt() или \ref CPCDecrypt() в параметре dwFlags
+ * установлены флаги \ref CP_CRYPT_HASH_PACKET и  \ref CP_CRYPT_DATA_IOVEC,
+ * или при вызове функций хэширования \ref CryptHashData() и \ref CPCHashData()
+ * установлен флаг \ref CP_HASH_DATA_IOVEC, то
  * обрабатываемые данные представлены в форме вектора ввода-вывода --
- * массивом структур #CSP_iovec.
+ * массивом структур \ref CSP_iovec.
  * Последовательность структур в массиве должна соответствовать
  * последовательности фрагментов данных в пакете.
  */
@@ -5555,7 +5832,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
     //	ULONG len;     /* the length of the buffer */
     //	__field_bcount(len) CHAR FAR *buf; /* the pointer to the buffer */
     //} WSABUF, FAR * LPWSABUF;
-    
+
     #ifndef RPC_CSP_iovec
     #define RPC_CSP_iovec
 
@@ -5567,21 +5844,21 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 	typedef CHAR *CSPiov_ptr_type;
 	typedef ULONG CSPiov_len_type;
 
-		// TODO: Ещё раз проверить, быть может, можно всегда 
+		// TODO: Ещё раз проверить, быть может, можно всегда
 		// использовать системные стуктуры
 	    /*! \ingroup CryptIOvec
 	    *
-	    * \brief Cтруктура определяет представление фрагмента данных 
+	    * \brief Cтруктура определяет представление фрагмента данных
 	    *	      во внешнем интерфейсе.
 	    *
-	    * \note На уровне приложений пользователя во всех Windows CSP_iovec 
-	    * является макросом для WSABUF, 
-	    * поэтому для использования CSP_iovec требуется 
+	    * \note На уровне приложений пользователя во всех Windows \ref CSP_iovec
+	    * является макросом для WSABUF,
+	    * поэтому для использования \ref CSP_iovec требуется
 	    * "#include <Winsock2.h>".
 	    *
-	    * \note На уровне приложений пользователя в POSIX 
-	    * (Linux/Solaris/AIX/FreeBSD) системах CSP_iovec является макросом 
-	    * для struct iovec, поэтому для использования CSP_iovec требуется 
+	    * \note На уровне приложений пользователя в POSIX
+	    * (Linux/Solaris/AIX/FreeBSD) системах \ref CSP_iovec является макросом
+	    * для struct iovec, поэтому для использования \ref CSP_iovec требуется
 	    * "#include <sys/uio.h>".
 	    */
 	    typedef struct CSP_iovec_ {
@@ -5590,27 +5867,27 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 	    } CSP_iovec;
 	#if !defined(CSP_LITE)
 		// На уровне приложений используем структуру ОС
-		// Однако, представляется желательным, совпадение 
+		// Однако, представляется желательным, совпадение
 		// представлений стуктур ядра и пользователя
 	    #define CSP_iovec	    WSABUF
 	    #define CSPiov_len	    len
 	    #define CSPiov_ptr	    buf
-	#endif 
+	#endif
 
 	/*! \ingroup CryptIOvec
 	 *
-	 * \brief Максимально допустимое число фрагментов в 
+	 * \brief Максимально допустимое число фрагментов в
 	 *        представлении пакета вектором ввода вывода.
-	 * 
+	 *
 	 */
 	#define CSP_UIO_MAXIOV 		(1024-16)
 
 	/*! \ingroup CryptIOvec
 	 *
-	 * \brief Максимально допустимое число фрагментов при 
-	 *        использовании библиотеки уровня ядра или в 
+	 * \brief Максимально допустимое число фрагментов при
+	 *        использовании библиотеки уровня ядра или в
 	 *        адресном пространстве пользователя.
-	 * 
+	 *
 	 */
     	#define CSP_KERNEL_UIO_MAXIOV	(1024-16)
 
@@ -5618,7 +5895,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #else
     // Gnu lib
     //   #define UIO_MAXIOV      1024
-    //                                                                               
+    //
     //   /* Structure for scatter/gather I/O.  */
     //   struct iovec
     //     {
@@ -5639,26 +5916,26 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 	typedef size_t CSPiov_len_type;
     #endif
 
-	    // TODO: Ещё раз проверить, быть может, можно всегда 
+	    // TODO: Ещё раз проверить, быть может, можно всегда
 	    // использовать системные стуктуры
 	typedef struct CSP_iovec_ {
 	    CSPiov_ptr_type CSPiov_ptr; /*!<Указатель на фрагмент данных.*/
 	    CSPiov_len_type CSPiov_len; /*!<Длина фрагмента данных в байтах.*/
 	} CSP_iovec;
     #if !defined(CSP_LITE)
-	    // На уровне приложений используем структуру ОС для 
+	    // На уровне приложений используем структуру ОС для
 	    // упрощения взаимодействия с подсистемой В/В ОС.
-	    // Однако, представляется желательным, совпадение 
+	    // Однако, представляется желательным, совпадение
 	    // представлений стуктур ядра и пользователя для целей
 	    // более адекватного тестирования "ядерного" кода в режиме пользователя.
 	#define CSP_iovec	    struct iovec
 	#define CSPiov_ptr	    iov_base
 	#define CSPiov_len	    iov_len
-    #endif 
-#ifdef ANDROID
-#	define IOV_MAX 16
-#endif
+    #endif
 
+    #if defined(ANDROID) && !defined(IOV_MAX)
+	#define IOV_MAX 16
+    #endif
     #define CSP_UIO_MAXIOV 		(IOV_MAX-2)
     #define CSP_KERNEL_UIO_MAXIOV	(1024-16)
 #endif
@@ -5666,7 +5943,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 /*! \ingroup CryptIOvec
  *
  * \brief Значение не инициализированного поля длины.
- * 
+ *
  */
 #define CSP_UIOV_MAXBAD_LEN ((CSPiov_len_type)0x7fffFFFF)
 
@@ -5675,7 +5952,7 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * \brief Макрос возвращает указатель на фрагмент данных с номером n в векторе ввода вывода.
  *
  * Параметры:
- * - p - указатель на первый элемент в массиве структур CSP_iovec;
+ * - p - указатель на первый элемент в массиве структур \ref CSP_iovec;
  * - n - номер структуры в векторе ввода вывода.
  */
 #define IOVEC_PTR(p,n) (((CSP_iovec*)p)[n].CSPiov_ptr)
@@ -5684,23 +5961,23 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
  * \brief Макрос возвращает длину фрагмента данных с номером n в векторе ввода вывода.
  *
  * Параметры:
- * - p - указатель на первый элемент в массиве структур CSP_iovec;
+ * - p - указатель на первый элемент в массиве структур \ref CSP_iovec;
  * - n - номер структуры в векторе ввода вывода.
  */
 #define IOVEC_LEN(p,n) (((CSP_iovec*)p)[n].CSPiov_len)
 /*! \ingroup CryptIOvec
  *
- *  \brief Флаг - признак представления пакета в форме вектора ввода/вывода. 
- *  Для функций CPEncrypt(), CPCEncrypt(),CPDecrypt(), CPCDecrypt() флаг
+ *  \brief Флаг - признак представления пакета в форме вектора ввода/вывода.
+ *  Для функций \ref CryptEncrypt(), \ref CPCEncrypt(), \ref CryptDecrypt(), \ref CPCDecrypt() флаг
  *  должен быть установлен, если используется представление пакета в форме вектора ввода/вывода,
  *  в противном случае пакет представляется буфером. См. \ref CryptPacket
  */
 #define CP_CRYPT_DATA_IOVEC		(0x2)
 /*! \ingroup CryptIOvec
  *
- *  \brief Флаг параметра dwFlags - признак представления данных в форме вектора ввода/вывода 
- *  для функций CPHashData() и CPCHashData(). Должен быть установлен, если используется 
- *  представление данных в форме вектора ввода/вывода, в противном случае данные представляются буфером. 
+ *  \brief Флаг параметра dwFlags - признак представления данных в форме вектора ввода/вывода
+ *  для функций \ref CryptHashData() и \ref CPCHashData(). Должен быть установлен, если используется
+ *  представление данных в форме вектора ввода/вывода, в противном случае данные представляются буфером.
  */
 #define CP_HASH_DATA_IOVEC		CP_CRYPT_DATA_IOVEC
 
@@ -5738,16 +6015,16 @@ typedef struct _CPCERT_ISSUER_SIGN_TOOL {
 #define CP_CRYPT_DUPLICATE_KEY		(0x20)
 
 /*! \ingroup ProCSPData
- * \defgroup CryptMultipacket  Мультипакетная обработка 
- * Функции CPEncrypt(), CPCEncrypt(),CPDecrypt(), CPCDecrypt()
- * допускают мультипакетную обработку по технологии SIMD при использовании 
+ * \defgroup CryptMultipacket  Мультипакетная обработка
+ * Функции \ref CryptEncrypt(), \ref CPCEncrypt(), \ref CryptDecrypt(), \ref CPCDecrypt()
+ * допускают мультипакетную обработку по технологии SIMD при использовании
  * аппаратной платформы, поддерживающей расширения SSSE3, AVX.
  * Поддерживается только шифрование по ГОСТ 28147-89.
  */
 
 /*! \ingroup CryptMultipacket
- *  \brief Используется только для совместимости; заменена CSP_Multipacket_ENC и CSP_Multipacket_DEC.
- *  
+ *  \brief Используется только для совместимости; заменена \ref CSP_Multipacket_ENC и \ref CSP_Multipacket_DEC.
+ *
  */
 typedef struct CSP_Multipacket_ {
     BYTE*	    pbData;	/*!< указатель на линейный пакет, указатель на IOVEC. */
@@ -5758,10 +6035,10 @@ typedef struct CSP_Multipacket_ {
 
 /*! \ingroup CryptMultipacket
 *  \brief Структура для передачи параметров для шифрования в случае мультипакетной обработки
-* (использования флага CP_CHP_MULTIPACKET). Мультипакет передаётся массивом структур CSP_Multipacket_ENC.
+* (использования флага \ref CP_CHP_MULTIPACKET). Мультипакет передаётся массивом структур \ref CSP_Multipacket_ENC.
 * Каждая структура передаёт пакет как линейный буфер, либо как IOVEC, если в
-* параметре dwFlags установлены флаги CP_CRYPT_HASH_PACKET, CP_CHP_MULTIPACKET и
-* CP_CRYPT_DATA_IOVEC.
+* параметре dwFlags установлены флаги \ref CP_CRYPT_HASH_PACKET, \ref CP_CHP_MULTIPACKET и
+* \ref CP_CRYPT_DATA_IOVEC.
 *
 */
 typedef  struct CSP_Multipacket_ENC_ {
@@ -5774,10 +6051,10 @@ typedef  struct CSP_Multipacket_ENC_ {
 
 /*! \ingroup CryptMultipacket
 *  \brief Структура для передачи параметров для расшифрования в случае мультипакетной обработки
-* (использования флага CP_CHP_MULTIPACKET). Мультипакет передаётся массивом структур CSP_Multipacket_DEC.
+* (использования флага \ref CP_CHP_MULTIPACKET). Мультипакет передаётся массивом структур \ref CSP_Multipacket_DEC.
 * Каждая структура передаёт пакет как линейный буфер, либо как IOVEC, если в
-* параметре dwFlags установлены флаги CP_CRYPT_HASH_PACKET, CP_CHP_MULTIPACKET и
-* CP_CRYPT_DATA_IOVEC.
+* параметре dwFlags установлены флаги \ref CP_CRYPT_HASH_PACKET, \ref CP_CHP_MULTIPACKET и
+* \ref CP_CRYPT_DATA_IOVEC.
 *
 */
 typedef  struct CSP_Multipacket_DEC_ {
@@ -5793,7 +6070,7 @@ typedef  struct CSP_Multipacket_DEC_ {
 * \brief Макрос возвращает указатель на шифруемый пакет с номером n в массиве пакетов.
 *
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_ENC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_ENC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_ENC_PTR(p,n) (((CSP_Multipacket_ENC*)p)[n].pbEncData)
@@ -5801,7 +6078,7 @@ typedef  struct CSP_Multipacket_DEC_ {
 * \brief Макрос возвращает указатель на расшифровываемый пакет с номером n в массиве пакетов.
 *
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_DEC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_DEC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_DEC_PTR(p,n) (((CSP_Multipacket_DEC*)p)[n].pbDecData)
@@ -5810,11 +6087,11 @@ typedef  struct CSP_Multipacket_DEC_ {
 #define MultiPacket_LEN(p,n) (((CSP_Multipacket*)p)[n].cbData)
 
 /*! \ingroup CryptMultipacket
-* \brief Макрос возвращает длину шифруемого пакета с номером n в массиве пакетов 
+* \brief Макрос возвращает длину шифруемого пакета с номером n в массиве пакетов
 * либо общую длину в представлении шифруемого пакета вектором ввода-вывода
 *
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_ENC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_ENC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_ENC_LEN(p,n) (((CSP_Multipacket_ENC*)p)[n].cbEncDataLen)
@@ -5823,7 +6100,7 @@ typedef  struct CSP_Multipacket_DEC_ {
 * \brief Макрос возвращает длину расшифровываемого пакета с номером n в массиве пакетов либо число элементов вектора ввода-вывода.
 *
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_DEC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_DEC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_DEC_LEN(p,n) (((CSP_Multipacket_DEC*)p)[n].dwDecDataLen)
@@ -5834,7 +6111,7 @@ typedef  struct CSP_Multipacket_DEC_ {
 * \brief Макрос возвращает длину буфера шифруемого линейного пакета с номером n в массиве пакетов либо число элементов вектора ввода-вывода.
 *
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_ENC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_ENC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_ENC_BUFLEN(p,n) (((CSP_Multipacket_ENC*)p)[n].dwEncBufLen)
@@ -5843,24 +6120,24 @@ typedef  struct CSP_Multipacket_DEC_ {
 
 /*! \ingroup CryptMultipacket
 * \brief Макрос возвращает результат обработки пакета с номером n в массиве пакетов.
-* Для функций CPEncrypt(), CPCEncrypt()
+* Для функций \ref CryptEncrypt(), \ref CPCEncrypt()
 * перед их вызовом в это поле устанавливается единица.
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_ENC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_ENC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_ENC_RES(p,n) (((CSP_Multipacket_ENC*)p)[n].dwEncResult)
 
 /*! \ingroup CryptMultipacket
 * \brief Макрос возвращает результат обработки пакета с номером n в массиве пакетов.
-* Для функций CPDecrypt(), CPCDecrypt()
+* Для функций \ref CryptDecrypt(), \ref CPCDecrypt()
 * перед их вызовом в это поле устанавливается единица.
-* После вызова функций CPDecrypt(), CPCDecrypt() значение ноль в
+* После вызова функций \ref CryptDecrypt(), \ref CPCDecrypt() значение ноль в
 * данном поле свидетельствует, что пакет с номером n обработан корректно,
 * значение хэш функции пакета совпало с вычисленным значением;
 * значение единица в данном поле свидетельствует о том, что значения хэш функций не совпали.
 * Параметры:
-* - p - указатель на первый элемент в массиве структур CSP_Multipacket_DEC;
+* - p - указатель на первый элемент в массиве структур \ref CSP_Multipacket_DEC;
 * - n - номер структуры в массиве пакетов.
 */
 #define MultiPacket_DEC_RES(p,n) (((CSP_Multipacket_DEC*)p)[n].dwDecResult)

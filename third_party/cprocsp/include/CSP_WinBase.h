@@ -59,12 +59,12 @@ GetSystemTime(
     );
 
 WINBASEAPI
-BOOL 
+BOOL
 WINAPI
 SystemTimeToFileTime(
     CONST SYSTEMTIME *lpSystemTime,  // system time
     LPFILETIME lpFileTime            // file time
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINBASEAPI
 VOID
@@ -79,7 +79,7 @@ WINAPI
 CompareFileTime(
     CONST FILETIME *lpFileTime1,
     CONST FILETIME *lpFileTime2
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINBASEAPI
 BOOL
@@ -87,7 +87,7 @@ WINAPI
 FileTimeToSystemTime(
     IN CONST FILETIME *lpFileTime,
     OUT LPSYSTEMTIME lpSystemTime
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef __cplusplus
 }

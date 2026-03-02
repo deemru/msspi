@@ -9,7 +9,7 @@
 #ifndef __WINCRYPT_H__
 #define __WINCRYPT_H__
 
-#if defined UNIX 
+#if defined UNIX
 #if !defined CSP_DRIVER || defined EMUL_DRIVER
 #include <sys/types.h> /* Для PFN_CRYPT_ALLOC */
 #elif defined LINUX
@@ -25,6 +25,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef CPRO_CHECK_RESULT
+// заглушка для дефайна из CSP_WinDef.h
+// нужна в драйвере на Windows, который использует CSP_WinCrypt.h и не использует CSP_WinDef.h
+#define CPRO_CHECK_RESULT
+#endif // CPRO_CHECK_RESULT
 
 #ifndef _HRESULT_DEFINED
 #define _HRESULT_DEFINED
@@ -98,6 +104,7 @@ typedef LONG HRESULT;
 #define ALG_TYPE_STREAM                 (4 << 9)
 #define ALG_TYPE_DH                     (5 << 9)
 #define ALG_TYPE_SECURECHANNEL          (6 << 9)
+#define ALG_TYPE_ECDH                   (7 << 9)
 
 /* Generic sub-ids*/
 #define ALG_SID_ANY                     (0)
@@ -114,6 +121,7 @@ typedef LONG HRESULT;
 #define ALG_SID_DSS_ANY                 0
 #define ALG_SID_DSS_PKCS                1
 #define ALG_SID_DSS_DMS                 2
+#define ALG_SID_ECDSA                   3
 
 /* Block cipher sub ids*/
 /* DES sub_ids */
@@ -155,6 +163,8 @@ typedef LONG HRESULT;
 #define ALG_SID_DH_EPHEM                2
 #define ALG_SID_AGREED_KEY_ANY          3
 #define ALG_SID_KEA                     4
+#define ALG_SID_ECDH                    5
+#define ALG_SID_ECDH_EPHEM              6
 
 /* Hash sub ids*/
 #define ALG_SID_MD2                     1
@@ -177,6 +187,9 @@ typedef LONG HRESULT;
 #define ALG_SID_SSL2_MASTER             5
 #define ALG_SID_TLS1_MASTER             6
 #define ALG_SID_SCHANNEL_ENC_KEY        7
+
+/* misc ECC sub ids*/
+#define ALG_SID_ECMQV                   1
 
 /* Our silly example sub-id*/
 #define ALG_SID_EXAMPLE                 80
@@ -223,7 +236,11 @@ typedef unsigned int ALG_ID;
 #define CALG_RC5                (ALG_CLASS_DATA_ENCRYPT|ALG_TYPE_BLOCK|ALG_SID_RC5)
 #define CALG_HMAC				(ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_HMAC)
 #define CALG_TLS1PRF			(ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_TLS1PRF)
-
+#define CALG_ECDH               (ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_DH | ALG_SID_ECDH)
+#define CALG_ECDH_EPHEM         (ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_ECDH | ALG_SID_ECDH_EPHEM)
+#define CALG_ECMQV              (ALG_CLASS_KEY_EXCHANGE | ALG_TYPE_ANY | ALG_SID_ECMQV)
+#define CALG_ECDSA              (ALG_CLASS_SIGNATURE | ALG_TYPE_DSS | ALG_SID_ECDSA)
+#define CALG_NULLCIPHER         (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_ANY | 0)
 /* resource number for signatures in the CSP*/
 #define	SIGNATURE_RESOURCE_NUMBER	0x29A
 typedef ULONG_PTR HCRYPTPROV;
@@ -689,6 +706,9 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 #define szOID_ENROLLMENT_NAME_VALUE_PAIR    "1.3.6.1.4.1.311.13.2.1"
 #define szOID_ENROLLMENT_CSP_PROVIDER       "1.3.6.1.4.1.311.13.2.2"
 
+// Microsoft extensions or attributes
+#define szOID_CROSS_CERT_DIST_POINTS    "1.3.6.1.4.1.311.10.9.1"
+
 #ifndef szOID_CERTSRV_CA_VERSION
 #define szOID_CERTSRV_CA_VERSION        "1.3.6.1.4.1.311.21.1"
 #endif
@@ -710,6 +730,36 @@ typedef ULONG_PTR NCRYPT_PROV_HANDLE;
 #define X509_NDR_ENCODING           0x00000002
 #define PKCS_7_ASN_ENCODING         0x00010000
 #define PKCS_7_NDR_ENCODING         0x00020000
+
+
+//+-------------------------------------------------------------------------
+//  format the specified data structure according to the certificate
+//  encoding type.
+//
+//  The default behavior of CryptFormatObject is to return single line
+//  display of the encoded data, that is, each subfield will be concatenated with
+//  a ", " on one line.  If user prefers to display the data in multiple line,
+//  set the flag CRYPT_FORMAT_STR_MULTI_LINE, that is, each subfield will be displayed
+//  on a seperate line.
+//
+//  If there is no formatting routine installed or registered
+//  for the lpszStructType, the hex dump of the encoded BLOB will be returned.
+//  User can set the flag CRYPT_FORMAT_STR_NO_HEX to disable the hex dump.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+CryptFormatObject(
+    IN DWORD dwCertEncodingType,
+    IN DWORD dwFormatType,
+    IN DWORD dwFormatStrType,
+    IN void *pFormatStruct,
+    IN LPCSTR lpszStructType,
+    IN const BYTE *pbEncoded,
+    IN DWORD cbEncoded,
+    OUT void *pbFormat,
+    IN OUT DWORD *pcbFormat
+) CPRO_CHECK_RESULT;
 
 //-------------------------------------------------------------------------
 // constants for dwFormatStrType of function CryptFormatObject
@@ -743,7 +793,7 @@ CryptEncodeObjectEx(
     IN OPTIONAL PCRYPT_ENCODE_PARA pEncodePara,
     OUT void *pvEncoded,
     IN OUT DWORD *pcbEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 BOOL
@@ -754,7 +804,7 @@ CryptEncodeObject(
     IN const void   *pvStructInfo,
     OUT BYTE        *pbEncoded,
     IN OUT DWORD    *pcbEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 // By default the signature bytes are reversed. The following flag can
 // be set to inhibit the byte reversal.
@@ -821,7 +871,7 @@ CryptDecodeObjectEx(
     IN OPTIONAL PCRYPT_DECODE_PARA pDecodePara,
     OUT OPTIONAL void *pvStructInfo,
     IN OUT DWORD *pcbStructInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 WINCRYPT32API
@@ -835,7 +885,7 @@ CryptDecodeObject(
     IN DWORD        dwFlags,
     OUT void        *pvStructInfo,
     IN OUT DWORD    *pcbStructInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 // When the following flag is set the nocopy optimization is enabled.
 // This optimization where appropriate, updates the pvStructInfo fields
@@ -951,6 +1001,7 @@ CryptDecodeObject(
 //--------------------------------------------------------------------------
 #define X509_AUTHORITY_KEY_ID2              ((LPCSTR) 31)
 #define X509_AUTHORITY_INFO_ACCESS          ((LPCSTR) 32)
+#define X509_SUBJECT_INFO_ACCESS            X509_AUTHORITY_INFO_ACCESS
 #define X509_CRL_REASON_CODE                X509_ENUMERATED
 #define PKCS_CONTENT_INFO                   ((LPCSTR) 33)
 #define X509_SEQUENCE_OF_ANY                ((LPCSTR) 34)
@@ -1118,8 +1169,7 @@ typedef struct _RSAPUBKEY {
  * указывает тип ключевого блоба и алгоритм ключа, находящегося в нём.
  * Экземпляр этой структуры находится в начале поля \b pbData каждого ключевого блоба.
  *
- * \req_include Windows прототип описан в файле Wincrypt.h, Unix - 
- *  CSP_Wincrypt.h
+ * \req_include Windows прототип описан в файле Wincrypt.h, Unix - CSP_Wincrypt.h
  *
  * \sa CRYPT_PUBKEY_INFO_HEADER
  * \sa CRYPT_SIMPLEBLOB_HEADER
@@ -1129,8 +1179,8 @@ typedef struct _RSAPUBKEY {
  */
 typedef struct _PUBLICKEYSTRUC {
         BYTE    bType;
-                    /*!< Тип ключевого блоба. Поддерживаются следующие типы ключевых 
-                     * блобов: 
+                    /*!< Тип ключевого блоба. Поддерживаются следующие типы ключевых
+                     * блобов:
                      * <table><tr><th>
                      * \b bType
                      * </th><th>
@@ -1171,9 +1221,22 @@ typedef struct _PUBKEY {
 /*+-------------------------------------------------------------------------*/
 /*  CRYPTOAPI BLOB definitions*/
 /*--------------------------------------------------------------------------*/
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Структура CRYPTOAPI_BLOB используется для произвольного массива байт.
+ * Она обеспечивает гибкость для объектов, которые могут содержать различные типы данных.
+ *
+ * \req_include Windows прототип описан в файле Wincrypt.h, Unix -
+ *  CSP_Wincrypt.h
+ */
 typedef struct _CRYPTOAPI_BLOB {
     DWORD   cbData;
+                    /*!< Количество байт в буфере, на который указывает pbData.
+                     */
     BYTE    *pbData;
+                    /*!< Указатель на данные.
+                     */
 } CRYPT_INTEGER_BLOB, *PCRYPT_INTEGER_BLOB,
 CRYPT_UINT_BLOB, *PCRYPT_UINT_BLOB,
 CRYPT_OBJID_BLOB, *PCRYPT_OBJID_BLOB,
@@ -1425,10 +1488,29 @@ typedef struct _CRYPT_HASH_INFO {
 //
 //  Where the Value's CRYPT_OBJID_BLOB is in its encoded representation.
 //--------------------------------------------------------------------------
+/*!
+ * \ingroup ProCSPData
+ *
+ * \brief Структура CERT_EXTENSION содержит информацию о расширении сертификата.
+ *
+ * \req_include Windows прототип описан в файле Wincrypt.h, Unix -
+ *  CSP_Wincrypt.h
+ */
 typedef struct _CERT_EXTENSION {
     LPSTR               pszObjId;
+    /*!< Идентификатор объекта (OID), который определяет структуру данных расширения,
+     * содержащихся в элементе Value.
+     */
     BOOL                fCritical;
+    /*!< Если значение равно TRUE, любые ограничения, указанные расширением в поле Value этой структуры,
+     * являются обязательными. Если значение равно FALSE, ограничения,
+     * установленные этим расширением, могут быть проигнорированы.
+     */
     CRYPT_OBJID_BLOB    Value;
+    /*!< \ref _CRYPTOAPI_BLOB "CRYPTOAPI_BLOB" содержит закодированное расширение.
+     * Элемент cbData в Value указывает размер pbData в байтах.
+     * Массив байтов pbData является закодированным расширением.
+     */
 } CERT_EXTENSION, *PCERT_EXTENSION;
 
 //+-------------------------------------------------------------------------
@@ -1563,6 +1645,7 @@ typedef struct _CERT_RDN_ATTR {
 #define szOID_PKIX                      "1.3.6.1.5.5.7"
 #define szOID_PKIX_PE                   "1.3.6.1.5.5.7.1"
 #define szOID_AUTHORITY_INFO_ACCESS     "1.3.6.1.5.5.7.1.1"
+#define szOID_SUBJECT_INFO_ACCESS       "1.3.6.1.5.5.7.1.11"
 
 // UPN principal name in SubjectAltName
 #ifndef szOID_NT_PRINCIPAL_NAME
@@ -1882,6 +1965,8 @@ typedef struct _CRL_DIST_POINT {
 #define CRL_REASON_CESSATION_OF_OPERATION 5
 #define CRL_REASON_CERTIFICATE_HOLD       6
 #define CRL_REASON_REMOVE_FROM_CRL        8
+#define CRL_REASON_PRIVILEGE_WITHDRAWN    9
+#define CRL_REASON_AA_COMPROMISE          10
 
 typedef struct _CRL_DIST_POINTS_INFO {
     DWORD                   cDistPoint;
@@ -1945,6 +2030,19 @@ typedef struct _CRYPT_CONTENT_INFO_SEQUENCE_OF_ANY {
     DWORD               cValue;
     PCRYPT_DER_BLOB     rgValue;
 } CRYPT_CONTENT_INFO_SEQUENCE_OF_ANY, *PCRYPT_CONTENT_INFO_SEQUENCE_OF_ANY;
+
+//+-------------------------------------------------------------------------
+//  PKCS_CONTENT_INFO data structure
+//
+//  pvStructInfo points to following CRYPT_CONTENT_INFO.
+//
+//  For X509_ASN_ENCODING: encoded as a PKCS#7 ContentInfo structure.
+//  The CRYPT_DER_BLOB points to the already encoded ANY content.
+//--------------------------------------------------------------------------
+typedef struct _CRYPT_CONTENT_INFO {
+    LPSTR               pszObjId;
+    CRYPT_DER_BLOB      Content;
+} CRYPT_CONTENT_INFO, *PCRYPT_CONTENT_INFO;
 
 //+-------------------------------------------------------------------------
 //  X509_SEQUENCE_OF_ANY data structure
@@ -2427,6 +2525,7 @@ typedef struct _CRYPT_CSP_PROVIDER {
 #define CERT_NCRYPT_KEY_HANDLE_PROP_ID      78
 #define CERT_HCRYPTPROV_OR_NCRYPT_KEY_HANDLE_PROP_ID   79
 
+#define CERT_SUBJECT_INFO_ACCESS_PROP_ID    80
 #define CERT_CA_OCSP_AUTHORITY_INFO_ACCESS_PROP_ID 81
 
 #define CERT_SUBJECT_PUB_KEY_BIT_LENGTH_PROP_ID 92
@@ -2581,7 +2680,7 @@ CertFindExtension(
     IN LPCSTR pszObjId,
     IN DWORD cExtensions,
     IN CERT_EXTENSION rgExtensions[]
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Find the first attribute identified by its Object Identifier.
@@ -2595,7 +2694,7 @@ CertFindAttribute(
     IN LPCSTR pszObjId,
     IN DWORD cAttr,
     IN CRYPT_ATTRIBUTE rgAttr[]
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Get the intended key usage bytes from the certificate.
@@ -2613,7 +2712,7 @@ CertGetIntendedKeyUsage(
     IN PCERT_INFO pCertInfo,
     OUT BYTE *pbKeyUsage,
     IN DWORD cbKeyUsage
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Export the public key info associated with the provider's corresponding
@@ -2631,7 +2730,7 @@ CryptExportPublicKeyInfo(
     IN DWORD dwCertEncodingType,
     OUT PCERT_PUBLIC_KEY_INFO pInfo,
     IN OUT DWORD *pcbInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Export the public key info associated with the provider's corresponding
@@ -2660,7 +2759,7 @@ CryptExportPublicKeyInfoEx(
     IN OPTIONAL void *pvAuxInfo,
     OUT PCERT_PUBLIC_KEY_INFO pInfo,
     IN OUT DWORD *pcbInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Convert and import the public key info into the provider and return a
@@ -2677,7 +2776,7 @@ CryptImportPublicKeyInfo(
     IN DWORD dwCertEncodingType,
     IN PCERT_PUBLIC_KEY_INFO pInfo,
     OUT HCRYPTKEY *phKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -2707,7 +2806,7 @@ CryptImportPublicKeyInfoEx(
     IN DWORD dwFlags,
     IN OPTIONAL void *pvAuxInfo,
     OUT HCRYPTKEY *phKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Acquire a HCRYPTPROV handle and dwKeySpec for the specified certificate
@@ -2760,7 +2859,7 @@ CryptAcquireCertificatePrivateKey(
     OUT HCRYPTPROV *phCryptProv,
     OUT OPTIONAL DWORD *pdwKeySpec,
     OUT OPTIONAL BOOL *pfCallerFreeProv
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CRYPT_ACQUIRE_CACHE_FLAG                0x00000001
 #define CRYPT_ACQUIRE_USE_PROV_INFO_FLAG        0x00000002
@@ -2799,7 +2898,7 @@ CryptFindCertificateKeyProvInfo(
     IN PCCERT_CONTEXT pCert,
     IN DWORD dwFlags,
     IN void *pvReserved
-);
+) CPRO_CHECK_RESULT;
 
 #define CRYPT_FIND_USER_KEYSET_FLAG        0x00000001
 #define CRYPT_FIND_MACHINE_KEYSET_FLAG     0x00000002
@@ -2845,7 +2944,7 @@ CryptInstallOIDFunctionAddress(
     IN DWORD cFuncEntry,
     IN const CRYPT_OID_FUNC_ENTRY rgFuncEntry[],
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+=========================================================================
 //  Object IDentifier (OID) Information:  Data Structures and APIs
@@ -2939,8 +3038,8 @@ CryptEnumOIDInfo(
     IN DWORD dwFlags,
     IN OUT void *pvArg,
     IN PFN_CRYPT_ENUM_OID_INFO pfnEnumOIDInfo
-);
-                                
+) CPRO_CHECK_RESULT;
+
 // CRYPT_SIGN_ALG_OID_GROUP_ID has the following optional ExtraInfo:
 //  DWORD[0] - Public Key Algid.
 //  DWORD[1] - Flags. Same as above for CRYPT_PUBKEY_ALG_OID_GROUP_ID.
@@ -2977,7 +3076,7 @@ CryptFindOIDInfo(
     IN DWORD dwKeyType,
     IN void *pvKey,
     IN DWORD dwGroupId
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CRYPT_OID_INFO_OID_KEY           1
 #define CRYPT_OID_INFO_NAME_KEY          2
@@ -3004,7 +3103,7 @@ WINAPI
 CryptRegisterOIDInfo(
   PCCRYPT_OID_INFO pInfo,
   DWORD dwFlags
-);
+) CPRO_CHECK_RESULT;
 
 #define CRYPT_INSTALL_OID_INFO_BEFORE_FLAG 1
 
@@ -3017,7 +3116,7 @@ BOOL
 WINAPI
 CryptUnregisterOIDInfo(
   PCCRYPT_OID_INFO pInfo
-);
+) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Convert the CAPI AlgId to the ASN.1 Object Identifier string
@@ -3029,7 +3128,7 @@ LPCSTR
 WINAPI
 CertAlgIdToOID(
     IN DWORD dwAlgId
-);
+) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Convert the ASN.1 Object Identifier string to the CAPI AlgId.
@@ -3041,8 +3140,8 @@ DWORD
 WINAPI
 CertOIDToAlgId(
     IN LPCSTR pszObjId
-);
-                
+) CPRO_CHECK_RESULT;
+
 //+-------------------------------------------------------------------------
 //  Property OIDs
 //--------------------------------------------------------------------------
@@ -3150,7 +3249,7 @@ WINAPI
 CryptInitOIDFunctionSet(
     IN LPCSTR pszFuncName,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Search the list of installed functions for an encoding type and OID match.
@@ -3180,7 +3279,7 @@ CryptGetOIDFunctionAddress(
     IN DWORD dwFlags,
     OUT void **ppvFuncAddr,
     OUT HCRYPTOIDFUNCADDR *phFuncAddr
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CRYPT_GET_INSTALLED_OID_FUNC_FLAG       0x1
 
@@ -3217,7 +3316,7 @@ CryptGetDefaultOIDFunctionAddress(
     IN DWORD dwFlags,
     OUT void **ppvFuncAddr,
     IN OUT HCRYPTOIDFUNCADDR *phFuncAddr
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Releases the handle AddRef'ed and returned by CryptGetOIDFunctionAddress
@@ -3237,7 +3336,7 @@ WINAPI
 CryptFreeOIDFunctionAddress(
     IN HCRYPTOIDFUNCADDR hFuncAddr,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Certificate Store Provider Types
@@ -3266,6 +3365,7 @@ CryptFreeOIDFunctionAddress(
 #define CERT_STORE_PROV_SMART_CARD          CERT_STORE_PROV_SMART_CARD_W
 #define CERT_STORE_PROV_LDAP_W              ((LPCSTR) 16)
 #define CERT_STORE_PROV_LDAP                CERT_STORE_PROV_LDAP_W
+#define CERT_STORE_PROV_PKCS12              ((LPCSTR) 17)
 
 #define sz_CERT_STORE_PROV_MEMORY           "Memory"
 #define sz_CERT_STORE_PROV_FILENAME_W       "File"
@@ -3273,6 +3373,7 @@ CryptFreeOIDFunctionAddress(
 #define sz_CERT_STORE_PROV_SYSTEM_W         "System"
 #define sz_CERT_STORE_PROV_SYSTEM           sz_CERT_STORE_PROV_SYSTEM_W
 #define sz_CERT_STORE_PROV_PKCS7            "PKCS7"
+#define sz_CERT_STORE_PROV_PKCS12           "PKCS12"
 #define sz_CERT_STORE_PROV_SERIALIZED       "Serialized"
 
 #define sz_CERT_STORE_PROV_COLLECTION       "Collection"
@@ -3521,7 +3622,7 @@ typedef struct _CERT_SYSTEM_STORE_RELOCATE_PARA {
 
 // REG_DWORD, 1 is installed, 0 is NOT installed
 #define CERT_OCM_SUBCOMPONENTS_ROOT_AUTO_UPDATE_VALUE_NAME  L"RootAutoUpdate"
-    
+
 
 //+-------------------------------------------------------------------------
 //  AuthRoot Auto Update Definitions
@@ -3658,14 +3759,14 @@ typedef struct _CERT_REGISTRY_STORE_ROAMING_PARA {
 
 // Set this flag to digitally sign all of the ldap traffic to and from a
 // Windows 2000 LDAP server using the Kerberos authentication protocol.
-// This feature provides integrity required by some applications. 
+// This feature provides integrity required by some applications.
 //
 #define CERT_LDAP_STORE_SIGN_FLAG               0x10000
 
 // Performs an A-Record only DNS lookup on the supplied host string.
 // This prevents bogus DNS queries from being generated when resolving host
 // names. Use this flag whenever passing a hostname as opposed to a
-// domain name for the hostname parameter. 
+// domain name for the hostname parameter.
 //
 // See LDAP_OPT_AREC_EXCLUSIVE defined in winldap.h for more details.
 #define CERT_LDAP_STORE_AREC_EXCLUSIVE_FLAG     0x20000
@@ -4034,7 +4135,7 @@ CertOpenStore(
     IN HCRYPTPROV hCryptProv,
     IN DWORD dwFlags,
     IN const void *pvPara
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 HCERTSTORE
@@ -4042,7 +4143,7 @@ WINAPI
 CertOpenSystemStoreA(
     IN HCRYPTPROV hProv,
     IN LPCSTR pszSubsystemProtocol
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 HCERTSTORE
@@ -4050,7 +4151,7 @@ WINAPI
 CertOpenSystemStoreW(
     IN HCRYPTPROV hProv,
     IN LPCWSTR pszSubsystemProtocol
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CertOpenSystemStore CertOpenSystemStoreW
@@ -4065,7 +4166,7 @@ CertAddEncodedCertificateToSystemStoreA(
     IN LPCSTR szCertStoreName,
     IN const BYTE *pbCertEncoded,
     IN DWORD cbCertEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 BOOL
@@ -4074,7 +4175,7 @@ CertAddEncodedCertificateToSystemStoreW(
     IN LPCWSTR szCertStoreName,
     IN const BYTE *pbCertEncoded,
     IN DWORD cbCertEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CertAddEncodedCertificateToSystemStore CertAddEncodedCertificateToSystemStoreW
@@ -4099,7 +4200,7 @@ CryptQueryObject(
     OUT HCERTSTORE *phCertStore,
     OUT HCRYPTMSG *phMsg,
     OUT const void **ppvContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 /* CryptQueryObject types and flags */
 #define CERT_QUERY_OBJECT_FILE 1
@@ -4174,7 +4275,7 @@ LPVOID
 WINAPI
 CryptMemAlloc (
     IN ULONG cbSize
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 LPVOID
@@ -4182,7 +4283,7 @@ WINAPI
 CryptMemRealloc (
     IN OPTIONAL LPVOID pv,
     IN ULONG cbSize
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 VOID
@@ -4541,7 +4642,7 @@ HCERTSTORE
 WINAPI
 CertDuplicateStore(
     IN HCERTSTORE hCertStore
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CERT_STORE_SAVE_AS_STORE        1
 #define CERT_STORE_SAVE_AS_PKCS7        2
@@ -4614,7 +4715,7 @@ CertSaveStore(
     IN DWORD dwSaveTo,
     IN OUT void *pvSaveToPara,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Certificate Store close flags
@@ -4674,7 +4775,7 @@ CertGetSubjectCertificateFromStore(
     IN DWORD dwCertEncodingType,
     IN PCERT_INFO pCertId           // Only the Issuer and SerialNumber
     // fields are used
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the certificate contexts in the store.
@@ -4698,7 +4799,7 @@ WINAPI
 CertEnumCertificatesInStore(
     IN HCERTSTORE hCertStore,
     IN PCCERT_CONTEXT pPrevCertContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Find the first or next certificate context in the store.
@@ -4734,7 +4835,7 @@ CertFindCertificateInStore(
     IN DWORD dwFindType,
     IN const void *pvFindPara,
     IN PCCERT_CONTEXT pPrevCertContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -4765,6 +4866,8 @@ CertFindCertificateInStore(
 
 #define CERT_COMPARE_PUBKEY_MD5_HASH 18
 
+#define CERT_COMPARE_SUBJECT_INFO_ACCESS 19
+#define CERT_COMPARE_HASH_STR       20
 #define CERT_COMPARE_HAS_PRIVATE_KEY 21
 
 //+-------------------------------------------------------------------------
@@ -4815,6 +4918,10 @@ CertFindCertificateInStore(
 #define CERT_FIND_PUBKEY_MD5_HASH \
                     (CERT_COMPARE_PUBKEY_MD5_HASH << CERT_COMPARE_SHIFT)
 
+#define CERT_FIND_SUBJECT_INFO_ACCESS \
+                    (CERT_COMPARE_SUBJECT_INFO_ACCESS << CERT_COMPARE_SHIFT)
+
+#define CERT_FIND_HASH_STR      (CERT_COMPARE_HASH_STR << CERT_COMPARE_SHIFT)
 #define CERT_FIND_HAS_PRIVATE_KEY (CERT_COMPARE_HAS_PRIVATE_KEY << CERT_COMPARE_SHIFT)
 
 //+-------------------------------------------------------------------------
@@ -4907,7 +5014,7 @@ CertIsRDNAttrsInCertificateName(
     IN DWORD dwFlags,
     IN PCERT_NAME_BLOB pCertName,
     IN PCERT_RDN pRDN
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CERT_UNICODE_IS_RDN_ATTRS_FLAG              0x1
 #define CERT_CASE_INSENSITIVE_IS_RDN_ATTRS_FLAG     0x2
@@ -5081,7 +5188,7 @@ CertGetIssuerCertificateFromStore(
     IN PCCERT_CONTEXT pSubjectContext,
     IN OPTIONAL PCCERT_CONTEXT pPrevIssuerContext,
     IN OUT DWORD *pdwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Perform the enabled verification checks on the subject certificate
@@ -5100,7 +5207,7 @@ CertVerifySubjectCertificateContext(
     IN PCCERT_CONTEXT pSubject,
     IN OPTIONAL PCCERT_CONTEXT pIssuer,
     IN OUT DWORD *pdwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Duplicate a certificate context
@@ -5110,7 +5217,7 @@ PCCERT_CONTEXT
 WINAPI
 CertDuplicateCertificateContext(
     IN PCCERT_CONTEXT pCertContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Create a certificate context from the encoded certificate. The created
@@ -5133,7 +5240,7 @@ CertCreateCertificateContext(
     IN DWORD dwCertEncodingType,
     IN const BYTE *pbCertEncoded,
     IN DWORD cbCertEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Free a certificate context
@@ -5252,7 +5359,7 @@ CertSetCertificateContextProperty(
     IN DWORD dwPropId,
     IN DWORD dwFlags,
     IN const void *pvData
-    );
+    ) CPRO_CHECK_RESULT;
 
 // Set this flag to ignore any store provider write errors and always update
 // the cached context's property
@@ -5315,7 +5422,7 @@ CertGetCertificateContextProperty(
     IN DWORD dwPropId,
     OUT void *pvData,
     IN OUT DWORD *pcbData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the properties for the specified certificate context.
@@ -5337,7 +5444,7 @@ WINAPI
 CertEnumCertificateContextProperties(
     IN PCCERT_CONTEXT pCertContext,
     IN DWORD dwPropId
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -5346,7 +5453,7 @@ CertEnumCertificateContextProperties(
 //
 //  The SubjectIdentifier in the CTL entry is the SHA1 hash of the certificate.
 //
-//  The certificate properties are added as attributes. The property attribute 
+//  The certificate properties are added as attributes. The property attribute
 //  OID is the decimal PROP_ID preceded by szOID_CERT_PROP_ID_PREFIX. Each
 //  property value is copied as a single attribute value.
 //
@@ -5367,7 +5474,7 @@ CertCreateCTLEntryFromCertificateContextProperties(
     IN OPTIONAL void *pvReserved,
     OUT OPTIONAL PCTL_ENTRY pCtlEntry,
     IN OUT DWORD *pcbCtlEntry
-    );
+    ) CPRO_CHECK_RESULT;
 
 // Set this flag to get and include the chain building hash properties
 // as attributes in the CTL entry
@@ -5391,7 +5498,7 @@ CertSetCertificateContextPropertiesFromCTLEntry(
     IN PCCERT_CONTEXT pCertContext,
     IN PCTL_ENTRY pCtlEntry,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Get the first or next CRL context from the store for the specified
@@ -5453,7 +5560,7 @@ CertGetCRLFromStore(
     IN OPTIONAL PCCERT_CONTEXT pIssuerContext,
     IN PCCRL_CONTEXT pPrevCrlContext,
     IN OUT DWORD *pdwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the CRL contexts in the store.
@@ -5477,7 +5584,7 @@ WINAPI
 CertEnumCRLsInStore(
     IN HCERTSTORE hCertStore,
     IN PCCRL_CONTEXT pPrevCrlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Find the first or next CRL context in the store.
@@ -5512,7 +5619,7 @@ CertFindCRLInStore(
     IN DWORD dwFindType,
     IN const void *pvFindPara,
     IN PCCRL_CONTEXT pPrevCrlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CRL_FIND_ANY                0
 #define CRL_FIND_ISSUED_BY          1
@@ -5601,7 +5708,7 @@ PCCRL_CONTEXT
 WINAPI
 CertDuplicateCRLContext(
     IN PCCRL_CONTEXT pCrlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Create a CRL context from the encoded CRL. The created
@@ -5624,7 +5731,7 @@ CertCreateCRLContext(
     IN DWORD dwCertEncodingType,
     IN const BYTE *pbCrlEncoded,
     IN DWORD cbCrlEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Free a CRL context
@@ -5670,7 +5777,7 @@ CertGetCRLContextProperty(
     IN DWORD dwPropId,
     OUT void *pvData,
     IN OUT DWORD *pcbData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the properties for the specified CRL context.
@@ -5688,7 +5795,7 @@ WINAPI
 CertEnumCRLContextProperties(
     IN PCCRL_CONTEXT pCrlContext,
     IN DWORD dwPropId
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -5712,7 +5819,7 @@ CertFindCertificateInCRL(
     IN DWORD dwFlags,
     IN OPTIONAL void *pvReserved,
     OUT PCRL_ENTRY *ppCrlEntry
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Is the specified CRL valid for the certificate.
@@ -5734,7 +5841,7 @@ CertIsValidCRLForCertificate(
     IN PCCRL_CONTEXT pCrl,
     IN DWORD dwFlags,
     IN void *pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -5804,7 +5911,7 @@ CertAddEncodedCertificateToStore(
     IN DWORD cbCertEncoded,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCERT_CONTEXT *ppCertContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Add the certificate context to the store according to the specified
@@ -5871,7 +5978,7 @@ CertAddCertificateContextToStore(
     IN PCCERT_CONTEXT pCertContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCERT_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -5929,7 +6036,7 @@ CertAddSerializedElementToStore(
     IN DWORD dwContextTypeFlags,
     OUT OPTIONAL DWORD *pdwContextType,
     OUT OPTIONAL const void **ppvContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Delete the specified certificate from the store.
@@ -5951,7 +6058,7 @@ BOOL
 WINAPI
 CertDeleteCertificateFromStore(
     IN PCCERT_CONTEXT pCertContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Add the encoded CRL to the store according to the specified
@@ -5979,7 +6086,7 @@ CertAddEncodedCRLToStore(
     IN DWORD cbCrlEncoded,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCRL_CONTEXT *ppCrlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Add the CRL context to the store according to the specified
@@ -6009,7 +6116,7 @@ CertAddCRLContextToStore(
     IN PCCRL_CONTEXT pCrlContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCRL_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Delete the specified CRL from the store.
@@ -6028,7 +6135,7 @@ BOOL
 WINAPI
 CertDeleteCRLFromStore(
     IN PCCRL_CONTEXT pCrlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Serialize the certificate context's encoded certificate and its
@@ -6042,7 +6149,7 @@ CertSerializeCertificateStoreElement(
     IN DWORD dwFlags,
     OUT BYTE *pbElement,
     IN OUT DWORD *pcbElement
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -6056,7 +6163,7 @@ CertSerializeCRLStoreElement(
     IN DWORD dwFlags,
     OUT BYTE *pbElement,
     IN OUT DWORD *pcbElement
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 
@@ -6072,7 +6179,7 @@ PCCTL_CONTEXT
 WINAPI
 CertDuplicateCTLContext(
     IN PCCTL_CONTEXT pCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Create a CTL context from the encoded CTL. The created
@@ -6095,7 +6202,7 @@ CertCreateCTLContext(
     IN DWORD dwMsgAndCertEncodingType,
     IN const BYTE *pbCtlEncoded,
     IN DWORD cbCtlEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Free a CTL context
@@ -6108,7 +6215,7 @@ BOOL
 WINAPI
 CertFreeCTLContext(
     IN PCCTL_CONTEXT pCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Set the property for the specified CTL context.
@@ -6123,7 +6230,7 @@ CertSetCTLContextProperty(
     IN DWORD dwPropId,
     IN DWORD dwFlags,
     IN const void *pvData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Get the property for the specified CTL context.
@@ -6141,7 +6248,7 @@ CertGetCTLContextProperty(
     IN DWORD dwPropId,
     OUT void *pvData,
     IN OUT DWORD *pcbData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the properties for the specified CTL context.
@@ -6152,7 +6259,7 @@ WINAPI
 CertEnumCTLContextProperties(
     IN PCCTL_CONTEXT pCtlContext,
     IN DWORD dwPropId
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the CTL contexts in the store.
@@ -6176,7 +6283,7 @@ WINAPI
 CertEnumCTLsInStore(
     IN HCERTSTORE hCertStore,
     IN PCCTL_CONTEXT pPrevCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Attempt to find the specified subject in the CTL.
@@ -6205,7 +6312,7 @@ CertFindSubjectInCTL(
     IN void *pvSubject,
     IN PCCTL_CONTEXT pCtlContext,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 // Subject Types:
 //  CTL_ANY_SUBJECT_TYPE, pvSubject points to following CTL_ANY_SUBJECT_INFO.
@@ -6251,7 +6358,7 @@ CertFindCTLInStore(
     IN DWORD dwFindType,
     IN const void *pvFindPara,
     IN PCCTL_CONTEXT pPrevCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 #define CTL_FIND_ANY                0
 #define CTL_FIND_SHA1_HASH          1
@@ -6357,7 +6464,7 @@ CertAddEncodedCTLToStore(
     IN DWORD cbCtlEncoded,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCTL_CONTEXT *ppCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Add the CTL context to the store according to the specified
@@ -6387,7 +6494,7 @@ CertAddCTLContextToStore(
     IN PCCTL_CONTEXT pCtlContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCTL_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Serialize the CTL context's encoded CTL and its properties.
@@ -6400,7 +6507,7 @@ CertSerializeCTLStoreElement(
     IN DWORD dwFlags,
     OUT BYTE *pbElement,
     IN OUT DWORD *pcbElement
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Delete the specified CTL from the store.
@@ -6419,7 +6526,7 @@ BOOL
 WINAPI
 CertDeleteCTLFromStore(
     IN PCCTL_CONTEXT pCtlContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 WINCRYPT32API
@@ -6430,7 +6537,7 @@ CertAddCertificateLinkToStore(
     IN PCCERT_CONTEXT pCertContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCERT_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 BOOL
@@ -6440,7 +6547,7 @@ CertAddCRLLinkToStore(
     IN PCCRL_CONTEXT pCrlContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCRL_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 BOOL
@@ -6450,7 +6557,7 @@ CertAddCTLLinkToStore(
     IN PCCTL_CONTEXT pCtlContext,
     IN DWORD dwAddDisposition,
     OUT OPTIONAL PCCTL_CONTEXT *ppStoreContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 BOOL
@@ -6479,7 +6586,7 @@ CertControlStore(
     IN DWORD dwFlags,
     IN DWORD dwCtrlType,
     IN void const *pvCtrlPara
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Certificate Store control types
@@ -6614,7 +6721,7 @@ CertSetStoreProperty(
     IN DWORD dwPropId,
     IN DWORD dwFlags,
     IN const void *pvData
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
@@ -6639,7 +6746,7 @@ CertGetStoreProperty(
     IN DWORD dwPropId,
     OUT void *pvData,
     IN OUT DWORD *pcbData
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 typedef struct _CERT_CREATE_CONTEXT_PARA {
@@ -6691,7 +6798,7 @@ CertCreateContext(
     IN DWORD cbEncoded,
     IN DWORD dwFlags,
     IN OPTIONAL PCERT_CREATE_CONTEXT_PARA pCreatePara
-    );
+    ) CPRO_CHECK_RESULT;
 
 // When the following flag is set, the created context points directly to the
 // pbEncoded instead of an allocated copy. If pCreatePara and
@@ -6838,7 +6945,7 @@ CertRegisterSystemStore(
     IN DWORD dwFlags,
     IN PCERT_SYSTEM_STORE_INFO pStoreInfo,
     IN OPTIONAL void *pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
@@ -6867,7 +6974,7 @@ CertRegisterPhysicalStore(
     IN LPCWSTR pwszStoreName,
     IN PCERT_PHYSICAL_STORE_INFO pStoreInfo,
     IN OPTIONAL void *pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
@@ -6892,7 +6999,7 @@ WINAPI
 CertUnregisterSystemStore(
     IN const void *pvSystemStore,
     IN DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
@@ -6918,7 +7025,7 @@ CertUnregisterPhysicalStore(
     IN const void *pvSystemStore,
     IN DWORD dwFlags,
     IN LPCWSTR pwszStoreName
-    );
+    ) CPRO_CHECK_RESULT;
 #endif /* WIN32 */
 
 //+-------------------------------------------------------------------------
@@ -6987,7 +7094,7 @@ CertEnumSystemStoreLocation(
     IN DWORD dwFlags,
     IN void *pvArg,
     IN PFN_CERT_ENUM_SYSTEM_STORE_LOCATION pfnEnum
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the system stores.
@@ -7028,7 +7135,7 @@ CertEnumSystemStore(
     IN OPTIONAL void *pvSystemStoreLocationPara,
     IN void *pvArg,
     IN PFN_CERT_ENUM_SYSTEM_STORE pfnEnum
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Enumerate the physical stores for the specified system store.
@@ -7054,7 +7161,7 @@ CertEnumPhysicalStore(
     IN DWORD dwFlags,
     IN void *pvArg,
     IN PFN_CERT_ENUM_PHYSICAL_STORE pfnEnum
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Certificate System Store Installable Functions
@@ -7118,7 +7225,7 @@ CertGetEnhancedKeyUsage(
     IN DWORD dwFlags,
     OUT PCERT_ENHKEY_USAGE pUsage,
     IN OUT DWORD *pcbUsage
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Set the enhanced key usage property for the certificate.
@@ -7129,7 +7236,7 @@ WINAPI
 CertSetEnhancedKeyUsage(
     IN PCCERT_CONTEXT pCertContext,
     IN PCERT_ENHKEY_USAGE pUsage
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Add the usage identifier to the certificate's enhanced key usage property.
@@ -7140,7 +7247,7 @@ WINAPI
 CertAddEnhancedKeyUsageIdentifier(
     IN PCCERT_CONTEXT pCertContext,
     IN LPCSTR pszUsageIdentifier
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -7153,7 +7260,7 @@ WINAPI
 CertRemoveEnhancedKeyUsageIdentifier(
     IN PCCERT_CONTEXT pCertContext,
     IN LPCSTR pszUsageIdentifier
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+---------------------------------------------------------------------------
 //
@@ -7171,13 +7278,15 @@ CertGetValidUsages(
     IN      PCCERT_CONTEXT  *rghCerts,
     OUT     int             *cNumOIDs,
     OUT     LPSTR           *rghOIDs,
-    IN OUT  DWORD           *pcbOIDs);
+    IN OUT  DWORD           *pcbOIDs
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 LONG
 WINAPI
 CertVerifyCRLTimeValidity(LPFILETIME pTimeToVerify,
-    PCRL_INFO pCrlInfo);
+    PCRL_INFO pCrlInfo
+    ) CPRO_CHECK_RESULT;
 
 //+=========================================================================
 //  Cryptographic Message helper functions for verifying and signing a
@@ -7460,7 +7569,8 @@ BOOL
 WINAPI
 CertVerifyRevocation(DWORD dwEncodingType, DWORD dwRevType,
     DWORD cContext, PVOID rgpvContext[], DWORD dwFlags,
-    PCERT_REVOCATION_PARA pRevPara, PCERT_REVOCATION_STATUS pRevStatus);
+    PCERT_REVOCATION_PARA pRevPara, PCERT_REVOCATION_STATUS pRevStatus
+    ) CPRO_CHECK_RESULT;
 
 
 //+=========================================================================
@@ -7555,7 +7665,7 @@ WINAPI
 CertCreateCertificateChainEngine (
     IN PCERT_CHAIN_ENGINE_CONFIG pConfig,
     OUT HCERTCHAINENGINE* phChainEngine
-    );
+    ) CPRO_CHECK_RESULT;
 
 //
 // Free a certificate trust engine
@@ -7577,7 +7687,7 @@ BOOL
 WINAPI
 CertResyncCertificateChainEngine(
     IN OPTIONAL HCERTCHAINENGINE hChainEngine
-    );
+    ) CPRO_CHECK_RESULT;
 
 //
 // When an application requests a certificate chain, the data structure
@@ -7627,6 +7737,7 @@ typedef struct _CERT_TRUST_STATUS {
 
 #define CERT_TRUST_IS_OFFLINE_REVOCATION                0x01000000
 #define CERT_TRUST_NO_ISSUANCE_CHAIN_POLICY             0x02000000
+#define CERT_TRUST_IS_EXPLICIT_DISTRUST                 0x04000000
 
 
 // These can be applied to chains only
@@ -7900,6 +8011,11 @@ typedef struct _CERT_CHAIN_PARA {
 //
 // This flag was added 4/5/01 in WXP.
 #define CERT_CHAIN_TIMESTAMP_TIME                   0x00000200
+
+// The following flag can be set to explicitly disable AIA retrievals.
+// If can also be set in the chain engine dwFlags.
+#define CERT_CHAIN_DISABLE_AIA                      0x00002000
+
 //
 // Free a certificate chain
 //
@@ -7961,7 +8077,7 @@ CertFindChainInStore(
     IN DWORD dwFindType,
     IN const void *pvFindPara,
     IN PCCERT_CHAIN_CONTEXT pPrevChainContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 #define CERT_CHAIN_FIND_BY_ISSUER       1
@@ -8188,7 +8304,7 @@ CertVerifyCertificateChainPolicy(
     IN PCCERT_CHAIN_CONTEXT pChainContext,
     IN PCERT_CHAIN_POLICY_PARA pPolicyPara,
     IN OUT PCERT_CHAIN_POLICY_STATUS pPolicyStatus
-    );
+    ) CPRO_CHECK_RESULT;
 
 // Predefined OID Function Names
 #define CRYPT_OID_VERIFY_CERTIFICATE_CHAIN_POLICY_FUNC  \
@@ -8468,6 +8584,8 @@ CertNameToStrW(
 #define CERT_NAME_URL_TYPE              7
 #define CERT_NAME_UPN_TYPE              8
 #define CERT_NAME_ISSUER_FLAG           0x00000001
+#define CERT_NAME_SEARCH_ALL_NAMES_FLAG 0x00000002
+#define CERT_NAME_DISABLE_IE4_UTF8_FLAG 0x00010000
 
 //+-------------------------------------------------------------------------
 //  Certificate name string type flags OR'ed with the above types
@@ -8597,7 +8715,7 @@ CertStrToNameA(
     OUT BYTE *pbEncoded,
     IN OUT DWORD *pcbEncoded,
     OUT OPTIONAL LPCSTR *ppszError
-    );
+    ) CPRO_CHECK_RESULT;
 //+-------------------------------------------------------------------------
 //--------------------------------------------------------------------------
 WINCRYPT32API
@@ -8611,7 +8729,7 @@ CertStrToNameW(
     OUT BYTE *pbEncoded,
     IN OUT DWORD *pcbEncoded,
     OUT OPTIONAL LPCWSTR *ppszError
-    );
+    ) CPRO_CHECK_RESULT;
 #ifdef UNICODE
 #define CertStrToName  CertStrToNameW
 #else
@@ -8624,7 +8742,8 @@ PCERT_RDN_ATTR
 WINAPI
 CertFindRDNAttr(
     IN LPCSTR pszObjId,
-    IN PCERT_NAME_INFO pName);
+    IN PCERT_NAME_INFO pName
+    ) CPRO_CHECK_RESULT;
 
 //+------------------------------------------------------------------------
 //  Compute the hash of the encoded public key info.
@@ -8642,7 +8761,7 @@ CryptHashPublicKeyInfo(
     IN PCERT_PUBLIC_KEY_INFO pInfo,
     OUT BYTE *pbComputedHash,
     IN OUT DWORD *pcbComputedHash
-    );
+    ) CPRO_CHECK_RESULT;
 
 //-------------------------------------------------------------------------
 WINCRYPT32API
@@ -8652,7 +8771,8 @@ CertRDNValueToStrA(
     IN DWORD dwValueType,
     IN PCERT_RDN_VALUE_BLOB pValue,
     OUT LPSTR psz,
-    IN DWORD csz);
+    IN DWORD csz
+    ) CPRO_CHECK_RESULT;
 
 WINCRYPT32API
 DWORD
@@ -8661,7 +8781,8 @@ CertRDNValueToStrW(
     IN DWORD dwValueType,
     IN PCERT_RDN_VALUE_BLOB pValue,
     OUT LPWSTR psz,
-    IN DWORD csz);
+    IN DWORD csz
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CertRDNValueToStr CertRDNValueToStrW
@@ -8714,7 +8835,7 @@ CertGetCertificateChain (
     IN DWORD dwFlags,
     IN LPVOID pvReserved,
     OUT PCCERT_CHAIN_CONTEXT* ppChainContext
-    );
+    ) CPRO_CHECK_RESULT;
 
 PCCERT_CHAIN_CONTEXT WINAPI CertDuplicateCertificateChain(
  PCCERT_CHAIN_CONTEXT pChainContext);
@@ -8750,13 +8871,13 @@ struct _CERT_REVOCATION_CHAIN_PARA {
     DWORD                       cbMaxUrlRetrievalByteCount;
 };
 
-BOOL 
+BOOL
 WINAPI
 CertCompareCertificateName(
   DWORD dwCertEncodingType,
   PCERT_NAME_BLOB pCertName1,
   PCERT_NAME_BLOB pCertName2
-);
+  ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify the signature of a subject certificate or a CRL using the
@@ -8776,7 +8897,7 @@ CryptVerifyCertificateSignature(
     IN const BYTE *             pbEncoded,
     IN DWORD                    cbEncoded,
     IN PCERT_PUBLIC_KEY_INFO    pPublicKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify the signature of a subject certificate, CRL, certificate request
@@ -8815,7 +8936,7 @@ CryptVerifyCertificateSignatureEx(
     IN void *pvIssuer,
     IN DWORD dwFlags,
     IN OPTIONAL void *pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 // Subject Types
@@ -8855,7 +8976,7 @@ CryptHashToBeSigned(
     IN DWORD cbEncoded,
     OUT BYTE *pbComputedHash,
     IN OUT DWORD *pcbComputedHash
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Hash the encoded content.
@@ -8877,7 +8998,7 @@ CryptHashCertificate(
     IN DWORD cbEncoded,
     OUT BYTE *pbComputedHash,
     IN OUT DWORD *pcbComputedHash
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Sign the "to be signed" information in the encoded signed content.
@@ -8903,7 +9024,7 @@ CryptSignCertificate(
     IN OPTIONAL const void *pvHashAuxInfo,
     OUT BYTE *pbSignature,
     IN OUT DWORD *pcbSignature
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Encode the "to be signed" information. Sign the encoded "to be signed".
@@ -8930,7 +9051,7 @@ CryptSignAndEncodeCertificate(
     IN OPTIONAL const void *pvHashAuxInfo,
     OUT PBYTE pbEncoded,
     IN OUT DWORD *pcbEncoded
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify the time validity of a certificate.
@@ -8946,7 +9067,7 @@ WINAPI
 CertVerifyTimeValidity(
     IN LPFILETIME pTimeToVerify,
     IN PCERT_INFO pCertInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify that the subject's time validity nests within the issuer's time
@@ -8960,7 +9081,7 @@ WINAPI
 CertVerifyValidityNesting(
     IN PCERT_INFO pSubjectInfo,
     IN PCERT_INFO pIssuerInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify that the subject certificate isn't on its issuer CRL.
@@ -8976,7 +9097,7 @@ CertVerifyCRLRevocation(
                                     // fields are used
     IN DWORD cCrlInfo,
     IN PCRL_INFO rgpCrlInfo[]
-    );
+    ) CPRO_CHECK_RESULT;
 
 //End of certificate functions
 
@@ -9029,7 +9150,7 @@ CryptGenKey(
     ALG_ID Algid,
     DWORD dwFlags,
     HCRYPTKEY *phKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9040,7 +9161,7 @@ CryptDeriveKey(
     HCRYPTHASH hBaseData,
     DWORD dwFlags,
     HCRYPTKEY *phKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9078,7 +9199,7 @@ CryptSetHashParam(
     DWORD dwParam,
     CONST BYTE *pbData,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9089,7 +9210,7 @@ CryptGetHashParam(
     BYTE *pbData,
     DWORD *pdwDataLen,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9119,7 +9240,7 @@ CryptGenRandom(
     HCRYPTPROV hProv,
     DWORD dwLen,
     BYTE *pbBuffer
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9128,7 +9249,7 @@ CryptGetUserKey(
     HCRYPTPROV hProv,
     DWORD dwKeySpec,
     HCRYPTKEY *phUserKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9140,7 +9261,7 @@ CryptExportKey(
     DWORD dwFlags,
     BYTE *pbData,
     DWORD *pdwDataLen
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9152,7 +9273,7 @@ CryptImportKey(
     HCRYPTKEY hPubKey,
     DWORD dwFlags,
     HCRYPTKEY *phKey
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9165,7 +9286,7 @@ CryptEncrypt(
     BYTE *pbData,
     DWORD *pdwDataLen,
     DWORD dwBufLen
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9188,7 +9309,7 @@ CryptCreateHash(
     HCRYPTKEY hKey,
     DWORD dwFlags,
     HCRYPTHASH *phHash
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9198,7 +9319,7 @@ CryptHashData(
     CONST BYTE *pbData,
     DWORD dwDataLen,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9207,7 +9328,7 @@ CryptHashSessionKey(
     HCRYPTHASH hHash,
     HCRYPTKEY hKey,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9216,7 +9337,6 @@ CryptDestroyHash(
     HCRYPTHASH hHash
     );
 
-    
 WINADVAPI
 BOOL
 WINAPI
@@ -9227,7 +9347,7 @@ CryptSignHashA(
     DWORD dwFlags,
     BYTE *pbSignature,
     DWORD *pdwSigLen
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9239,7 +9359,7 @@ CryptSignHashW(
     DWORD dwFlags,
     BYTE *pbSignature,
     DWORD *pdwSigLen
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CryptSignHash  CryptSignHashW
@@ -9258,7 +9378,7 @@ CryptVerifySignatureA(
     HCRYPTKEY hPubKey,
     LPCSTR szDescription,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 WINADVAPI
 BOOL
 WINAPI
@@ -9269,7 +9389,7 @@ CryptVerifySignatureW(
     HCRYPTKEY hPubKey,
     LPCWSTR szDescription,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CryptVerifySignature  CryptVerifySignatureW
@@ -9295,7 +9415,7 @@ CryptDuplicateHash(
     DWORD *pdwReserved,
     DWORD dwFlags,
     HCRYPTHASH *phHash
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 WINADVAPI
@@ -9307,18 +9427,18 @@ CryptGetDefaultProviderA(
     DWORD dwFlags,
     LPSTR pszProvName,
     DWORD *pcbProvName
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
 WINAPI
 CryptGetDefaultProviderW(
-DWORD dwProvType,
-DWORD *pdwReserved,
-DWORD dwFlags,
-LPWSTR pszProvName,
-DWORD *pcbProvName
-);
+    DWORD dwProvType,
+    DWORD *pdwReserved,
+    DWORD dwFlags,
+    LPWSTR pszProvName,
+    DWORD *pcbProvName
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CryptGetDefaultProvider CryptGetDefaultProviderW
@@ -9329,12 +9449,28 @@ DWORD *pcbProvName
 WINADVAPI
 BOOL
 WINAPI
-CryptSetProviderEx(
+CryptSetProviderExA(
     LPCSTR pszProvName,
     DWORD dwProvType,
     DWORD *pdwReserved,
     DWORD dwFlags
-    );
+    ) CPRO_CHECK_RESULT;
+
+WINADVAPI
+BOOL
+WINAPI
+CryptSetProviderExW(
+    LPCWSTR pszProvName,
+    DWORD dwProvType,
+    DWORD *pdwReserved,
+    DWORD dwFlags
+    ) CPRO_CHECK_RESULT;
+
+#ifdef UNICODE
+#define CryptSetProviderEx CryptSetProviderExW
+#else
+#define CryptSetProviderEx CryptSetProviderExA
+#endif // !UNICODE
 
 WINADVAPI
 BOOL
@@ -9346,7 +9482,7 @@ CryptEnumProviderTypesA(
     DWORD *pdwProvType,
     LPSTR szTypeName,
     DWORD *pcbTypeName
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 WINADVAPI
@@ -9359,7 +9495,7 @@ CryptEnumProviderTypesW(
     DWORD *pdwProvType,
     LPWSTR pwszTypeName,
     DWORD *pcbTypeName
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CryptEnumProviderTypes CryptEnumProviderTypesW
@@ -9377,7 +9513,7 @@ CryptEnumProvidersA(
     DWORD *pdwProvType,
     LPSTR szProvName,
     DWORD *pcbProvName
-    );
+    ) CPRO_CHECK_RESULT;
 
 WINADVAPI
 BOOL
@@ -9389,7 +9525,7 @@ CryptEnumProvidersW(
     DWORD *pdwProvType,
     LPWSTR szProvName,
     DWORD *pcbProvName
-    );
+    ) CPRO_CHECK_RESULT;
 
 #ifdef UNICODE
 #define CryptEnumProviders CryptEnumProvidersW
@@ -9406,7 +9542,7 @@ CryptGetProviderDll (
     LPCTSTR pszProvName,
     LPTSTR pszProvPath,
     DWORD* pcbProvPath
-    );
+    ) CPRO_CHECK_RESULT;
 
 //
 // Crypt32 Asynchronous Parameter Management Routines.  All Crypt32 API which
@@ -9501,14 +9637,14 @@ typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
 // strings are inserted at the beginning of each returned blob:
 //  "%d\0%s\0", dwEntryIndex, pszAttribute
 //
-//  The first dwEntryIndex is 0, "0\0". 
+//  The first dwEntryIndex is 0, "0\0".
 //
 // When set, pszObjectOid must be NULL, so that a PCRYPT_BLOB_ARRAY is returned.
 #define CRYPT_LDAP_INSERT_ENTRY_ATTRIBUTE       0x00008000
 
 // Set this flag to digitally sign all of the ldap traffic to and from a
 // Windows 2000 LDAP server using the Kerberos authentication protocol.
-// This feature provides integrity required by some applications. 
+// This feature provides integrity required by some applications.
 #define CRYPT_LDAP_SIGN_RETRIEVAL               0x00010000
 
 // Set this flag to inhibit automatic authentication handling. See the
@@ -9518,7 +9654,7 @@ typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
 // Performs an A-Record only DNS lookup on the supplied host string.
 // This prevents bogus DNS queries from being generated when resolving host
 // names. Use this flag whenever passing a hostname as opposed to a
-// domain name for the hostname parameter. 
+// domain name for the hostname parameter.
 //
 // See LDAP_OPT_AREC_EXCLUSIVE defined in winldap.h for more details.
 #define CRYPT_LDAP_AREC_EXCLUSIVE_RETRIEVAL     0x00040000
@@ -9714,7 +9850,7 @@ CryptRetrieveObjectByUrlA (
     IN OPTIONAL PCRYPT_CREDENTIALS pCredentials,
     IN OPTIONAL LPVOID pvVerify,
     IN OPTIONAL PCRYPT_RETRIEVE_AUX_INFO pAuxInfo
-    );
+    ) CPRO_CHECK_RESULT;
 WINCRYPT32API
 BOOL
 WINAPI
@@ -9728,7 +9864,7 @@ CryptRetrieveObjectByUrlW (
     IN OPTIONAL PCRYPT_CREDENTIALS pCredentials,
     IN OPTIONAL LPVOID pvVerify,
     IN OPTIONAL PCRYPT_RETRIEVE_AUX_INFO pAuxInfo
-    );
+    ) CPRO_CHECK_RESULT;
 #ifdef UNICODE
 #define CryptRetrieveObjectByUrl  CryptRetrieveObjectByUrlW
 #else
@@ -9794,6 +9930,66 @@ CryptRetrieveObjectByUrlW (
 #define CERT_CHAIN_URL_RETRIEVAL_TIMEOUT_MILLISECONDS_DEFAULT       \
     (15 * 1000)
 
+//+=========================================================================
+//  Helper functions to build certificates
+//==========================================================================
+
+//+-------------------------------------------------------------------------
+//
+// Builds a self-signed certificate and returns a PCCERT_CONTEXT representing
+// the certificate. A hProv may be specified to build the cert context.
+//
+// pSubjectIssuerBlob is the DN for the certifcate. If an alternate subject
+// name is desired it must be specified as an extension in the pExtensions
+// parameter. pSubjectIssuerBlob can NOT be NULL, so minimually an empty DN
+// must be specified.
+//
+// By default:
+// pKeyProvInfo - The CSP is queried for the KeyProvInfo parameters. Only the Provider,
+// Provider Type and Container is queried. Many CSPs don't support these
+// queries and will cause a failure. In such cases the pKeyProvInfo
+// must be specified (RSA BASE works fine).
+//
+// pSignatureAlgorithm - will default to SHA1RSA
+// pStartTime will default to the current time
+// pEndTime will default to 1 year
+// pEntensions will be empty.
+//
+// The returned PCCERT_CONTEXT will reference the private keys by setting the
+// CERT_KEY_PROV_INFO_PROP_ID. However, if this property is not desired specify the
+// CERT_CREATE_SELFSIGN_NO_KEY_INFO in dwFlags.
+//
+// If the cert being built is only a dummy placeholder cert for speed it may not
+// need to be signed. Signing of the cert is skipped if CERT_CREATE_SELFSIGN_NO_SIGN
+// is specified in dwFlags.
+//
+// Following flags can be passed to CertCreateSelfSignCertificate which will be
+// directly passed to CryptExportPublicKeyInfo to indicate the preference of
+// putting ECC Curve OID vs ECC Curve Parameters in Cert's Public Key information's
+// algorithm section:
+//      CRYPT_OID_USE_CURVE_NAME_FOR_ENCODE_FLAG
+//      CRYPT_OID_USE_CURVE_PARAMETERS_FOR_ENCODE_FLAG
+//--------------------------------------------------------------------------
+#ifdef UNIX
+// Функция предположительно не требуется в виндовом драйвере
+// Для PSYSTEMTIME нужнен заголовочный файл <minwindef.h>, а его включать не хочется (страшно)
+WINCRYPT32API
+PCCERT_CONTEXT
+WINAPI
+CertCreateSelfSignCertificate(
+    IN OPTIONAL  HCRYPTPROV hCryptProv,
+    IN PCERT_NAME_BLOB pSubjectIssuerBlob,
+    IN DWORD dwFlags,
+    IN OPTIONAL PCRYPT_KEY_PROV_INFO pKeyProvInfo,
+    IN OPTIONAL PCRYPT_ALGORITHM_IDENTIFIER pSignatureAlgorithm,
+    IN OPTIONAL PSYSTEMTIME pStartTime,
+    IN OPTIONAL PSYSTEMTIME pEndTime,
+    IN OPTIONAL PCERT_EXTENSIONS pExtensions
+) CPRO_CHECK_RESULT;
+
+#define CERT_CREATE_SELFSIGN_NO_SIGN 1
+#define CERT_CREATE_SELFSIGN_NO_KEY_INFO 2
+#endif /* UNIX */
 
 //+=========================================================================
 //  Low Level Cryptographic Message Data Structures and APIs
@@ -10359,7 +10555,7 @@ CryptMsgOpenToEncode(
     IN void const *pvMsgEncodeInfo,
     IN OPTIONAL LPSTR pszInnerContentObjID,
     IN OPTIONAL PCMSG_STREAM_INFO pStreamInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Calculate the length of an encoded cryptographic message.
@@ -10379,7 +10575,7 @@ CryptMsgCalculateEncodedLength(
     IN void const *pvMsgEncodeInfo,
     IN OPTIONAL LPSTR pszInnerContentObjID,
     IN DWORD cbData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Open a cryptographic message for decoding
@@ -10403,7 +10599,7 @@ CryptMsgOpenToDecode(
     IN HCRYPTPROV hCryptProv,
     IN OPTIONAL PCERT_INFO pRecipientInfo,
     IN OPTIONAL PCMSG_STREAM_INFO pStreamInfo
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Duplicate a cryptographic message handle
@@ -10413,7 +10609,7 @@ HCRYPTMSG
 WINAPI
 CryptMsgDuplicate(
     IN HCRYPTMSG hCryptMsg
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Close a cryptographic message handle
@@ -10444,7 +10640,7 @@ CryptMsgUpdate(
     IN const BYTE *pbData,
     IN DWORD cbData,
     IN BOOL fFinal
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Get a parameter after encoding/decoding a cryptographic message. Called
@@ -10479,7 +10675,7 @@ CryptMsgGetParam(
     IN DWORD dwIndex,
     OUT void *pvData,
     IN OUT DWORD *pcbData
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Get parameter types and their corresponding data structure definitions.
@@ -10837,9 +11033,14 @@ typedef CRYPT_ATTRIBUTES *PCMSG_ATTR;
 WINCRYPT32API
 BOOL
 WINAPI
-CryptMsgGetAndVerifySigner(HCRYPTMSG hCryptMsg, DWORD cSignerStore,
-    HCERTSTORE *rghSignerStore, DWORD dwFlags, PCCERT_CONTEXT *ppSigner,
-    DWORD *pdwSignerIndex);
+CryptMsgGetAndVerifySigner(
+    IN HCRYPTMSG hCryptMsg,
+    IN DWORD cSignerStore,
+    IN OPTIONAL HCERTSTORE *rghSignerStore,
+    IN DWORD dwFlags,
+    OUT OPTIONAL PCCERT_CONTEXT *ppSigner,
+    IN OUT OPTIONAL DWORD *pdwSignerIndex
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  CMSG_ATTR_CERT_COUNT_PARAM
@@ -10995,7 +11196,7 @@ CryptMsgControl(
     IN DWORD dwFlags,
     IN DWORD dwCtrlType,
     IN void const *pvCtrlPara
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Countersign an already-existing signature in a message
@@ -11010,7 +11211,7 @@ CryptMsgCountersign(
     IN DWORD dwIndex,
     IN DWORD cCountersigners,
     IN PCMSG_SIGNER_ENCODE_INFO rgCountersigners
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Countersign an already-existing signature (encoded SignerInfo).
@@ -11029,7 +11230,7 @@ CryptMsgCountersignEncoded(
     IN PCMSG_SIGNER_ENCODE_INFO rgCountersigners,
     OUT PBYTE pbCountersignature,
     IN OUT PDWORD pcbCountersignature
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Message control types
@@ -11396,7 +11597,7 @@ CryptMsgVerifyCountersignatureEncoded(
     IN PBYTE        pbSignerInfoCountersignature,
     IN DWORD        cbSignerInfoCountersignature,
     IN PCERT_INFO   pciCountersigner
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 //+-------------------------------------------------------------------------
@@ -11422,7 +11623,7 @@ CryptMsgVerifyCountersignatureEncodedEx(
     IN void         *pvSigner,
     IN DWORD        dwFlags,
     IN OPTIONAL void *pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 
 
 // See CMSG_CTRL_VERIFY_SIGNATURE_EX_PARA for dwSignerType definitions
@@ -11814,7 +12015,7 @@ WINAPI
 CertCompareIntegerBlob(
     IN PCRYPT_INTEGER_BLOB pInt1,
     IN PCRYPT_INTEGER_BLOB pInt2
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Compare two certificates to see if they are identical.
@@ -11831,7 +12032,7 @@ CertCompareCertificate(
     IN DWORD dwCertEncodingType,
     IN PCERT_INFO pCertId1,
     IN PCERT_INFO pCertId2
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Callback to get and verify the signer's certificate.
@@ -12150,13 +12351,25 @@ typedef struct _CRYPT_URL_INFO {
 #define URL_OID_CERTIFICATE_FRESHEST_CRL   ((LPCSTR)6)
 #define URL_OID_CRL_FRESHEST_CRL           ((LPCSTR)7)
 #define URL_OID_CROSS_CERT_DIST_POINT      ((LPCSTR)8)
+#define URL_OID_CERTIFICATE_OCSP           ((LPCSTR)9)
+#define URL_OID_CERTIFICATE_OCSP_AND_CRL_DIST_POINT ((LPCSTR)10)
+#define URL_OID_CERTIFICATE_CRL_DIST_POINT_AND_OCSP ((LPCSTR)11)
+#define URL_OID_CROSS_CERT_SUBJECT_INFO_ACCESS ((LPCSTR)12)
+#define URL_OID_CERTIFICATE_ONLY_OCSP      ((LPCSTR)13)
 
 WINCRYPT32API
 BOOL
 WINAPI
-CryptGetObjectUrl(LPCSTR pszUrlOid, LPVOID pvPara, DWORD dwFlags,
-    PCRYPT_URL_ARRAY pUrlArray, DWORD *pcbUrlArray, PCRYPT_URL_INFO pUrlInfo,
-    DWORD *pcbUrlInfo, LPVOID pvReserved);
+CryptGetObjectUrl(
+    IN LPCSTR pszUrlOid,
+    IN LPVOID pvPara,
+    IN DWORD dwFlags,
+    OUT PCRYPT_URL_ARRAY pUrlArray,
+    IN OUT DWORD *pcbUrlArray,
+    OUT PCRYPT_URL_INFO pUrlInfo,
+    IN OUT DWORD *pcbUrlInfo,
+    LPVOID pvReserved
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Sign the message.
@@ -12175,7 +12388,7 @@ CryptSignMessage(
     IN DWORD rgcbToBeSigned[],
     OUT BYTE *pbSignedBlob,
     IN OUT DWORD *pcbSignedBlob
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify a signed message.
@@ -12224,7 +12437,7 @@ CryptVerifyMessageSignature(
     OUT BYTE OPTIONAL *pbDecoded,
     IN OUT OPTIONAL DWORD *pcbDecoded,
     OUT OPTIONAL PCCERT_CONTEXT *ppSignerCert
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Returns the count of signers in the signed message. For no signers, returns
@@ -12237,7 +12450,7 @@ CryptGetMessageSignerCount(
     IN DWORD dwMsgEncodingType,
     IN const BYTE *pbSignedBlob,
     IN DWORD cbSignedBlob
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Returns the cert store containing the message's certs and CRLs.
@@ -12252,7 +12465,7 @@ CryptGetMessageCertificates(
     IN DWORD dwFlags,                   // passed to CertOpenStore
     IN const BYTE *pbSignedBlob,
     IN DWORD cbSignedBlob
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Verify a signed message containing detached signature(s).
@@ -12271,7 +12484,7 @@ CryptVerifyDetachedMessageSignature(
     IN const BYTE *rgpbToBeSigned[],
     IN DWORD rgcbToBeSigned[],
     OUT OPTIONAL PCCERT_CONTEXT *ppSignerCert
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Encrypts the message for the recipient(s).
@@ -12287,7 +12500,7 @@ CryptEncryptMessage(
     IN DWORD cbToBeEncrypted,
     OUT BYTE *pbEncryptedBlob,
     IN OUT DWORD *pcbEncryptedBlob
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Decrypts the message.
@@ -12313,7 +12526,7 @@ CryptDecryptMessage(
     OUT OPTIONAL BYTE *pbDecrypted,
     IN OUT OPTIONAL DWORD *pcbDecrypted,
     OUT OPTIONAL PCCERT_CONTEXT *ppXchgCert
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Sign the message and encrypt for the recipient(s). Does a CryptSignMessage
@@ -12334,7 +12547,7 @@ CryptSignAndEncryptMessage(
     IN DWORD cbToBeSignedAndEncrypted,
     OUT BYTE *pbSignedAndEncryptedBlob,
     IN OUT DWORD *pcbSignedAndEncryptedBlob
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Decrypts the message and verifies the signer. Does a CryptDecryptMessage
@@ -12376,7 +12589,7 @@ CryptDecryptAndVerifyMessageSignature(
     IN OUT DWORD *pcbDecrypted,
     OUT PCCERT_CONTEXT *ppXchgCert,
     OUT PCCERT_CONTEXT *ppSignerCert
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //  Compare two public keys to see if they are identical.
@@ -12390,7 +12603,7 @@ CertComparePublicKeyInfo(
     IN DWORD dwCertEncodingType,
     IN PCERT_PUBLIC_KEY_INFO pPublicKey1,
     IN PCERT_PUBLIC_KEY_INFO pPublicKey2
-    );
+    ) CPRO_CHECK_RESULT;
 
 //+-------------------------------------------------------------------------
 //
@@ -12401,8 +12614,10 @@ CertComparePublicKeyInfo(
 DWORD
 WINCRYPT32API
 WINAPI
-CertGetPublicKeyLength(IN DWORD dwCertEncodingType,
-                       IN PCERT_PUBLIC_KEY_INFO pPublicKey);
+CertGetPublicKeyLength(
+    IN DWORD dwCertEncodingType,
+    IN PCERT_PUBLIC_KEY_INFO pPublicKey
+    ) CPRO_CHECK_RESULT;
 
 # define WINCRYPT32STRINGAPI WINCRYPT32API
 
@@ -12426,7 +12641,7 @@ CryptStringToBinaryA(
     IN OUT DWORD    *pcbBinary,
     OUT    DWORD    *pdwSkip,    //OPTIONAL
     OUT    DWORD    *pdwFlags    //OPTIONAL
-    );
+    ) CPRO_CHECK_RESULT;
 //+-------------------------------------------------------------------------
 // convert formatted string to binary
 // If cchString is 0, then pszString is NULL terminated and
@@ -12447,7 +12662,7 @@ CryptStringToBinaryW(
     IN OUT DWORD    *pcbBinary,
     OUT    DWORD    *pdwSkip,    //OPTIONAL
     OUT    DWORD    *pdwFlags    //OPTIONAL
-    );
+    ) CPRO_CHECK_RESULT;
 #ifdef UNICODE
 #define CryptStringToBinary  CryptStringToBinaryW
 #else
@@ -12464,12 +12679,12 @@ WINCRYPT32STRINGAPI
 BOOL
 WINAPI
 CryptBinaryToStringA(
-    IN     CONST BYTE  *pbBinary,
-    IN     DWORD        cbBinary,
-    IN     DWORD        dwFlags,
-    IN     LPSTR      pszString,
-    IN OUT DWORD       *pcchString
-    );
+    IN              CONST BYTE  *pbBinary,
+    IN              DWORD        cbBinary,
+    IN              DWORD        dwFlags,
+    OUT OPTIONAL    LPSTR        pszString,
+    IN OUT          DWORD       *pcchString
+    ) CPRO_CHECK_RESULT;
 //+-------------------------------------------------------------------------
 // convert binary to formatted string
 // dwFlags defines string format
@@ -12480,145 +12695,17 @@ WINCRYPT32STRINGAPI
 BOOL
 WINAPI
 CryptBinaryToStringW(
-    IN     CONST BYTE  *pbBinary,
-    IN     DWORD        cbBinary,
-    IN     DWORD        dwFlags,
-    IN     LPWSTR      pszString,
-    IN OUT DWORD       *pcchString
-    );
+    IN              CONST BYTE  *pbBinary,
+    IN              DWORD        cbBinary,
+    IN              DWORD        dwFlags,
+    OUT OPTIONAL    LPWSTR       pszString,
+    IN OUT          DWORD       *pcchString
+    ) CPRO_CHECK_RESULT;
 #ifdef UNICODE
 #define CryptBinaryToString  CryptBinaryToStringW
 #else
 #define CryptBinaryToString  CryptBinaryToStringA
 #endif // !UNICODE
-
-#define szOID_PKCS_12_PbeIds                        "1.2.840.113549.1.12.1"
-#define szOID_PKCS_12_pbeWithSHA1And128BitRC4       "1.2.840.113549.1.12.1.1"
-#define szOID_PKCS_12_pbeWithSHA1And40BitRC4        "1.2.840.113549.1.12.1.2"
-#define szOID_PKCS_12_pbeWithSHA1And3KeyTripleDES   "1.2.840.113549.1.12.1.3"
-#define szOID_PKCS_12_pbeWithSHA1And2KeyTripleDES   "1.2.840.113549.1.12.1.4"
-#define szOID_PKCS_12_pbeWithSHA1And128BitRC2       "1.2.840.113549.1.12.1.5"
-#define szOID_PKCS_12_pbeWithSHA1And40BitRC2        "1.2.840.113549.1.12.1.6"
-#define szOID_PKCS_5_PBKDF2                         "1.2.840.113549.1.5.12"
-
-//+-------------------------------------------------------------------------
-// Imports a PFX BLOB and returns the handle of a store that contains
-//   certificates and any associated private keys.
-// pPFX [in] A pointer to a CRYPT_DATA_BLOB structure that contains 
-//   a PFX packet with the exported and encrypted certificates and keys.
-// szPassword [in] A string password used to decrypt and verify the PFX packet. 
-// dwFlags [in] Flags
-// If succeeds, the function returns a handle to a certificate store 
-//   that contains the imported certificates, including available private keys.
-//--------------------------------------------------------------------------
-WINCRYPT32API
-HCERTSTORE
-WINAPI
-PFXImportCertStore(
-    IN     CRYPT_DATA_BLOB *pPFX, 
-    IN     LPCWSTR         szPassword,
-    IN     DWORD           dwFlags
-    );
-
-// dwFlags definitions for PFXImportCertStore
-//#define CRYPT_EXPORTABLE          0x00000001  // CryptImportKey dwFlags
-//#define CRYPT_USER_PROTECTED      0x00000002  // CryptImportKey dwFlags
-//#define CRYPT_MACHINE_KEYSET      0x00000020  // CryptAcquireContext dwFlags
-//#define PKCS12_INCLUDE_EXTENDED_PROPERTIES 0x10
-#define CRYPT_USER_KEYSET           0x00001000
-#define PKCS12_ALLOW_OVERWRITE_KEY  0x00004000  // allow overwrite existing key
-#define PKCS12_NO_PERSIST_KEY       0x00008000  // key will not be persisted
-
-//+-------------------------------------------------------------------------
-//      PFXIsPFXBlob
-//
-//  This function will try to decode the outer layer of the blob as a pfx 
-//  blob, and if that works it will return TRUE, it will return FALSE otherwise
-//
-//--------------------------------------------------------------------------
-WINCRYPT32API
-BOOL
-WINAPI
-PFXIsPFXBlob(
-    IN CRYPT_DATA_BLOB *pPFX);
-
-//+-------------------------------------------------------------------------
-//      PFXVerifyPassword
-//
-//  This function will attempt to decode the outer layer of the blob as a pfx 
-//  blob and decrypt with the given password. No data from the blob will be
-//  imported.
-//
-//  Return value is TRUE if password appears correct, FALSE otherwise.
-//
-//--------------------------------------------------------------------------
-WINCRYPT32API
-BOOL
-WINAPI
-PFXVerifyPassword(
-    IN CRYPT_DATA_BLOB *pPFX,
-    IN LPCWSTR szPassword,
-    IN DWORD dwFlags);
-
-//+-------------------------------------------------------------------------
-//      PFXExportCertStoreEx
-//
-//  Export the certificates and private keys referenced in the passed-in store
-//
-//  This API encodes the blob under a stronger algorithm. The resulting
-//  PKCS12 blobs are incompatible with the earlier PFXExportCertStore API.
-//
-//  The value passed in the password parameter will be used to encrypt and
-//  verify the integrity of the PFX packet. If any problems encoding the store
-//  are encountered, the function will return FALSE and the error code can
-//  be found from GetLastError().
-//
-//  The dwFlags parameter may be set to any combination of
-//      EXPORT_PRIVATE_KEYS
-//      REPORT_NO_PRIVATE_KEY
-//      REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY
-//      PKCS12_INCLUDE_EXTENDED_PROPERTIES
-//
-//  The encoded PFX blob is returned in *pPFX. If pPFX->pbData is NULL upon
-//  input, this is a length only calculation, whereby, pPFX->cbData is updated
-//  with the number of bytes required for the encoded blob. Otherwise,
-//  the memory pointed to by pPFX->pbData is updated with the encoded bytes
-//  and pPFX->cbData is updated with the encoded byte length.
-//--------------------------------------------------------------------------
-WINCRYPT32API
-BOOL
-WINAPI
-PFXExportCertStoreEx(
-    IN     HCERTSTORE      hStore,
-    IN OUT CRYPT_DATA_BLOB *pPFX,
-    IN     LPCWSTR         szPassword,
-    IN     void            *pvReserved,
-    IN     DWORD           dwFlags
-    );
-
-// dwFlags definitions for PFXExportCertStoreEx
-#define REPORT_NO_PRIVATE_KEY                   0x0001
-#define REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY   0x0002
-#define EXPORT_PRIVATE_KEYS                     0x0004
-#define PKCS12_INCLUDE_EXTENDED_PROPERTIES      0x0010
-
-//+-------------------------------------------------------------------------
-//      PFXExportCertStore
-//
-//  Export the certificates and private keys referenced in the passed-in store
-//
-//  This is an old API kept for compatibility with IE4 clients. New applications
-//  should call the above PfxExportCertStoreEx for enhanced security.
-//--------------------------------------------------------------------------
-WINCRYPT32API
-BOOL
-WINAPI
-PFXExportCertStore(
-    IN     HCERTSTORE      hStore,
-    IN OUT CRYPT_DATA_BLOB *pPFX,
-    IN     LPCWSTR         szPassword,
-    IN     DWORD           dwFlags
-    );
 
 // dwFlags has the following defines
 #define CRYPT_STRING_BASE64HEADER           0x00000000
@@ -12633,6 +12720,7 @@ PFXExportCertStore(
 #define CRYPT_STRING_BASE64X509CRLHEADER    0x00000009
 #define CRYPT_STRING_HEXADDR                0x0000000a
 #define CRYPT_STRING_HEXASCIIADDR           0x0000000b
+#define CRYPT_STRING_HEXRAW                 0x0000000c
 #define CRYPT_STRING_BASE64URI              0x0000000d
 
 #define CRYPT_STRING_ENCODEMASK             0x000000ff
@@ -12670,6 +12758,136 @@ PFXExportCertStore(
 //    CRYPT_STRING_HEXASCIIADDR
 //    CRYPT_STRING_HEXASCII
 //    CRYPT_STRING_HEX
+
+#define szOID_PKCS_12_PbeIds                        "1.2.840.113549.1.12.1"
+#define szOID_PKCS_12_pbeWithSHA1And128BitRC4       "1.2.840.113549.1.12.1.1"
+#define szOID_PKCS_12_pbeWithSHA1And40BitRC4        "1.2.840.113549.1.12.1.2"
+#define szOID_PKCS_12_pbeWithSHA1And3KeyTripleDES   "1.2.840.113549.1.12.1.3"
+#define szOID_PKCS_12_pbeWithSHA1And2KeyTripleDES   "1.2.840.113549.1.12.1.4"
+#define szOID_PKCS_12_pbeWithSHA1And128BitRC2       "1.2.840.113549.1.12.1.5"
+#define szOID_PKCS_12_pbeWithSHA1And40BitRC2        "1.2.840.113549.1.12.1.6"
+#define szOID_PKCS_5_PBKDF2                         "1.2.840.113549.1.5.12"
+
+//+-------------------------------------------------------------------------
+// Imports a PFX BLOB and returns the handle of a store that contains
+//   certificates and any associated private keys.
+// pPFX [in] A pointer to a CRYPT_DATA_BLOB structure that contains
+//   a PFX packet with the exported and encrypted certificates and keys.
+// szPassword [in] A string password used to decrypt and verify the PFX packet.
+// dwFlags [in] Flags
+// If succeeds, the function returns a handle to a certificate store
+//   that contains the imported certificates, including available private keys.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+HCERTSTORE
+WINAPI
+PFXImportCertStore(
+    IN     CRYPT_DATA_BLOB *pPFX,
+    IN     LPCWSTR         szPassword,
+    IN     DWORD           dwFlags
+    ) CPRO_CHECK_RESULT;
+
+// dwFlags definitions for PFXImportCertStore
+//#define CRYPT_EXPORTABLE          0x00000001  // CryptImportKey dwFlags
+//#define CRYPT_USER_PROTECTED      0x00000002  // CryptImportKey dwFlags
+//#define CRYPT_MACHINE_KEYSET      0x00000020  // CryptAcquireContext dwFlags
+//#define PKCS12_INCLUDE_EXTENDED_PROPERTIES 0x10
+#define CRYPT_USER_KEYSET           0x00001000
+#define PKCS12_ALLOW_OVERWRITE_KEY  0x00004000  // allow overwrite existing key
+#define PKCS12_NO_PERSIST_KEY       0x00008000  // key will not be persisted
+
+//+-------------------------------------------------------------------------
+//      PFXIsPFXBlob
+//
+//  This function will try to decode the outer layer of the blob as a pfx
+//  blob, and if that works it will return TRUE, it will return FALSE otherwise
+//
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXIsPFXBlob(
+    IN CRYPT_DATA_BLOB *pPFX
+    ) CPRO_CHECK_RESULT;
+
+//+-------------------------------------------------------------------------
+//      PFXVerifyPassword
+//
+//  This function will attempt to decode the outer layer of the blob as a pfx
+//  blob and decrypt with the given password. No data from the blob will be
+//  imported.
+//
+//  Return value is TRUE if password appears correct, FALSE otherwise.
+//
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXVerifyPassword(
+    IN CRYPT_DATA_BLOB *pPFX,
+    IN LPCWSTR szPassword,
+    IN DWORD dwFlags
+    ) CPRO_CHECK_RESULT;
+
+//+-------------------------------------------------------------------------
+//      PFXExportCertStoreEx
+//
+//  Export the certificates and private keys referenced in the passed-in store
+//
+//  This API encodes the blob under a stronger algorithm. The resulting
+//  PKCS12 blobs are incompatible with the earlier PFXExportCertStore API.
+//
+//  The value passed in the password parameter will be used to encrypt and
+//  verify the integrity of the PFX packet. If any problems encoding the store
+//  are encountered, the function will return FALSE and the error code can
+//  be found from GetLastError().
+//
+//  The dwFlags parameter may be set to any combination of
+//      EXPORT_PRIVATE_KEYS
+//      REPORT_NO_PRIVATE_KEY
+//      REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY
+//      PKCS12_INCLUDE_EXTENDED_PROPERTIES
+//
+//  The encoded PFX blob is returned in *pPFX. If pPFX->pbData is NULL upon
+//  input, this is a length only calculation, whereby, pPFX->cbData is updated
+//  with the number of bytes required for the encoded blob. Otherwise,
+//  the memory pointed to by pPFX->pbData is updated with the encoded bytes
+//  and pPFX->cbData is updated with the encoded byte length.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXExportCertStoreEx(
+    IN     HCERTSTORE      hStore,
+    IN OUT CRYPT_DATA_BLOB *pPFX,
+    IN     LPCWSTR         szPassword,
+    IN     void            *pvReserved,
+    IN     DWORD           dwFlags
+    ) CPRO_CHECK_RESULT;
+
+// dwFlags definitions for PFXExportCertStoreEx
+#define REPORT_NO_PRIVATE_KEY                   0x0001
+#define REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY   0x0002
+#define EXPORT_PRIVATE_KEYS                     0x0004
+#define PKCS12_INCLUDE_EXTENDED_PROPERTIES      0x0010
+
+//+-------------------------------------------------------------------------
+//      PFXExportCertStore
+//
+//  Export the certificates and private keys referenced in the passed-in store
+//
+//  This is an old API kept for compatibility with IE4 clients. New applications
+//  should call the above PfxExportCertStoreEx for enhanced security.
+//--------------------------------------------------------------------------
+WINCRYPT32API
+BOOL
+WINAPI
+PFXExportCertStore(
+    IN     HCERTSTORE      hStore,
+    IN OUT CRYPT_DATA_BLOB *pPFX,
+    IN     LPCWSTR         szPassword,
+    IN     DWORD           dwFlags
+    ) CPRO_CHECK_RESULT;
 
 // TODO:XXX Наши расширения CryptoAPI для shared/include/cryptutil.h
 // TODO:XXX Завести отдельный файл заловков
@@ -12709,8 +12927,8 @@ typedef struct _DSSSEED {
     DWORD   counter;
     BYTE    seed[20];
 } DSSSEED;
-#define CALG_AES_128              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_128) 
-#define CALG_AES_192              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_192) 
+#define CALG_AES_128              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_128)
+#define CALG_AES_192              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_192)
 #define CALG_AES_256              (ALG_CLASS_DATA_ENCRYPT | ALG_TYPE_BLOCK         | ALG_SID_AES_256)
 
 //+=========================================================================
@@ -12758,7 +12976,7 @@ CertOpenServerOcspResponse(
     PCCERT_CHAIN_CONTEXT pChainContext,
     DWORD dwFlags,
     LPVOID pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 
 // Set this flag to return immediately without making the initial
 // synchronous retrieval
@@ -12826,7 +13044,7 @@ CertGetServerOcspResponseContext(
     HCERT_SERVER_OCSP_RESPONSE hServerOcspResponse,
     DWORD dwFlags,
     LPVOID pvReserved
-    );
+    ) CPRO_CHECK_RESULT;
 
 //TODO
 //+-------------------------------------------------------------------------
