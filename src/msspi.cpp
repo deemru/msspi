@@ -2,18 +2,19 @@
 
 #ifdef _WIN32
 #ifndef __MINGW32__
-#   pragma warning( disable:4820 )
-#   pragma warning( disable:4710 )
-#   pragma warning( disable:4668 )
-#   pragma warning( disable:4623 )
-#   pragma warning( disable:4625 )
-#   pragma warning( disable:4626 )
-#   pragma warning( disable:5026 )
-#   pragma warning( disable:5027 )
-#   pragma warning( disable:4774 )
-#if _MSC_VER >= 1920
-#   pragma warning( disable:5220 )
-#endif
+#   pragma warning( disable:4619 ) // unknown warning number
+#   pragma warning( disable:4668 ) // undefined macro in #if
+#   pragma warning( disable:4710 ) // not inlined
+#   pragma warning( disable:4711 ) // auto-inlined
+#   pragma warning( disable:4774 ) // format string not literal
+#   pragma warning( disable:4820 ) // struct padding
+#   pragma warning( disable:4623 ) // default ctor deleted
+#   pragma warning( disable:4625 ) // copy ctor deleted
+#   pragma warning( disable:4626 ) // copy assign deleted
+#   pragma warning( disable:5026 ) // move ctor deleted
+#   pragma warning( disable:5027 ) // move assign deleted
+#   pragma warning( disable:5045 ) // Spectre mitigation info
+#   pragma warning( disable:5220 ) // volatile non-trivial
 #endif // __MINGW32__
 #include <Windows.h>
 #endif
