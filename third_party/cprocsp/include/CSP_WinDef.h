@@ -10,7 +10,7 @@
 #ifndef _WINDEF_
 #define _WINDEF_
 
-#include "common.h"
+#include "cpcsp/csp_common.h"
 
 #ifndef NO_STRICT
 #ifndef STRICT
@@ -372,7 +372,15 @@ typedef struct _LUID {
 #define FillMemory(Destination,Length,Fill) memset((Destination),(Fill),(Length))
 /*Конец определений из WinNT.h*/
 
+#ifdef __cplusplus
+}
+#endif
+
 #include "CSP_WinBase.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*Начало определений из WinNls.h*/
 

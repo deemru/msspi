@@ -89,6 +89,7 @@ namespace _detail { template< typename T > struct _alignof_trick { char _; T _te
 #endif // __MINGW32__
 #else // not _WIN32
 #define LEGACY_FORMAT_MESSAGE_IMPL
+#define UNIX
 #include "CSP_WinDef.h"
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
@@ -103,9 +104,6 @@ static DWORD GetTickCount()
 
     return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
 }
-#ifndef UNIX
-#define UNIX
-#endif // !UNIX
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
@@ -158,7 +156,7 @@ static DWORD GetTickCount()
 #define LIBSSP_PATH_NAME CPROLIBS_PATH LIBSSP_NAME
 
 #include "msspi.h"
-#include "WinCryptEx.h"
+#include "cpcsp/WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
 #include "capix.hpp"
