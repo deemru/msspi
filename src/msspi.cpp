@@ -583,9 +583,9 @@ struct MSSPI
     PCCERT_CONTEXT peercert;
     std::string peercert_subject;
     std::string peercert_issuer;
-    std::vector<std::vector<BYTE>> peercerts;
-    std::vector<std::vector<BYTE>> peerchain;
-    std::vector<std::vector<BYTE>> issuerlist;
+    std::vector< std::vector<BYTE> > peercerts;
+    std::vector< std::vector<BYTE> > peerchain;
+    std::vector< std::vector<BYTE> > issuerlist;
     std::vector<BYTE> alpn_holder;
     std::vector<BYTE> srtp_holder;
     std::vector<BYTE> keying_material;
@@ -1520,7 +1520,7 @@ int msspi_accept( MSSPI_HANDLE h )
 static int is_new_session_unmodified( MSSPI_HANDLE h )
 {
     SecPkgContext_CipherInfo old_cipherinfo = h->cipherinfo;
-    std::vector<std::vector<BYTE>> old_peercerts = h->peercerts;
+    std::vector< std::vector<BYTE> > old_peercerts = h->peercerts;
 
     h->is.cipherinfo = 0;
     if( !msspi_get_cipherinfo( h, NULL ) )
