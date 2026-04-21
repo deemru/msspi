@@ -2932,8 +2932,8 @@ int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** 
                 tlsprotonum = TLS1_3_VERSION;
                 break;
             case DTLS1_VERSION:
-            case SP_PROT_DTLS1_SERVER:
-            case SP_PROT_DTLS1_CLIENT:
+            case SP_PROT_DTLS1_0_SERVER:
+            case SP_PROT_DTLS1_0_CLIENT:
                 tlsproto = "DTLSv1";
                 tlsprotonum = DTLS1_VERSION;
                 break;
