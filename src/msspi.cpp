@@ -1308,7 +1308,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        if( h->out_len )
+        if( h->out_len && h->scLast != SEC_I_MESSAGE_FRAGMENT )
         {
             int io = write_common( h );
             if( io <= 0 )
@@ -1440,8 +1440,16 @@ int msspi_accept( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len = (int)OutBuffers[0].cbBuffer;
+                if( h->out_len + (int)OutBuffers[0].cbBuffer > SSPI_BUFFER_SIZE )
+                {
+                    h->state |= MSSPI_ERROR;
+                    SetLastError( ERROR_BUFFER_OVERFLOW );
+                    EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
+                    return 0;
+                }
+
+                memcpy( h->out_buf + h->out_len, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1489,7 +1497,8 @@ int msspi_accept( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == SEC_E_CONTEXT_EXPIRED )
+                scRet == SEC_E_CONTEXT_EXPIRED ||
+                ( scRet == SEC_E_INVALID_HANDLE && h->is.dtls ) )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
                 SetLastError( ERROR_GRACEFUL_DISCONNECT );
@@ -1596,7 +1605,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        if( h->out_len )
+        if( h->out_len && h->scLast != SEC_I_MESSAGE_FRAGMENT )
         {
             int io = write_common( h );
             if( io <= 0 )
@@ -1742,8 +1751,16 @@ int msspi_connect( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len = (int)OutBuffers[0].cbBuffer;
+                if( h->out_len + (int)OutBuffers[0].cbBuffer > SSPI_BUFFER_SIZE )
+                {
+                    h->state |= MSSPI_ERROR;
+                    SetLastError( ERROR_BUFFER_OVERFLOW );
+                    EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
+                    return 0;
+                }
+
+                memcpy( h->out_buf + h->out_len, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1791,7 +1808,8 @@ int msspi_connect( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == SEC_E_CONTEXT_EXPIRED )
+                scRet == SEC_E_CONTEXT_EXPIRED ||
+                ( scRet == SEC_E_INVALID_HANDLE && h->is.dtls ) )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
                 SetLastError( ERROR_GRACEFUL_DISCONNECT );
@@ -2222,6 +2240,8 @@ int msspi_set_version( MSSPI_HANDLE h, int min, int max )
 
     if( h->is.dtls )
     {
+        if( ( !min || min <= DTLS1_VERSION ) && ( !max || DTLS1_VERSION <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_DTLS1_0;
         if( ( !min || min <= DTLS1_2_VERSION ) && ( !max || DTLS1_2_VERSION <= max ) )
             h->grbitEnabledProtocols |= SP_PROT_DTLS1_2;
     }
@@ -2910,6 +2930,12 @@ int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** 
             case SP_PROT_TLS1_3_CLIENT:
                 tlsproto = "TLSv1.3";
                 tlsprotonum = TLS1_3_VERSION;
+                break;
+            case DTLS1_VERSION:
+            case SP_PROT_DTLS1_SERVER:
+            case SP_PROT_DTLS1_CLIENT:
+                tlsproto = "DTLSv1";
+                tlsprotonum = DTLS1_VERSION;
                 break;
             case DTLS1_2_VERSION:
             case SP_PROT_DTLS1_2_SERVER:

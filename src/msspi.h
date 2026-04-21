@@ -36,6 +36,10 @@ uint32_t msspi_version( void );
 #define TLS1_3_VERSION 0x0304
 #endif
 
+#ifndef DTLS1_VERSION
+#define DTLS1_VERSION 0xFEFF
+#endif
+
 #ifndef DTLS1_2_VERSION
 #define DTLS1_2_VERSION 0xFEFD
 #endif
