@@ -1,7 +1,3 @@
-/* vim:set sw=4 ts=8 fileencoding=cp1251::Кодировка:WINDOWS-1251[АБЁЪЯабёъя] */
-#ifdef _WIN32
-    #pragma setlocale("rus")
-#endif
 /*
  * Copyright (c) 2000, компания Крипто-Про
  *
