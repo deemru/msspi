@@ -2240,9 +2240,13 @@ int msspi_set_version( MSSPI_HANDLE h, int min, int max )
 
     if( h->is.dtls )
     {
-        if( ( !min || min <= DTLS1_VERSION ) && ( !max || DTLS1_VERSION <= max ) )
+        if( min != 0 )
+            min = DTLS1_VERSION - min;
+        if( max != 0 )
+            max = DTLS1_VERSION - max;
+        if( ( !min || min <= 0 ) && ( !max || 0 <= max ) )
             h->grbitEnabledProtocols |= SP_PROT_DTLS1_0;
-        if( ( !min || min <= DTLS1_2_VERSION ) && ( !max || DTLS1_2_VERSION <= max ) )
+        if( ( !min || min <= 2 ) && ( !max || 2 <= max ) )
             h->grbitEnabledProtocols |= SP_PROT_DTLS1_2;
     }
     else
