@@ -60,6 +60,7 @@ int msspi_set_client( MSSPI_HANDLE h, int enable );
 int msspi_set_dtls( MSSPI_HANDLE h, int enable );
 int msspi_set_dtls_peeraddr( MSSPI_HANDLE h, const uint8_t * peeraddr, size_t peeraddr_len );
 int msspi_set_dtls_mtu( MSSPI_HANDLE h, size_t mtu );
+int msspi_set_dtls_send_fragments( MSSPI_HANDLE h, int enable );
 
 int msspi_set_version( MSSPI_HANDLE h, int min, int max );
 int msspi_set_cipherlist( MSSPI_HANDLE h, const uint8_t * cipherlist, size_t cipherlist_len );

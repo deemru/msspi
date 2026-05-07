@@ -513,6 +513,7 @@ struct MSSPI
         is.verify_revocation = 1;
         is.dtls = 0;
         is.srtp = 0;
+        is.dtls_send_fragments = 0;
         state = MSSPI_EMPTY;
         scLast = SEC_I_CONTINUE_NEEDED;
         hCtx.dwLower = 0;
@@ -571,6 +572,7 @@ struct MSSPI
         unsigned verify_revocation : 1;
         unsigned dtls : 1;
         unsigned srtp : 1;
+        unsigned dtls_send_fragments : 1;
     } is;
 
     int state;
@@ -1308,7 +1310,8 @@ int msspi_accept( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        if( h->out_len && h->scLast != SEC_I_MESSAGE_FRAGMENT )
+        if( h->out_len &&
+            ( h->scLast != SEC_I_MESSAGE_FRAGMENT || h->is.dtls_send_fragments ) )
         {
             int io = write_common( h );
             if( io <= 0 )
@@ -1605,7 +1608,8 @@ int msspi_connect( MSSPI_HANDLE h )
 
     for( ;; )
     {
-        if( h->out_len && h->scLast != SEC_I_MESSAGE_FRAGMENT )
+        if( h->out_len &&
+            ( h->scLast != SEC_I_MESSAGE_FRAGMENT || h->is.dtls_send_fragments ) )
         {
             int io = write_common( h );
             if( io <= 0 )
@@ -2195,6 +2199,16 @@ int msspi_set_dtls( MSSPI_HANDLE h, int enable )
     MSSPIEHTRY_h;
 
     h->is.dtls = (unsigned)( enable ? 1 : 0 );
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
+}
+
+int msspi_set_dtls_send_fragments( MSSPI_HANDLE h, int enable )
+{
+    MSSPIEHTRY_h;
+
+    h->is.dtls_send_fragments = (unsigned)( enable ? 1 : 0 );
     return 1;
 
     MSSPIEHCATCH_HRET( 0 );
