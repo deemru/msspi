@@ -1469,27 +1469,15 @@ int msspi_accept( MSSPI_HANDLE h )
 
             h->scLast = scRet;
 
-            if( h->is.dtls )
+            if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
+                ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
-                if( scRet == SEC_I_CONTINUE_NEEDED ||
-                    scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_MESSAGE_FRAGMENT )
-                    continue;
+                h->state |= MSSPI_READING;
+                continue;
             }
-            else
-            {
-                if( scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_CONTINUE_NEEDED )
-                    continue;
-            }
+            if( scRet == SEC_I_CONTINUE_NEEDED ||
+                scRet == SEC_I_MESSAGE_FRAGMENT )
+                continue;
         }
 
         if( h->out_len )
@@ -1781,27 +1769,15 @@ int msspi_connect( MSSPI_HANDLE h )
 
             h->scLast = scRet;
 
-            if( h->is.dtls )
+            if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
+                ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
-                if( scRet == SEC_I_CONTINUE_NEEDED ||
-                    scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_MESSAGE_FRAGMENT )
-                    continue;
+                h->state |= MSSPI_READING;
+                continue;
             }
-            else
-            {
-                if( scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_CONTINUE_NEEDED )
-                    continue;
-            }
+            if( scRet == SEC_I_CONTINUE_NEEDED ||
+                scRet == SEC_I_MESSAGE_FRAGMENT )
+                continue;
         }
 
         if( h->out_len )
