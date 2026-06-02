@@ -93,18 +93,19 @@ The order of functions in the header file is **intentional and important**. Func
 **Connection Phase:**
 
 7. **Handshake** - [`msspi_connect()`](#msspi_connect) (client) or [`msspi_accept()`](#msspi_accept) (server) establishes the connection
-8. **Verification** - [`msspi_get_verify_status()`](#msspi_get_verify_status) and [`msspi_get_peercert_in_store_status()`](#msspi_get_peercert_in_store_status) verify peer certificate (optional, call after handshake)
+8. **DTLS retransmit** - [`msspi_dtls_retransmit()`](#msspi_dtls_retransmit) can request handshake retransmission after a DTLS transport timeout
+9. **Verification** - [`msspi_get_verify_status()`](#msspi_get_verify_status) and [`msspi_get_peercert_in_store_status()`](#msspi_get_peercert_in_store_status) verify peer certificate (optional, call after handshake)
 
 **Data Transfer Phase:**
 
-9. **Query functions** - `msspi_get_*()` functions retrieve connection information (version, ciphers, certificates, etc.)
-10. **I/O operations** - [`msspi_read()`](#msspi_read), [`msspi_peek()`](#msspi_peek), [`msspi_write()`](#msspi_write) transfer data
-11. **State monitoring** - [`msspi_pending()`](#msspi_pending), [`msspi_state()`](#msspi_state) check connection state
+10. **Query functions** - `msspi_get_*()` functions retrieve connection information (version, ciphers, certificates, etc.)
+11. **I/O operations** - [`msspi_read()`](#msspi_read), [`msspi_peek()`](#msspi_peek), [`msspi_write()`](#msspi_write) transfer data
+12. **State monitoring** - [`msspi_pending()`](#msspi_pending), [`msspi_state()`](#msspi_state) check connection state
 
 **Teardown Phase:**
 
-12. **Shutdown** - [`msspi_shutdown()`](#msspi_shutdown) gracefully closes the connection
-13. **Cleanup** - [`msspi_close()`](#msspi_close) frees all resources
+13. **Shutdown** - [`msspi_shutdown()`](#msspi_shutdown) gracefully closes the connection
+14. **Cleanup** - [`msspi_close()`](#msspi_close) frees all resources
 
 **Note:** Violating the setup order (especially calling certificate functions before credential-affecting parameters) may result in credential cache mismatches or unexpected behavior.
 
@@ -649,6 +650,25 @@ Performs TLS/DTLS handshake as server.
 - `1` when handshake completes successfully
 - `0` on error
 - `-1` when waiting for I/O or certificate selection (use [`msspi_state()`](#msspi_state) for detailed status information)
+
+---
+
+### msspi_dtls_retransmit
+
+```c
+int msspi_dtls_retransmit(MSSPI_HANDLE h);
+```
+
+Requests retransmission of pending DTLS handshake data after a transport timeout.
+
+This function is only valid for DTLS handshakes before the connection is established. Call it after [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept) returns `-1` while waiting for input and the application's DTLS retransmission timer expires.
+
+**Parameters:**
+- `h`: handle
+
+**Returns:**
+- `1` when retransmission was requested
+- `0` on error (non-DTLS handle, already connected, or buffered input is pending)
 
 ---
 

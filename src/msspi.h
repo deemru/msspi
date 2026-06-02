@@ -104,6 +104,7 @@ int msspi_random( void * buf, int len );
 #define MSSPI_LAST_PROC_WRITE ( 1 << 7 )
 
 int msspi_state( MSSPI_HANDLE h );
+int msspi_dtls_retransmit( MSSPI_HANDLE h );
 uint32_t msspi_last_error( void );
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1

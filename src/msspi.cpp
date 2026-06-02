@@ -513,6 +513,7 @@ struct MSSPI
         is.verify_revocation = 1;
         is.dtls = 0;
         is.srtp = 0;
+        is.dtls_retransmit = 0;
         state = MSSPI_EMPTY;
         scLast = SEC_I_CONTINUE_NEEDED;
         hCtx.dwLower = 0;
@@ -571,6 +572,7 @@ struct MSSPI
         unsigned verify_revocation : 1;
         unsigned dtls : 1;
         unsigned srtp : 1;
+        unsigned dtls_retransmit : 1;
     } is;
 
     int state;
@@ -1319,7 +1321,8 @@ int msspi_accept( MSSPI_HANDLE h )
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io <= 0 )
+            if( io == 0 ||
+                ( io < 0 && !h->is.dtls_retransmit ) )
                 return io;
         }
 
@@ -1363,7 +1366,7 @@ int msspi_accept( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+            if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf;
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
@@ -1466,6 +1469,7 @@ int msspi_accept( MSSPI_HANDLE h )
             }
 
             h->scLast = scRet;
+            h->is.dtls_retransmit = 0;
 
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
@@ -1624,7 +1628,8 @@ int msspi_connect( MSSPI_HANDLE h )
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io <= 0 )
+            if( io == 0 ||
+                ( io < 0 && !h->is.dtls_retransmit ) )
                 return io;
         }
 
@@ -1668,7 +1673,7 @@ int msspi_connect( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+            if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf;
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
@@ -1765,6 +1770,7 @@ int msspi_connect( MSSPI_HANDLE h )
             }
 
             h->scLast = scRet;
+            h->is.dtls_retransmit = 0;
 
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
@@ -1826,6 +1832,22 @@ int msspi_connect( MSSPI_HANDLE h )
             return 0;
         }
     }
+
+    MSSPIEHCATCH_HRET( 0 );
+}
+
+int msspi_dtls_retransmit( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY_h;
+
+    if( !h->is.dtls || h->is.connected || h->in_len )
+    {
+        SetLastError( ERROR_INVALID_STATE );
+        return 0;
+    }
+
+    h->is.dtls_retransmit = 1;
+    return 1;
 
     MSSPIEHCATCH_HRET( 0 );
 }
@@ -3315,6 +3337,7 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool jus
 
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
+    DWORD dwBaseFlags = CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE;
     DWORD dwAdditionalFlags = 0;
     if( h->is.verify_offline )
         dwAdditionalFlags |= CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL;
@@ -3345,7 +3368,7 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool jus
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | dwAdditionalFlags,
+            dwBaseFlags | dwAdditionalFlags,
             NULL,
             &PeerChain ) )
             break;
