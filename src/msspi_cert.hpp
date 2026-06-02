@@ -145,6 +145,7 @@ MSSPI_CERT_HANDLE msspi_cert_next( MSSPI_CERT_HANDLE ch )
     CERT_CHAIN_PARA ChainPara;
     memset( &ChainPara, 0, sizeof( ChainPara ) );
     ChainPara.cbSize = sizeof( ChainPara );
+    DWORD dwBaseFlags = CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE;
 
     if( CertGetCertificateChain(
         NULL,
@@ -152,7 +153,7 @@ MSSPI_CERT_HANDLE msspi_cert_next( MSSPI_CERT_HANDLE ch )
         NULL,
         ch->cert->hCertStore,
         &ChainPara,
-        CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL,
+        dwBaseFlags | CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL,
         NULL,
         &PeerChain ) )
     {

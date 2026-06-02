@@ -20715,6 +20715,15 @@
 /**/
 #define CERT_E_UNTRUSTEDCA               _HRESULT_TYPEDEF_(0x800B0112L)
 
+/**/
+/* MessageId: CERT_E_INVALID_NAME*/
+/**/
+/* MessageText:*/
+/**/
+/*  The certificate has an invalid name. The name is not included in the permitted list or is explicitly excluded.*/
+/**/
+#define CERT_E_INVALID_NAME              _HRESULT_TYPEDEF_(0x800B0114L)
+
 /* ******************/
 /* FACILITY_SETUPAPI*/
 /* ******************/

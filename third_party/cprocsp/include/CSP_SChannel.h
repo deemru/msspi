@@ -258,17 +258,17 @@ typedef struct _SecPkgContext_SessionInfo
 } SecPkgContext_SessionInfo, *PSecPkgContext_SessionInfo;
 
 //
-// This property returns the raw binary certificates that were received 
-// from the remote party. The format of the buffer that's returned is as 
+// This property returns the raw binary certificates that were received
+// from the remote party. The format of the buffer that's returned is as
 // follows.
-// 
+//
 //     <4 bytes> length of certificate #1
 //     <n bytes> certificate #1
 //     <4 bytes> length of certificate #2
 //     <n bytes> certificate #2
 //     ...
 //
-// After this data is processed, the caller of QueryContextAttributes 
+// After this data is processed, the caller of QueryContextAttributes
 // must free the pbCertificateChain buffer using FreeContextBuffer.
 //
 typedef struct _SecPkgContext_Certificates
@@ -279,7 +279,7 @@ typedef struct _SecPkgContext_Certificates
 } SecPkgContext_Certificates, *PSecPkgContext_Certificates;
 
 //
-// This property returns information about a certificate. In particular 
+// This property returns information about a certificate. In particular
 // it is useful (and only available) in the kernel where CAPI2 is not
 // available.
 //
@@ -473,6 +473,8 @@ typedef struct _SCHANNEL_CERT_HASH_STORE
 #define SCH_CRED_IGNORE_NO_REVOCATION_CHECK          0x00000800
 #define SCH_CRED_IGNORE_REVOCATION_OFFLINE           0x00001000
 
+#define SCH_CRED_MEMORY_STORE_CERT                   0x00010000
+
 #define SCH_SEND_ROOT_CERT                           0x00040000
 #define SCH_CRED_SNI_CREDENTIAL                      0x00080000
 #define SCH_CRED_SNI_ENABLE_OCSP                     0x00100000
@@ -639,11 +641,11 @@ typedef struct _SCHANNEL_SESSION_TOKEN
 #define SP_PROT_DTLS                    (SP_PROT_DTLS_SERVER | \
                                          SP_PROT_DTLS_CLIENT )
 
-#define SP_PROT_DTLS1_0_SERVER          SP_PROT_DTLS_SERVER 
+#define SP_PROT_DTLS1_0_SERVER          SP_PROT_DTLS_SERVER
 #define SP_PROT_DTLS1_0_CLIENT          SP_PROT_DTLS_CLIENT
 #define SP_PROT_DTLS1_0                 (SP_PROT_DTLS1_0_SERVER | SP_PROT_DTLS1_0_CLIENT)
 
-#define SP_PROT_DTLS1_2_SERVER          0x00040000 
+#define SP_PROT_DTLS1_2_SERVER          0x00040000
 #define SP_PROT_DTLS1_2_CLIENT          0x00080000
 #define SP_PROT_DTLS1_2                 (SP_PROT_DTLS1_2_SERVER | SP_PROT_DTLS1_2_CLIENT)
 
@@ -700,7 +702,7 @@ typedef BOOL
     LPSTR  pszTargetName,
     DWORD  dwFlags);
 
-BOOL 
+BOOL
 SslEmptyCacheA(LPSTR  pszTargetName,
                DWORD  dwFlags);
 
@@ -709,7 +711,7 @@ typedef BOOL
     LPWSTR pszTargetName,
     DWORD  dwFlags);
 
-BOOL 
+BOOL
 SslEmptyCacheW(LPWSTR pszTargetName,
                DWORD  dwFlags);
 

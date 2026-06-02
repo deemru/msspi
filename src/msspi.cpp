@@ -2,18 +2,19 @@
 
 #ifdef _WIN32
 #ifndef __MINGW32__
-#   pragma warning( disable:4820 )
-#   pragma warning( disable:4710 )
-#   pragma warning( disable:4668 )
-#   pragma warning( disable:4623 )
-#   pragma warning( disable:4625 )
-#   pragma warning( disable:4626 )
-#   pragma warning( disable:5026 )
-#   pragma warning( disable:5027 )
-#   pragma warning( disable:4774 )
-#if _MSC_VER >= 1920
-#   pragma warning( disable:5220 )
-#endif
+#   pragma warning( disable:4619 ) // unknown warning number
+#   pragma warning( disable:4668 ) // undefined macro in #if
+#   pragma warning( disable:4710 ) // not inlined
+#   pragma warning( disable:4711 ) // auto-inlined
+#   pragma warning( disable:4774 ) // format string not literal
+#   pragma warning( disable:4820 ) // struct padding
+#   pragma warning( disable:4623 ) // default ctor deleted
+#   pragma warning( disable:4625 ) // copy ctor deleted
+#   pragma warning( disable:4626 ) // copy assign deleted
+#   pragma warning( disable:5026 ) // move ctor deleted
+#   pragma warning( disable:5027 ) // move assign deleted
+#   pragma warning( disable:5045 ) // Spectre mitigation info
+#   pragma warning( disable:5220 ) // volatile non-trivial
 #endif // __MINGW32__
 #include <Windows.h>
 #endif
@@ -88,6 +89,7 @@ namespace _detail { template< typename T > struct _alignof_trick { char _; T _te
 #endif // __MINGW32__
 #else // not _WIN32
 #define LEGACY_FORMAT_MESSAGE_IMPL
+#define UNIX
 #include "CSP_WinDef.h"
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
@@ -102,9 +104,6 @@ static DWORD GetTickCount()
 
     return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
 }
-#ifndef UNIX
-#define UNIX
-#endif // !UNIX
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
@@ -157,7 +156,7 @@ static DWORD GetTickCount()
 #define LIBSSP_PATH_NAME CPROLIBS_PATH LIBSSP_NAME
 
 #include "msspi.h"
-#include "WinCryptEx.h"
+#include "cpcsp/WinCryptEx.h"
 
 #ifdef MSSPI_USE_CAPIX
 #include "capix.hpp"
@@ -514,6 +513,7 @@ struct MSSPI
         is.verify_revocation = 1;
         is.dtls = 0;
         is.srtp = 0;
+        is.dtls_retransmit = 0;
         state = MSSPI_EMPTY;
         scLast = SEC_I_CONTINUE_NEEDED;
         hCtx.dwLower = 0;
@@ -572,6 +572,7 @@ struct MSSPI
         unsigned verify_revocation : 1;
         unsigned dtls : 1;
         unsigned srtp : 1;
+        unsigned dtls_retransmit : 1;
     } is;
 
     int state;
@@ -584,9 +585,9 @@ struct MSSPI
     PCCERT_CONTEXT peercert;
     std::string peercert_subject;
     std::string peercert_issuer;
-    std::vector<std::vector<BYTE>> peercerts;
-    std::vector<std::vector<BYTE>> peerchain;
-    std::vector<std::vector<BYTE>> issuerlist;
+    std::vector< std::vector<BYTE> > peercerts;
+    std::vector< std::vector<BYTE> > peerchain;
+    std::vector< std::vector<BYTE> > issuerlist;
     std::vector<BYTE> alpn_holder;
     std::vector<BYTE> srtp_holder;
     std::vector<BYTE> keying_material;
@@ -967,6 +968,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( h->is.dtls )
         {
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
+                scRet == SEC_E_MESSAGE_ALTERED ||
                 scRet == SEC_E_OUT_OF_SEQUENCE )
             {
                 h->in_len = 0;
@@ -1319,7 +1321,8 @@ int msspi_accept( MSSPI_HANDLE h )
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io <= 0 )
+            if( io == 0 ||
+                ( io < 0 && !h->is.dtls_retransmit ) )
                 return io;
         }
 
@@ -1363,7 +1366,7 @@ int msspi_accept( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+            if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf;
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
@@ -1441,8 +1444,16 @@ int msspi_accept( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len = (int)OutBuffers[0].cbBuffer;
+                if( h->out_len + (int)OutBuffers[0].cbBuffer > SSPI_BUFFER_SIZE )
+                {
+                    h->state |= MSSPI_ERROR;
+                    SetLastError( ERROR_BUFFER_OVERFLOW );
+                    EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
+                    return 0;
+                }
+
+                memcpy( h->out_buf + h->out_len, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1458,28 +1469,17 @@ int msspi_accept( MSSPI_HANDLE h )
             }
 
             h->scLast = scRet;
+            h->is.dtls_retransmit = 0;
 
-            if( h->is.dtls )
+            if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
+                ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
-                if( scRet == SEC_I_CONTINUE_NEEDED ||
-                    scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_MESSAGE_FRAGMENT )
-                    continue;
+                h->state |= MSSPI_READING;
+                continue;
             }
-            else
-            {
-                if( scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_CONTINUE_NEEDED )
-                    continue;
-            }
+            if( scRet == SEC_I_CONTINUE_NEEDED ||
+                scRet == SEC_I_MESSAGE_FRAGMENT )
+                continue;
         }
 
         if( h->out_len )
@@ -1490,7 +1490,8 @@ int msspi_accept( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == SEC_E_CONTEXT_EXPIRED )
+                scRet == SEC_E_CONTEXT_EXPIRED ||
+                ( scRet == SEC_E_INVALID_HANDLE && h->is.dtls ) )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
                 SetLastError( ERROR_GRACEFUL_DISCONNECT );
@@ -1521,7 +1522,7 @@ int msspi_accept( MSSPI_HANDLE h )
 static int is_new_session_unmodified( MSSPI_HANDLE h )
 {
     SecPkgContext_CipherInfo old_cipherinfo = h->cipherinfo;
-    std::vector<std::vector<BYTE>> old_peercerts = h->peercerts;
+    std::vector< std::vector<BYTE> > old_peercerts = h->peercerts;
 
     h->is.cipherinfo = 0;
     if( !msspi_get_cipherinfo( h, NULL ) )
@@ -1627,7 +1628,8 @@ int msspi_connect( MSSPI_HANDLE h )
         if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io <= 0 )
+            if( io == 0 ||
+                ( io < 0 && !h->is.dtls_retransmit ) )
                 return io;
         }
 
@@ -1671,7 +1673,7 @@ int msspi_connect( MSSPI_HANDLE h )
             OutBuffer.pBuffers = OutBuffers;
             OutBuffer.ulVersion = SECBUFFER_VERSION;
 
-            if( h->in_len && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+            if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
                 InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf;
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
@@ -1743,8 +1745,16 @@ int msspi_connect( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                memcpy( h->out_buf, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len = (int)OutBuffers[0].cbBuffer;
+                if( h->out_len + (int)OutBuffers[0].cbBuffer > SSPI_BUFFER_SIZE )
+                {
+                    h->state |= MSSPI_ERROR;
+                    SetLastError( ERROR_BUFFER_OVERFLOW );
+                    EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
+                    return 0;
+                }
+
+                memcpy( h->out_buf + h->out_len, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += (int)OutBuffers[0].cbBuffer;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1760,28 +1770,17 @@ int msspi_connect( MSSPI_HANDLE h )
             }
 
             h->scLast = scRet;
+            h->is.dtls_retransmit = 0;
 
-            if( h->is.dtls )
+            if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
+                ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
-                if( scRet == SEC_I_CONTINUE_NEEDED ||
-                    scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_MESSAGE_FRAGMENT )
-                    continue;
+                h->state |= MSSPI_READING;
+                continue;
             }
-            else
-            {
-                if( scRet == SEC_E_INCOMPLETE_MESSAGE )
-                {
-                    h->state |= MSSPI_READING;
-                    continue;
-                }
-                if( scRet == SEC_I_CONTINUE_NEEDED )
-                    continue;
-            }
+            if( scRet == SEC_I_CONTINUE_NEEDED ||
+                scRet == SEC_I_MESSAGE_FRAGMENT )
+                continue;
         }
 
         if( h->out_len )
@@ -1792,7 +1791,8 @@ int msspi_connect( MSSPI_HANDLE h )
         {
             if( scRet == SEC_E_OK ||
                 scRet == SEC_I_CONTEXT_EXPIRED ||
-                scRet == SEC_E_CONTEXT_EXPIRED )
+                scRet == SEC_E_CONTEXT_EXPIRED ||
+                ( scRet == SEC_E_INVALID_HANDLE && h->is.dtls ) )
             {
                 h->state |= MSSPI_SENT_SHUTDOWN;
                 SetLastError( ERROR_GRACEFUL_DISCONNECT );
@@ -1832,6 +1832,22 @@ int msspi_connect( MSSPI_HANDLE h )
             return 0;
         }
     }
+
+    MSSPIEHCATCH_HRET( 0 );
+}
+
+int msspi_dtls_retransmit( MSSPI_HANDLE h )
+{
+    MSSPIEHTRY_h;
+
+    if( !h->is.dtls || h->is.connected || h->in_len )
+    {
+        SetLastError( ERROR_INVALID_STATE );
+        return 0;
+    }
+
+    h->is.dtls_retransmit = 1;
+    return 1;
 
     MSSPIEHCATCH_HRET( 0 );
 }
@@ -2223,7 +2239,13 @@ int msspi_set_version( MSSPI_HANDLE h, int min, int max )
 
     if( h->is.dtls )
     {
-        if( ( !min || min <= DTLS1_2_VERSION ) && ( !max || DTLS1_2_VERSION <= max ) )
+        if( min != 0 )
+            min = DTLS1_VERSION - min;
+        if( max != 0 )
+            max = DTLS1_VERSION - max;
+        if( ( !min || min <= 0 ) && ( !max || 0 <= max ) )
+            h->grbitEnabledProtocols |= SP_PROT_DTLS1_0;
+        if( ( !min || min <= 2 ) && ( !max || 2 <= max ) )
             h->grbitEnabledProtocols |= SP_PROT_DTLS1_2;
     }
     else
@@ -2912,6 +2934,12 @@ int msspi_get_version( MSSPI_HANDLE h, uint32_t * version_num, const uint8_t ** 
                 tlsproto = "TLSv1.3";
                 tlsprotonum = TLS1_3_VERSION;
                 break;
+            case DTLS1_VERSION:
+            case SP_PROT_DTLS1_0_SERVER:
+            case SP_PROT_DTLS1_0_CLIENT:
+                tlsproto = "DTLSv1";
+                tlsprotonum = DTLS1_VERSION;
+                break;
             case DTLS1_2_VERSION:
             case SP_PROT_DTLS1_2_SERVER:
             case SP_PROT_DTLS1_2_CLIENT:
@@ -3309,6 +3337,7 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool jus
 
     PCCERT_CHAIN_CONTEXT PeerChain = NULL;
 
+    DWORD dwBaseFlags = CERT_CHAIN_CACHE_END_CERT | CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE;
     DWORD dwAdditionalFlags = 0;
     if( h->is.verify_offline )
         dwAdditionalFlags |= CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL;
@@ -3339,7 +3368,7 @@ static uint32_t msspi_verify_internal( MSSPI_HANDLE h, bool revocation, bool jus
             NULL,
             h->peercert->hCertStore,
             &ChainPara,
-            CERT_CHAIN_CACHE_END_CERT | dwAdditionalFlags,
+            dwBaseFlags | dwAdditionalFlags,
             NULL,
             &PeerChain ) )
             break;

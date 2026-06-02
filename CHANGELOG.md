@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.6
+
+- Added [`msspi_dtls_retransmit()`](MSSPI.md#msspi_dtls_retransmit) to request DTLS handshake retransmission
+- Fixed DTLS protocol range handling in [`msspi_set_version()`](MSSPI.md#msspi_set_version)
+- Improved [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept) DTLS handshake handling for retransmits, fragmented handshake output, and graceful DTLS shutdown
+- Disabled automatic certificate updates when building certificate chains
+- Synced CryptoPro CSP SDK headers to the 2026 layout
+
+---
+
 ## 1.0.5
 
 - Improved certificate and PFX format probing via `CRYPT_STRING_ANY`
