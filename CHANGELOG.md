@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7
+
+- Fixed PIN handling in [`msspi_set_mycert_options()`](MSSPI.md#msspi_set_mycert_options)
+
+---
+
 ## 1.0.6
 
 - Added [`msspi_dtls_retransmit()`](MSSPI.md#msspi_dtls_retransmit) to request DTLS handshake retransmission

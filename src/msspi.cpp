@@ -2415,10 +2415,13 @@ int msspi_set_mycert_options( MSSPI_HANDLE h, int silent, const uint8_t * pin, s
         {
             CRYPT_KEY_PROV_PARAM pinparam;
 
+            std::vector<BYTE> pinbuf( pin, pin + pin_len );
+            pinbuf.push_back( 0 );
+
             pinparam.dwParam = PP_KEYEXCHANGE_PIN;
             pinparam.dwFlags = 0;
-            pinparam.pbData = (BYTE *)pin;
-            pinparam.cbData = (DWORD)pin_len;
+            pinparam.pbData = pinbuf.data();
+            pinparam.cbData = (DWORD)pinbuf.size();
 
             provinfo->cProvParam = 1;
             provinfo->rgProvParam = &pinparam;
