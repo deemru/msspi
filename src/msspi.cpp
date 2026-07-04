@@ -638,6 +638,17 @@ private:
     MSSPI & operator=( const MSSPI & );
 };
 
+static void buffer_reset( std::vector<BYTE> & buf, size_t size )
+{
+    if( buf.capacity() > size )
+    {
+        std::vector<BYTE> compact( size );
+        buf.swap( compact );
+    }
+    else
+        buf.resize( size );
+}
+
 static int credentials_acquire( MSSPI_HANDLE h )
 {
     CredHandle      hCred;
@@ -865,11 +876,8 @@ static int read_common( MSSPI_HANDLE h )
 
     if( h->in_len == 0 )
     {
-        if( (int)h->in_buf.size() > MSSPI_BASE_BUFFER_SIZE )
-        {
-            std::vector<BYTE> compact( MSSPI_BASE_BUFFER_SIZE );
-            h->in_buf.swap( compact );
-        }
+        if( (int)h->in_buf.capacity() > MSSPI_BASE_BUFFER_SIZE )
+            buffer_reset( h->in_buf, MSSPI_BASE_BUFFER_SIZE );
         space = MSSPI_BASE_BUFFER_SIZE;
     }
     else
@@ -1348,9 +1356,8 @@ static int connected( MSSPI_HANDLE h )
         return 0;
     }
 
-    h->dec_buf.resize( (size_t)h->out_msg_max );
-    h->out_pos = 0;
-    h->out_buf.resize( (size_t)( h->out_hdr_len + h->out_msg_max + h->out_trl_max ) );
+    buffer_reset( h->dec_buf, (size_t)h->out_msg_max );
+    buffer_reset( h->out_buf, (size_t)( h->out_hdr_len + h->out_msg_max + h->out_trl_max ) );
 
     msspi_get_cipherinfo( h, NULL );
     msspi_get_peercerts( h, NULL, NULL, NULL );
@@ -1543,7 +1550,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
                 h->out_pos = 0;
                 h->out_len = (int)OutBuffers[1].cbBuffer;
-                h->out_buf.resize( (size_t)h->out_len );
+                buffer_reset( h->out_buf, (size_t)h->out_len );
                 memcpy( &h->out_buf[0], OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
@@ -1867,7 +1874,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
                 h->out_pos = 0;
                 h->out_len = (int)OutBuffers[1].cbBuffer;
-                h->out_buf.resize( (size_t)h->out_len );
+                buffer_reset( h->out_buf, (size_t)h->out_len );
                 memcpy( &h->out_buf[0], OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
