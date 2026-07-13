@@ -638,15 +638,18 @@ private:
     MSSPI & operator=( const MSSPI & );
 };
 
-static void buffer_reset( std::vector<BYTE> & buf, size_t size )
+static void buffer_ensure_size( std::vector<BYTE> & buf, size_t needed, size_t base = MSSPI_BASE_BUFFER_SIZE )
 {
-    if( buf.capacity() > size )
+    size_t current = buf.size();
+    size_t target = needed > base ? needed : base;
+
+    if( current < target )
+        buf.resize( target );
+    else if( current > base && needed <= base )
     {
-        std::vector<BYTE> compact( size );
+        std::vector<BYTE> compact( base );
         buf.swap( compact );
     }
-    else
-        buf.resize( size );
 }
 
 static int credentials_acquire( MSSPI_HANDLE h )
@@ -830,7 +833,7 @@ static int write_common( MSSPI_HANDLE h )
     while( h->out_len )
     {
         int io;
-        EXTERCALL( io = h->write_cb( h->cb_arg, &h->out_buf[(size_t)h->out_pos], h->out_len ) );
+        EXTERCALL( io = h->write_cb( h->cb_arg, h->out_buf.data() + h->out_pos, h->out_len ) );
 
         if( io < 0 )
         {
@@ -876,32 +879,31 @@ static int read_common( MSSPI_HANDLE h )
 
     if( h->in_len == 0 )
     {
-        if( (int)h->in_buf.capacity() > MSSPI_BASE_BUFFER_SIZE )
-            buffer_reset( h->in_buf, MSSPI_BASE_BUFFER_SIZE );
+        buffer_ensure_size( h->in_buf, 0 );
         space = MSSPI_BASE_BUFFER_SIZE;
     }
     else
     {
-        int size;
         if( h->is.connected )
-            size = MSSPI_BASE_BUFFER_SIZE;
+            space = MSSPI_BASE_BUFFER_SIZE - h->in_len;
         else
         {
-            size = h->in_len + MSSPI_BASE_BUFFER_SIZE;
+            int size = h->in_len + MSSPI_BASE_BUFFER_SIZE;
             if( size > MSSPI_MAX_BUFFER_SIZE )
                 size = MSSPI_MAX_BUFFER_SIZE;
+            h->in_buf.resize( (size_t)size );
+            space = size - h->in_len;
         }
-        if( h->in_len >= size )
-        {
-            h->state |= MSSPI_ERROR;
-            SetLastError( ERROR_BUFFER_OVERFLOW );
-            return 0;
-        }
-        h->in_buf.resize( (size_t)size );
-        space = size - h->in_len;
     }
 
-    EXTERCALL( io = h->read_cb( h->cb_arg, &h->in_buf[(size_t)h->in_len], space ) );
+    if( space <= 0 )
+    {
+        h->state |= MSSPI_ERROR;
+        SetLastError( ERROR_BUFFER_OVERFLOW );
+        return 0;
+    }
+
+    EXTERCALL( io = h->read_cb( h->cb_arg, h->in_buf.data() + h->in_len, space ) );
 
     h->state &= ~MSSPI_LAST_PROC_WRITE;
 
@@ -917,6 +919,13 @@ static int read_common( MSSPI_HANDLE h )
     {
         h->state |= MSSPI_RECEIVED_SHUTDOWN;
         SetLastError( ERROR_READ_FAULT );
+        return 0;
+    }
+
+    if( io > space )
+    {
+        h->state |= MSSPI_ERROR;
+        SetLastError( ERROR_BUFFER_OVERFLOW );
         return 0;
     }
 
@@ -946,7 +955,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
         if( decrypted > len )
             decrypted = len;
 
-        memcpy( buf, &h->dec_buf[(size_t)h->dec_pos], (size_t)decrypted );
+        memcpy( buf, h->dec_buf.data() + h->dec_pos, (size_t)decrypted );
         h->dec_len -= decrypted;
 
         if( h->dec_len )
@@ -1000,7 +1009,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
                 return io;
         }
 
-        Buffers[0].pvBuffer = &h->in_buf[0];
+        Buffers[0].pvBuffer = h->in_buf.data();
         Buffers[0].cbBuffer = (bufsize_t)h->in_len;
         Buffers[0].BufferType = SECBUFFER_DATA;
 
@@ -1072,7 +1081,7 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
                         return 0;
                     }
 
-                    memcpy( &h->dec_buf[0], (BYTE *)Buffers[i].pvBuffer + len, (size_t)h->dec_len );
+                    memcpy( h->dec_buf.data(), (BYTE *)Buffers[i].pvBuffer + len, (size_t)h->dec_len );
                     returning = len;
                 }
 
@@ -1083,7 +1092,14 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
             if( !extra && Buffers[i].BufferType == SECBUFFER_EXTRA )
             {
-                memmove( &h->in_buf[0], Buffers[i].pvBuffer, Buffers[i].cbBuffer );
+                if( Buffers[i].cbBuffer > (bufsize_t)h->in_len )
+                {
+                    h->state |= MSSPI_ERROR;
+                    SetLastError( ERROR_INVALID_DATA );
+                    return 0;
+                }
+
+                memmove( h->in_buf.data(), Buffers[i].pvBuffer, Buffers[i].cbBuffer );
                 extra = (int)Buffers[i].cbBuffer;
             }
 
@@ -1151,15 +1167,15 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         if( len > (int)h->out_msg_max )
             len = (int)h->out_msg_max;
 
-        Buffers[0].pvBuffer = &h->out_buf[0];
+        Buffers[0].pvBuffer = h->out_buf.data();
         Buffers[0].cbBuffer = h->out_hdr_len;
         Buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
 
-        Buffers[1].pvBuffer = &h->out_buf[(size_t)h->out_hdr_len];
+        Buffers[1].pvBuffer = h->out_buf.data() + h->out_hdr_len;
         Buffers[1].cbBuffer = (bufsize_t)len;
         Buffers[1].BufferType = SECBUFFER_DATA;
 
-        Buffers[2].pvBuffer = &h->out_buf[(size_t)( h->out_hdr_len + len )];
+        Buffers[2].pvBuffer = h->out_buf.data() + h->out_hdr_len + len;
         Buffers[2].cbBuffer = h->out_trl_max;
         Buffers[2].BufferType = SECBUFFER_STREAM_TRAILER;
 
@@ -1259,7 +1275,7 @@ int msspi_peek( MSSPI_HANDLE h, void * buf, int len )
         if( len > h->dec_len )
             len = h->dec_len;
 
-        memcpy( buf, &h->dec_buf[(size_t)h->dec_pos], (size_t)len );
+        memcpy( buf, h->dec_buf.data() + h->dec_pos, (size_t)len );
         return len;
     }
 
@@ -1356,8 +1372,8 @@ static int connected( MSSPI_HANDLE h )
         return 0;
     }
 
-    buffer_reset( h->dec_buf, (size_t)h->out_msg_max );
-    buffer_reset( h->out_buf, (size_t)( h->out_hdr_len + h->out_msg_max + h->out_trl_max ) );
+    buffer_ensure_size( h->dec_buf, 0, (size_t)h->out_msg_max );
+    buffer_ensure_size( h->out_buf, 0, (size_t)( h->out_hdr_len + h->out_msg_max + h->out_trl_max ) );
 
     msspi_get_cipherinfo( h, NULL );
     msspi_get_peercerts( h, NULL, NULL, NULL );
@@ -1438,7 +1454,7 @@ int msspi_accept( MSSPI_HANDLE h )
 
             if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
-                InBuffers[InBuffer.cBuffers].pvBuffer = &h->in_buf[0];
+                InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf.data();
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
                 InBuffers[InBuffer.cBuffers].BufferType = SECBUFFER_TOKEN;
                 InBuffer.cBuffers++;
@@ -1504,15 +1520,15 @@ int msspi_accept( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    int extra = (int)InBuffers[1].cbBuffer;
-                    if( extra > h->in_len )
+                    if( InBuffers[1].cbBuffer > (bufsize_t)h->in_len )
                     {
                         h->state |= MSSPI_ERROR;
                         SetLastError( ERROR_INVALID_DATA );
                         return 0;
                     }
 
-                    memmove( &h->in_buf[0], &h->in_buf[(size_t)( h->in_len - extra )], (size_t)extra );
+                    int extra = (int)InBuffers[1].cbBuffer;
+                    memmove( h->in_buf.data(), h->in_buf.data() + h->in_len - extra, (size_t)extra );
                     h->in_len = extra;
                 }
                 else if( !FAILED( scRet ) )
@@ -1522,7 +1538,8 @@ int msspi_accept( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                if( h->out_pos + h->out_len + (int)OutBuffers[0].cbBuffer > MSSPI_MAX_BUFFER_SIZE )
+                int used = h->out_pos + h->out_len;
+                if( OutBuffers[0].cbBuffer > (bufsize_t)( MSSPI_MAX_BUFFER_SIZE - used ) )
                 {
                     h->state |= MSSPI_ERROR;
                     SetLastError( ERROR_BUFFER_OVERFLOW );
@@ -1530,9 +1547,10 @@ int msspi_accept( MSSPI_HANDLE h )
                     return 0;
                 }
 
-                h->out_buf.resize( (size_t)( h->out_pos + h->out_len + (int)OutBuffers[0].cbBuffer ) );
-                memcpy( &h->out_buf[(size_t)( h->out_pos + h->out_len )], OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len += (int)OutBuffers[0].cbBuffer;
+                int token = (int)OutBuffers[0].cbBuffer;
+                buffer_ensure_size( h->out_buf, (size_t)( used + token ) );
+                memcpy( h->out_buf.data() + used, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += token;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1550,8 +1568,8 @@ int msspi_accept( MSSPI_HANDLE h )
 
                 h->out_pos = 0;
                 h->out_len = (int)OutBuffers[1].cbBuffer;
-                buffer_reset( h->out_buf, (size_t)h->out_len );
-                memcpy( &h->out_buf[0], OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
+                buffer_ensure_size( h->out_buf, (size_t)h->out_len );
+                memcpy( h->out_buf.data(), OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[1].pvBuffer ) );
@@ -1646,10 +1664,9 @@ int msspi_set_input( MSSPI_HANDLE h, const uint8_t * input, size_t len )
         return 0;
     }
 
-    if( h->in_buf.size() < len )
-        h->in_buf.resize( len );
+    buffer_ensure_size( h->in_buf, len );
 
-    memcpy( &h->in_buf[0], input, len );
+    memcpy( h->in_buf.data(), input, len );
     h->in_len = (int)len;
     return 1;
 
@@ -1768,7 +1785,7 @@ int msspi_connect( MSSPI_HANDLE h )
 
             if( ( h->in_len || h->is.dtls_retransmit ) && !( h->state & MSSPI_SHUTDOWN_PROC ) )
             {
-                InBuffers[InBuffer.cBuffers].pvBuffer = &h->in_buf[0];
+                InBuffers[InBuffer.cBuffers].pvBuffer = h->in_buf.data();
                 InBuffers[InBuffer.cBuffers].cbBuffer = (bufsize_t)h->in_len;
                 InBuffers[InBuffer.cBuffers].BufferType = SECBUFFER_TOKEN;
                 InBuffer.cBuffers++;
@@ -1828,15 +1845,15 @@ int msspi_connect( MSSPI_HANDLE h )
             {
                 if( InBuffers[1].BufferType == SECBUFFER_EXTRA )
                 {
-                    int extra = (int)InBuffers[1].cbBuffer;
-                    if( extra > h->in_len )
+                    if( InBuffers[1].cbBuffer > (bufsize_t)h->in_len )
                     {
                         h->state |= MSSPI_ERROR;
                         SetLastError( ERROR_INVALID_DATA );
                         return 0;
                     }
 
-                    memmove( &h->in_buf[0], &h->in_buf[(size_t)( h->in_len - extra )], (size_t)extra );
+                    int extra = (int)InBuffers[1].cbBuffer;
+                    memmove( h->in_buf.data(), h->in_buf.data() + h->in_len - extra, (size_t)extra );
                     h->in_len = extra;
                 }
                 else if( !FAILED( scRet ) )
@@ -1846,7 +1863,8 @@ int msspi_connect( MSSPI_HANDLE h )
             if( ( scRet == SEC_E_OK || scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_I_MESSAGE_FRAGMENT ) &&
                 OutBuffers[0].cbBuffer != 0 && OutBuffers[0].pvBuffer != NULL )
             {
-                if( h->out_pos + h->out_len + (int)OutBuffers[0].cbBuffer > MSSPI_MAX_BUFFER_SIZE )
+                int used = h->out_pos + h->out_len;
+                if( OutBuffers[0].cbBuffer > (bufsize_t)( MSSPI_MAX_BUFFER_SIZE - used ) )
                 {
                     h->state |= MSSPI_ERROR;
                     SetLastError( ERROR_BUFFER_OVERFLOW );
@@ -1854,9 +1872,10 @@ int msspi_connect( MSSPI_HANDLE h )
                     return 0;
                 }
 
-                h->out_buf.resize( (size_t)( h->out_pos + h->out_len + (int)OutBuffers[0].cbBuffer ) );
-                memcpy( &h->out_buf[(size_t)( h->out_pos + h->out_len )], OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
-                h->out_len += (int)OutBuffers[0].cbBuffer;
+                int token = (int)OutBuffers[0].cbBuffer;
+                buffer_ensure_size( h->out_buf, (size_t)( used + token ) );
+                memcpy( h->out_buf.data() + used, OutBuffers[0].pvBuffer, OutBuffers[0].cbBuffer );
+                h->out_len += token;
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[0].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[0].pvBuffer ) );
@@ -1874,8 +1893,8 @@ int msspi_connect( MSSPI_HANDLE h )
 
                 h->out_pos = 0;
                 h->out_len = (int)OutBuffers[1].cbBuffer;
-                buffer_reset( h->out_buf, (size_t)h->out_len );
-                memcpy( &h->out_buf[0], OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
+                buffer_ensure_size( h->out_buf, (size_t)h->out_len );
+                memcpy( h->out_buf.data(), OutBuffers[1].pvBuffer, OutBuffers[1].cbBuffer );
 
                 msspi_logger_info( "FreeContextBuffer( pvBuffer = %016llX )", (uint64_t)(uintptr_t)OutBuffers[1].pvBuffer );
                 EXTERCALL( sspi->FreeContextBuffer( OutBuffers[1].pvBuffer ) );
