@@ -538,7 +538,6 @@ struct MSSPI
         grbitEnabledProtocols = 0;
         dtls_mtu = 0;
         srtp_profile = 0;
-        in_buf.resize( MSSPI_BASE_BUFFER_SIZE );
     }
 
     ~MSSPI()
