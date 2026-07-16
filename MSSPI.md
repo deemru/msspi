@@ -607,9 +607,9 @@ Sets input data for processing. Can only be called when the input buffer is empt
 **Parameters:**
 - `h`: Handle (primarily intended for client mode)
 - `input`: ClientHello message data that was already sent by another library
-- `input_len`: Length of input data (must not exceed the size of the internal buffer)
+- `input_len`: Length of input data (must not exceed the maximum supported input size)
 
-**Returns:** `1` on success, `0` on failure (returns error if buffer is not empty or data exceeds buffer size)
+**Returns:** `1` on success, `0` on failure (returns error if the input buffer is not empty or the input data is too large)
 
 **Note:** This is a specialized function for advanced use cases. In normal operation, data is read through the `read_cb` callback.
 
