@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.8
+
+- Replaced fixed-size I/O buffers with dynamically sized buffers
+
+---
+
 ## 1.0.7
 
 - Fixed PIN handling in [`msspi_set_mycert_options()`](MSSPI.md#msspi_set_mycert_options)
