@@ -467,6 +467,9 @@ struct MSSPI_CredCache
 
     bool isActive( DWORD dwNow )
     {
+        if( !dwNow && !dwLastActive )
+            return false;
+
         return dwNow - dwLastActive < SSPI_CREDSCACHE_DEFAULT_TIMEOUT;
     }
 };
