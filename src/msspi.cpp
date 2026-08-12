@@ -94,6 +94,24 @@ namespace _detail { template< typename T > struct _alignof_trick { char _; T _te
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
 #include "CSP_SChannel.h"
+#include <time.h>
+
+#ifdef CLOCK_BOOTTIME
+#define MSSPI_TICK_CLOCK CLOCK_BOOTTIME
+#elif defined( CLOCK_MONOTONIC )
+#define MSSPI_TICK_CLOCK CLOCK_MONOTONIC
+#endif
+
+#ifdef MSSPI_TICK_CLOCK
+static DWORD GetTickCount()
+{
+    struct timespec ts;
+    if( clock_gettime( MSSPI_TICK_CLOCK, &ts ) != 0 )
+        return 0;
+
+    return (DWORD)ts.tv_sec * 1000 + (DWORD)( ts.tv_nsec / 1000000 );
+}
+#else // not MSSPI_TICK_CLOCK
 #include <sys/time.h>
 
 static DWORD GetTickCount()
@@ -102,8 +120,9 @@ static DWORD GetTickCount()
     if( gettimeofday( &tv, NULL ) != 0 )
         return 0;
 
-    return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
+    return (DWORD)tv.tv_sec * 1000 + (DWORD)( tv.tv_usec / 1000 );
 }
+#endif // MSSPI_TICK_CLOCK
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
