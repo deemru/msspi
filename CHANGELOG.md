@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.9
+
+- Added [`msspi_dtls_get_timeout()`](MSSPI.md#msspi_dtls_get_timeout) to schedule DTLS handshake retransmission
+- Fixed lost retransmission requests in [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept)
+- Improved DTLS handshake recovery for a repeated peer flight, a leftover one, and application data arriving before Finished
+- Improved credential cache timeouts with a monotonic clock
+
+---
+
 ## 1.0.8
 
 - Replaced fixed-size I/O buffers with dynamically sized buffers

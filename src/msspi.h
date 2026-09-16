@@ -105,6 +105,7 @@ int msspi_random( void * buf, int len );
 
 int msspi_state( MSSPI_HANDLE h );
 int msspi_dtls_retransmit( MSSPI_HANDLE h );
+int msspi_dtls_get_timeout( MSSPI_HANDLE h, size_t * timeout_ms );
 uint32_t msspi_last_error( void );
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1

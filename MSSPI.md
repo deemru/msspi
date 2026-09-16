@@ -93,7 +93,7 @@ The order of functions in the header file is **intentional and important**. Func
 **Connection Phase:**
 
 7. **Handshake** - [`msspi_connect()`](#msspi_connect) (client) or [`msspi_accept()`](#msspi_accept) (server) establishes the connection
-8. **DTLS retransmit** - [`msspi_dtls_retransmit()`](#msspi_dtls_retransmit) can request handshake retransmission after a DTLS transport timeout
+8. **DTLS retransmit** - [`msspi_dtls_get_timeout()`](#msspi_dtls_get_timeout) tells when the outstanding handshake flight falls due and [`msspi_dtls_retransmit()`](#msspi_dtls_retransmit) asks for it to be sent again
 9. **Verification** - [`msspi_get_verify_status()`](#msspi_get_verify_status) and [`msspi_get_peercert_in_store_status()`](#msspi_get_peercert_in_store_status) verify peer certificate (optional, call after handshake)
 
 **Data Transfer Phase:**
@@ -659,16 +659,32 @@ Performs TLS/DTLS handshake as server.
 int msspi_dtls_retransmit(MSSPI_HANDLE h);
 ```
 
-Requests retransmission of pending DTLS handshake data after a transport timeout.
+Requests that the outstanding DTLS handshake flight be sent again.
 
-This function is only valid for DTLS handshakes before the connection is established. Call it after [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept) returns `-1` while waiting for input and the application's DTLS retransmission timer expires.
+The flight leaves on the next [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept), which must be the next call made on the handle. Only a flight of an unfinished handshake is asked for this way: the last flight is the peer's to ask for, and it is sent again when the peer repeats the flight before it.
 
 **Parameters:**
 - `h`: handle
 
 **Returns:**
 - `1` when retransmission was requested
-- `0` on error (non-DTLS handle, already connected, or buffered input is pending)
+- `0` on error (non-DTLS handle, the handshake is over, buffered input or output is pending, or the session has ended)
+
+---
+
+### msspi_dtls_get_timeout
+
+```c
+int msspi_dtls_get_timeout(MSSPI_HANDLE h, size_t *timeout_ms);
+```
+
+Reports whether a flight of an unfinished DTLS handshake is waiting for an answer and how long it may still wait. The timeout starts at one second, doubles on every retransmission and stops at a minute; the number of retransmissions is left to the caller.
+
+**Parameters:**
+- `h`: handle
+- `timeout_ms`: receives the milliseconds left, `0` when the flight is due now; written only on success and may be `NULL`
+
+**Returns:** `1` when a flight is waiting for an answer, `0` when none is or on error
 
 ---
 
