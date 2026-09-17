@@ -1697,6 +1697,10 @@ int msspi_accept( MSSPI_HANDLE h )
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
+                // a datagram is whole or it is nothing
+                if( h->is.dtls )
+                    h->in_len = 0;
+
                 h->state |= MSSPI_READING;
                 continue;
             }
@@ -1852,11 +1856,12 @@ int msspi_connect( MSSPI_HANDLE h )
                     return io;
                 }
 
-                h->state &= ~MSSPI_X509_LOOKUP;
-
                 if( h->cred && h->certs.size() )
                     credentials_release( h );
             }
+
+            // without a callback there is no decision to wait for
+            h->state &= ~MSSPI_X509_LOOKUP;
         }
 
         // empty token repeats the flight
@@ -2050,6 +2055,10 @@ int msspi_connect( MSSPI_HANDLE h )
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
+                // a datagram is whole or it is nothing
+                if( h->is.dtls )
+                    h->in_len = 0;
+
                 h->state |= MSSPI_READING;
                 continue;
             }
@@ -2125,7 +2134,7 @@ int msspi_dtls_retransmit( MSSPI_HANDLE h )
     // only a flight of the handshake is ours to send again
     if( !h->is.dtls || h->is.connected || h->in_len || h->out_len ||
         ( h->state & ( MSSPI_ERROR | MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN |
-                       MSSPI_SHUTDOWN_PROC ) ) )
+                       MSSPI_SHUTDOWN_PROC | MSSPI_X509_LOOKUP ) ) )
     {
         SetLastError( ERROR_INVALID_STATE );
         return 0;
@@ -2150,7 +2159,7 @@ int msspi_dtls_get_timeout( MSSPI_HANDLE h, size_t * timeout_ms )
     if( !h->is.dtls || !h->is.dtls_timer || h->is.connected ||
         h->out_len || h->is.dtls_retransmit ||
         ( h->state & ( MSSPI_ERROR | MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN |
-                       MSSPI_SHUTDOWN_PROC ) ) )
+                       MSSPI_SHUTDOWN_PROC | MSSPI_X509_LOOKUP ) ) )
     {
         SetLastError( ERROR_NOT_FOUND );
         return 0;

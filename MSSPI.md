@@ -661,7 +661,7 @@ int msspi_dtls_retransmit(MSSPI_HANDLE h);
 
 Requests that the outstanding DTLS handshake flight be sent again.
 
-The flight leaves on the next [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept), which must be the next call made on the handle. Only a flight of an unfinished handshake is asked for this way: the last flight is the peer's to ask for, and it is sent again when the peer repeats the flight before it.
+Ask only for a flight [`msspi_dtls_get_timeout()`](#msspi_dtls_get_timeout) reports as waiting. The flight leaves on the next [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept), which must be the next call made on the handle.
 
 **Parameters:**
 - `h`: handle
@@ -678,7 +678,7 @@ The flight leaves on the next [`msspi_connect()`](#msspi_connect) or [`msspi_acc
 int msspi_dtls_get_timeout(MSSPI_HANDLE h, size_t *timeout_ms);
 ```
 
-Reports whether a flight of an unfinished DTLS handshake is waiting for an answer and how long it may still wait. The timeout starts at one second, doubles on every retransmission and stops at a minute; the number of retransmissions is left to the caller.
+Reports whether a flight of an unfinished DTLS handshake is waiting for an answer and how long it may still wait. The timeout starts at one second and doubles on every retransmission up to a minute; how many to make is up to the caller.
 
 **Parameters:**
 - `h`: handle

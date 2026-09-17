@@ -4,7 +4,8 @@
 
 - Added [`msspi_dtls_get_timeout()`](MSSPI.md#msspi_dtls_get_timeout) to schedule DTLS handshake retransmission
 - Fixed lost retransmission requests in [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept)
-- Improved DTLS handshake recovery for a repeated peer flight, a leftover one, and application data arriving before Finished
+- Improved DTLS handshake recovery from repeated, truncated and early datagrams
+- Improved [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept) reporting of a failed leftover record and of pending certificate selection
 - Improved credential cache timeouts with a monotonic clock
 
 ---
