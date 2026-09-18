@@ -94,6 +94,24 @@ namespace _detail { template< typename T > struct _alignof_trick { char _; T _te
 #include "CSP_WinCrypt.h"
 #include "CSP_Sspi.h"
 #include "CSP_SChannel.h"
+#include <time.h>
+
+#ifdef CLOCK_BOOTTIME
+#define MSSPI_TICK_CLOCK CLOCK_BOOTTIME
+#elif defined( CLOCK_MONOTONIC )
+#define MSSPI_TICK_CLOCK CLOCK_MONOTONIC
+#endif
+
+#ifdef MSSPI_TICK_CLOCK
+static DWORD GetTickCount()
+{
+    struct timespec ts;
+    if( clock_gettime( MSSPI_TICK_CLOCK, &ts ) != 0 )
+        return 0;
+
+    return (DWORD)ts.tv_sec * 1000 + (DWORD)( ts.tv_nsec / 1000000 );
+}
+#else // not MSSPI_TICK_CLOCK
 #include <sys/time.h>
 
 static DWORD GetTickCount()
@@ -102,14 +120,18 @@ static DWORD GetTickCount()
     if( gettimeofday( &tv, NULL ) != 0 )
         return 0;
 
-    return (DWORD)( ( tv.tv_sec * 1000 ) + ( tv.tv_usec / 1000 ) );
+    return (DWORD)tv.tv_sec * 1000 + (DWORD)( tv.tv_usec / 1000 );
 }
+#endif // MSSPI_TICK_CLOCK
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
 #include <map>
 #include <string>
 #include <vector>
+
+#define MSSPI_DTLS_RTO_INIT 1000
+#define MSSPI_DTLS_RTO_MAX 60000
 
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
 #define MSSPI_BASE_BUFFER_SIZE 0x4800
@@ -448,6 +470,9 @@ struct MSSPI_CredCache
 
     bool isActive( DWORD dwNow )
     {
+        if( !dwNow && !dwLastActive )
+            return false;
+
         return dwNow - dwLastActive < SSPI_CREDSCACHE_DEFAULT_TIMEOUT;
     }
 };
@@ -515,6 +540,8 @@ struct MSSPI
         is.dtls = 0;
         is.srtp = 0;
         is.dtls_retransmit = 0;
+        is.dtls_confirmed = 0;
+        is.dtls_timer = 0;
         state = MSSPI_EMPTY;
         scLast = SEC_I_CONTINUE_NEEDED;
         hCtx.dwLower = 0;
@@ -536,6 +563,8 @@ struct MSSPI
         certstore = "MY";
         peercert = NULL;
         grbitEnabledProtocols = 0;
+        dtls_timer_tick = 0;
+        dtls_rto = 0;
         dtls_mtu = 0;
         srtp_profile = 0;
     }
@@ -576,6 +605,8 @@ struct MSSPI
         unsigned dtls : 1;
         unsigned srtp : 1;
         unsigned dtls_retransmit : 1;
+        unsigned dtls_confirmed : 1;
+        unsigned dtls_timer : 1;
     } is;
 
     int state;
@@ -595,6 +626,8 @@ struct MSSPI
     std::vector<BYTE> srtp_holder;
     std::vector<BYTE> keying_material;
     std::vector<BYTE> peeraddr;
+    DWORD dtls_timer_tick;
+    DWORD dtls_rto;
     DWORD dtls_mtu;
     WORD srtp_profile;
 
@@ -666,7 +699,6 @@ static int credentials_acquire( MSSPI_HANDLE h )
         usage = SECPKG_CRED_OUTBOUND;
         SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;
         SchannelCred.dwFlags |= SCH_CRED_MANUAL_CRED_VALIDATION;
-        SchannelCred.dwFlags |= SCH_CRED_REVOCATION_CHECK_CHAIN;
     }
     else
     {
@@ -825,6 +857,20 @@ static int credentials_api( MSSPI_HANDLE h, bool just_find )
         SetLastError( ERROR_NOT_FOUND );
 
     return 0;
+}
+
+static void dtls_timer_arm( MSSPI_HANDLE h )
+{
+    // the last flight is the peer's to ask for again
+    if( !h->is.dtls || h->scLast == SEC_E_OK ||
+        ( h->state & MSSPI_SHUTDOWN_PROC ) )
+        return;
+
+    if( !h->dtls_rto )
+        h->dtls_rto = MSSPI_DTLS_RTO_INIT;
+
+    h->dtls_timer_tick = GetTickCount();
+    h->is.dtls_timer = 1;
 }
 
 static int write_common( MSSPI_HANDLE h )
@@ -1027,6 +1073,48 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( h->is.dtls )
         {
+            // peer asks for the last flight again
+            if( scRet != SEC_E_OK &&
+                h->is.connected && !h->is.dtls_confirmed && !h->out_len &&
+                h->in_len >= 13 &&
+                ( h->in_buf[0] == 22 || h->in_buf[0] == 20 ) )
+            {
+                // use the record in hand
+                h->state &= ~MSSPI_READING;
+
+                int replayed = h->is.client ? msspi_connect( h ) : msspi_accept( h );
+
+                h->state |= MSSPI_READING;
+
+                if( replayed <= 0 )
+                {
+                    // out_buf belongs to msspi_write
+                    h->out_pos = 0;
+                    h->out_len = 0;
+                    h->state &= ~MSSPI_WRITING;
+
+                    // the dropped flight can be asked for again
+                    if( h->scLast == SEC_E_OK )
+                        h->scLast = SEC_I_CONTINUE_NEEDED;
+
+                    return replayed;
+                }
+
+                if( h->dec_len )
+                    return msspi_read( h, buf, len );
+
+                continue;
+            }
+
+            // leftover of peer retransmission
+            if( scRet != SEC_E_OK && h->is.connected && h->in_len >= 13 &&
+                ( h->in_buf[0] == 22 || h->in_buf[0] == 20 ) )
+            {
+                h->in_len = 0;
+                h->state |= MSSPI_READING;
+                continue;
+            }
+
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 scRet == SEC_E_MESSAGE_ALTERED ||
                 scRet == SEC_E_OUT_OF_SEQUENCE )
@@ -1110,6 +1198,12 @@ int msspi_read( MSSPI_HANDLE h, void * buf, int len )
 
         if( scRet == SEC_E_OK && decrypted )
         {
+            if( h->is.dtls )
+            {
+                h->is.dtls_confirmed = 1;
+                h->is.dtls_timer = 0;
+            }
+
             if( h->in_len && h->dec_len == 0 )
                 msspi_read( h, NULL, 0 );
 
@@ -1401,19 +1495,34 @@ int msspi_accept( MSSPI_HANDLE h )
             int io = write_common( h );
             if( io <= 0 )
                 return io;
+
+            dtls_timer_arm( h );
         }
 
-        if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+        // empty token repeats the flight
+        if( h->is.dtls_retransmit )
+            h->state &= ~MSSPI_READING;
+
+        if( h->state & MSSPI_READING &&
+            !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io == 0 ||
-                ( io < 0 && !h->is.dtls_retransmit ) )
+            if( io <= 0 )
                 return io;
         }
 
         SECURITY_STATUS scRet = h->scLast;
         if( scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_E_INCOMPLETE_MESSAGE || scRet == SEC_I_MESSAGE_FRAGMENT )
         {
+            // sspi can not take appdata here
+            if( h->is.dtls && h->in_len >= 13 && h->in_buf[0] == 23 )
+            {
+                h->in_len = 0;
+                h->state |= MSSPI_READING;
+                continue;
+            }
+
+            const bool had_input = h->in_len != 0;
             SecBuffer       InBuffers[5];
             SecBufferDesc   InBuffer = { SECBUFFER_VERSION, 0, InBuffers };
             SecBufferDesc   OutBuffer;
@@ -1577,9 +1686,20 @@ int msspi_accept( MSSPI_HANDLE h )
             h->scLast = scRet;
             h->is.dtls_retransmit = 0;
 
+            // peer answered: our flight arrived
+            if( h->is.dtls && scRet == SEC_E_OK && had_input && !h->out_len )
+            {
+                h->is.dtls_confirmed = 1;
+                h->is.dtls_timer = 0;
+            }
+
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
+                // a datagram is whole or it is nothing
+                if( h->is.dtls )
+                    h->in_len = 0;
+
                 h->state |= MSSPI_READING;
                 continue;
             }
@@ -1612,7 +1732,13 @@ int msspi_accept( MSSPI_HANDLE h )
             if( !connected( h ) )
                 return 0; // last error included
             if( h->in_len )
+            {
                 msspi_read( h, NULL, 0 );
+
+                // the records left over may have ended the session
+                if( h->state & MSSPI_ERROR )
+                    return 0; // last error included
+            }
             return 1;
         }
 
@@ -1712,6 +1838,8 @@ int msspi_connect( MSSPI_HANDLE h )
             int io = write_common( h );
             if( io <= 0 )
                 return io;
+
+            dtls_timer_arm( h );
         }
 
         if( h->state & MSSPI_X509_LOOKUP )
@@ -1727,24 +1855,38 @@ int msspi_connect( MSSPI_HANDLE h )
                     return io;
                 }
 
-                h->state &= ~MSSPI_X509_LOOKUP;
-
                 if( h->cred && h->certs.size() )
                     credentials_release( h );
             }
+
+            // without a callback there is no decision to wait for
+            h->state &= ~MSSPI_X509_LOOKUP;
         }
 
-        if( h->state & MSSPI_READING && !( h->state & MSSPI_SHUTDOWN_PROC ) )
+        // empty token repeats the flight
+        if( h->is.dtls_retransmit )
+            h->state &= ~MSSPI_READING;
+
+        if( h->state & MSSPI_READING &&
+            !( h->state & MSSPI_SHUTDOWN_PROC ) )
         {
             int io = read_common( h );
-            if( io == 0 ||
-                ( io < 0 && !h->is.dtls_retransmit ) )
+            if( io <= 0 )
                 return io;
         }
 
         SECURITY_STATUS scRet = h->scLast;
         if( scRet == SEC_I_CONTINUE_NEEDED || scRet == SEC_E_INCOMPLETE_MESSAGE || scRet == SEC_I_MESSAGE_FRAGMENT )
         {
+            // sspi can not take appdata here
+            if( h->is.dtls && h->in_len >= 13 && h->in_buf[0] == 23 )
+            {
+                h->in_len = 0;
+                h->state |= MSSPI_READING;
+                continue;
+            }
+
+            const bool had_input = h->in_len != 0;
             SecBuffer       InBuffers[2];
             SecBufferDesc   InBuffer = { SECBUFFER_VERSION, 0, InBuffers };
             SecBufferDesc   OutBuffer;
@@ -1902,9 +2044,20 @@ int msspi_connect( MSSPI_HANDLE h )
             h->scLast = scRet;
             h->is.dtls_retransmit = 0;
 
+            // peer answered: our flight arrived
+            if( h->is.dtls && scRet == SEC_E_OK && had_input && !h->out_len )
+            {
+                h->is.dtls_confirmed = 1;
+                h->is.dtls_timer = 0;
+            }
+
             if( scRet == SEC_E_INCOMPLETE_MESSAGE ||
                 ( scRet == SEC_I_CONTINUE_NEEDED && !h->in_len ) )
             {
+                // a datagram is whole or it is nothing
+                if( h->is.dtls )
+                    h->in_len = 0;
+
                 h->state |= MSSPI_READING;
                 continue;
             }
@@ -1946,7 +2099,13 @@ int msspi_connect( MSSPI_HANDLE h )
             if( !connected( h ) )
                 return 0; // last error included
             if( h->in_len )
+            {
                 msspi_read( h, NULL, 0 );
+
+                // the records left over may have ended the session
+                if( h->state & MSSPI_ERROR )
+                    return 0; // last error included
+            }
             return 1;
         }
 
@@ -1971,13 +2130,47 @@ int msspi_dtls_retransmit( MSSPI_HANDLE h )
 {
     MSSPIEHTRY_h;
 
-    if( !h->is.dtls || h->is.connected || h->in_len )
+    // only a flight of the handshake is ours to send again
+    if( !h->is.dtls || h->is.connected || h->in_len || h->out_len ||
+        ( h->state & ( MSSPI_ERROR | MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN |
+                       MSSPI_SHUTDOWN_PROC | MSSPI_X509_LOOKUP ) ) )
     {
         SetLastError( ERROR_INVALID_STATE );
         return 0;
     }
 
     h->is.dtls_retransmit = 1;
+
+    h->dtls_rto = h->dtls_rto ? h->dtls_rto * 2 : MSSPI_DTLS_RTO_INIT;
+    if( h->dtls_rto > MSSPI_DTLS_RTO_MAX )
+        h->dtls_rto = MSSPI_DTLS_RTO_MAX;
+
+    return 1;
+
+    MSSPIEHCATCH_HRET( 0 );
+}
+
+int msspi_dtls_get_timeout( MSSPI_HANDLE h, size_t * timeout_ms )
+{
+    MSSPIEHTRY_h;
+
+    // nothing is owed while our flight is here or already asked for
+    if( !h->is.dtls || !h->is.dtls_timer || h->is.connected ||
+        h->out_len || h->is.dtls_retransmit ||
+        ( h->state & ( MSSPI_ERROR | MSSPI_SENT_SHUTDOWN | MSSPI_RECEIVED_SHUTDOWN |
+                       MSSPI_SHUTDOWN_PROC | MSSPI_X509_LOOKUP ) ) )
+    {
+        SetLastError( ERROR_NOT_FOUND );
+        return 0;
+    }
+
+    if( timeout_ms )
+    {
+        DWORD waited = GetTickCount() - h->dtls_timer_tick;
+
+        *timeout_ms = waited >= h->dtls_rto ? 0 : (size_t)( h->dtls_rto - waited );
+    }
+
     return 1;
 
     MSSPIEHCATCH_HRET( 0 );
