@@ -6,7 +6,7 @@
 
 #define MSSPI_VERSION_MAJOR 1
 #define MSSPI_VERSION_MINOR 0
-#define MSSPI_VERSION_PATCH 8
+#define MSSPI_VERSION_PATCH 9
 
 #define MSSPI_VERSION \
     ( ( MSSPI_VERSION_MAJOR << 16 ) | ( MSSPI_VERSION_MINOR << 8 ) | MSSPI_VERSION_PATCH )
@@ -105,6 +105,7 @@ int msspi_random( void * buf, int len );
 
 int msspi_state( MSSPI_HANDLE h );
 int msspi_dtls_retransmit( MSSPI_HANDLE h );
+int msspi_dtls_get_timeout( MSSPI_HANDLE h, size_t * timeout_ms );
 uint32_t msspi_last_error( void );
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1

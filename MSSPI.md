@@ -93,7 +93,7 @@ The order of functions in the header file is **intentional and important**. Func
 **Connection Phase:**
 
 7. **Handshake** - [`msspi_connect()`](#msspi_connect) (client) or [`msspi_accept()`](#msspi_accept) (server) establishes the connection
-8. **DTLS retransmit** - [`msspi_dtls_retransmit()`](#msspi_dtls_retransmit) can request handshake retransmission after a DTLS transport timeout
+8. **DTLS retransmit** - [`msspi_dtls_get_timeout()`](#msspi_dtls_get_timeout) tells when the outstanding handshake flight falls due and [`msspi_dtls_retransmit()`](#msspi_dtls_retransmit) asks for it to be sent again
 9. **Verification** - [`msspi_get_verify_status()`](#msspi_get_verify_status) and [`msspi_get_peercert_in_store_status()`](#msspi_get_peercert_in_store_status) verify peer certificate (optional, call after handshake)
 
 **Data Transfer Phase:**
@@ -272,11 +272,13 @@ Sets the peer address for DTLS connections.
 int msspi_set_dtls_mtu(MSSPI_HANDLE h, size_t mtu);
 ```
 
-Sets the MTU for DTLS connections.
+Sets the DTLS datagram size. IP and UDP headers are not included: a caller
+holding a link MTU subtracts 28 (IPv4) or 48 (IPv6), as `DTLS_set_link_mtu()`
+does. Only handshake flights are limited by this setting.
 
 **Parameters:**
 - `h`: Handle
-- `mtu`: Maximum transmission unit size
+- `mtu`: UDP payload size in bytes
 
 **Returns:** `1` on success, `0` on failure
 
@@ -659,16 +661,32 @@ Performs TLS/DTLS handshake as server.
 int msspi_dtls_retransmit(MSSPI_HANDLE h);
 ```
 
-Requests retransmission of pending DTLS handshake data after a transport timeout.
+Requests that the outstanding DTLS handshake flight be sent again.
 
-This function is only valid for DTLS handshakes before the connection is established. Call it after [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept) returns `-1` while waiting for input and the application's DTLS retransmission timer expires.
+Ask only for a flight [`msspi_dtls_get_timeout()`](#msspi_dtls_get_timeout) reports as waiting. The flight leaves on the next [`msspi_connect()`](#msspi_connect) or [`msspi_accept()`](#msspi_accept), which must be the next call made on the handle.
 
 **Parameters:**
 - `h`: handle
 
 **Returns:**
 - `1` when retransmission was requested
-- `0` on error (non-DTLS handle, already connected, or buffered input is pending)
+- `0` on error (non-DTLS handle, the handshake is over, buffered input or output is pending, or the session has ended)
+
+---
+
+### msspi_dtls_get_timeout
+
+```c
+int msspi_dtls_get_timeout(MSSPI_HANDLE h, size_t *timeout_ms);
+```
+
+Reports whether a flight of an unfinished DTLS handshake is waiting for an answer and how long it may still wait. The timeout starts at one second and doubles on every retransmission up to a minute; how many to make is up to the caller.
+
+**Parameters:**
+- `h`: handle
+- `timeout_ms`: receives the milliseconds left, `0` when the flight is due now; written only on success and may be `NULL`
+
+**Returns:** `1` when a flight is waiting for an answer, `0` when none is or on error
 
 ---
 
@@ -743,6 +761,12 @@ Writes data to the connection (will be encrypted).
 - Number of bytes written (>0)
 - `0` on error
 - `-1` when waiting for I/O
+
+Over TLS the write may be partial: the return value is the accepted length.
+Over DTLS the data must fit a single record: `len` above 16384 is refused with
+`ERROR_BAD_LENGTH`, the session remains usable. A provider that cannot raise
+its MTU once the handshake is done also refuses a record that does not fit the
+MTU less the record header and trailer.
 
 ---
 

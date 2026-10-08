@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.9
+
+- Added [`msspi_dtls_get_timeout()`](MSSPI.md#msspi_dtls_get_timeout) to schedule DTLS handshake retransmission
+- Fixed lost retransmission requests in [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept)
+- Improved DTLS handshake recovery from repeated, truncated and early datagrams
+- Fixed [`msspi_write()`](MSSPI.md#msspi_write) over DTLS to carry a record of up to 16384 bytes whatever the [`msspi_set_dtls_mtu()`](MSSPI.md#msspi_set_dtls_mtu) setting: a longer write is refused with `ERROR_BAD_LENGTH` and the session remains usable
+- Improved [`msspi_connect()`](MSSPI.md#msspi_connect) and [`msspi_accept()`](MSSPI.md#msspi_accept) reporting of a failed leftover record and of pending certificate selection
+- Improved credential cache timeouts with a monotonic clock
+
+---
+
 ## 1.0.8
 
 - Replaced fixed-size I/O buffers with dynamically sized buffers
