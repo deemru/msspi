@@ -136,6 +136,7 @@ static DWORD GetTickCount()
 #define SSPI_CREDSCACHE_DEFAULT_TIMEOUT 600000 // 10 minutes
 #define MSSPI_BASE_BUFFER_SIZE 0x4800
 #define MSSPI_MAX_BUFFER_SIZE ( 4 * MSSPI_BASE_BUFFER_SIZE )
+#define MSSPI_MAX_DATA_SIZE 0x4000
 
 #ifdef _WIN32
 #define CPROLIBS_PATH ""
@@ -1258,7 +1259,15 @@ int msspi_write( MSSPI_HANDLE h, const void * buf, int len )
         SecBuffer                 Buffers[4];
 
         if( len > (int)h->out_msg_max )
+        {
+            if( h->is.dtls )
+            {
+                SetLastError( ERROR_BAD_LENGTH );
+                return 0;
+            }
+
             len = (int)h->out_msg_max;
+        }
 
         Buffers[0].pvBuffer = h->out_buf.data();
         Buffers[0].cbBuffer = h->out_hdr_len;
@@ -1428,6 +1437,26 @@ int msspi_shutdown( MSSPI_HANDLE h )
     MSSPIEHCATCH_HRET( 0 );
 }
 
+#ifndef SECPKG_ATTR_DTLS_MTU
+#define SECPKG_ATTR_DTLS_MTU 34
+#endif
+
+// the provider bounds DTLS records by the handshake MTU: lift it to a full record
+static bool dtls_mtu_lift( MSSPI_HANDLE h, DWORD cbHeader, DWORD cbTrailer )
+{
+    if( !sspi->SetContextAttributesA )
+        return false;
+
+    SECURITY_STATUS scRet;
+    DWORD mtu = MSSPI_MAX_DATA_SIZE + cbHeader + cbTrailer;
+
+    EXTERCALL( scRet = sspi->SetContextAttributesA( &h->hCtx, SECPKG_ATTR_DTLS_MTU, &mtu, sizeof( mtu ) ) );
+
+    msspi_logger_info( "SetContextAttributes( hCtx = %016llX:%016llX, SECPKG_ATTR_DTLS_MTU = %u ) returned %08X", (uint64_t)(uintptr_t)h->hCtx.dwUpper, (uint64_t)(uintptr_t)h->hCtx.dwLower, (uint32_t)mtu, (uint32_t)scRet );
+
+    return scRet == SEC_E_OK;
+}
+
 static int connected( MSSPI_HANDLE h )
 {
     if( !h->out_msg_max )
@@ -1444,6 +1473,21 @@ static int connected( MSSPI_HANDLE h )
             h->state |= MSSPI_ERROR;
             SetLastError( (DWORD)scRet );
             return 0;
+        }
+
+        if( h->is.dtls )
+        {
+            if( dtls_mtu_lift( h, Sizes.cbHeader, Sizes.cbTrailer ) )
+                Sizes.cbMaximumMessage = MSSPI_MAX_DATA_SIZE;
+            // the MTU stays, a record is the datagram less header and trailer
+            else if( Sizes.cbMaximumMessage > Sizes.cbHeader + Sizes.cbTrailer )
+                Sizes.cbMaximumMessage -= Sizes.cbHeader + Sizes.cbTrailer;
+            else
+            {
+                h->state |= MSSPI_ERROR;
+                SetLastError( ERROR_INVALID_DATA );
+                return 0;
+            }
         }
 
         if( Sizes.cbHeader + Sizes.cbMaximumMessage + Sizes.cbTrailer > MSSPI_BASE_BUFFER_SIZE )

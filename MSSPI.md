@@ -272,11 +272,13 @@ Sets the peer address for DTLS connections.
 int msspi_set_dtls_mtu(MSSPI_HANDLE h, size_t mtu);
 ```
 
-Sets the MTU for DTLS connections.
+Sets the DTLS datagram size. IP and UDP headers are not included: a caller
+holding a link MTU subtracts 28 (IPv4) or 48 (IPv6), as `DTLS_set_link_mtu()`
+does. Only handshake flights are limited by this setting.
 
 **Parameters:**
 - `h`: Handle
-- `mtu`: Maximum transmission unit size
+- `mtu`: UDP payload size in bytes
 
 **Returns:** `1` on success, `0` on failure
 
@@ -759,6 +761,12 @@ Writes data to the connection (will be encrypted).
 - Number of bytes written (>0)
 - `0` on error
 - `-1` when waiting for I/O
+
+Over TLS the write may be partial: the return value is the accepted length.
+Over DTLS the data must fit a single record: `len` above 16384 is refused with
+`ERROR_BAD_LENGTH`, the session remains usable. A provider that cannot raise
+its MTU once the handshake is done also refuses a record that does not fit the
+MTU less the record header and trailer.
 
 ---
 
