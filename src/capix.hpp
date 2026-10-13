@@ -346,9 +346,17 @@ DECLARE_CAPI20X_FUNCTION( BOOL, CryptEncodeObject,
     ( DWORD dwCertEncodingType, LPCSTR lpszStructType, const void * pvStructInfo, BYTE * pbEncoded, DWORD * pcbEncoded ),
     ( dwCertEncodingType, lpszStructType, pvStructInfo, pbEncoded, pcbEncoded ), FALSE )
 
+DECLARE_CAPI20X_FUNCTION( BOOL, CryptEncodeObjectEx,
+    ( DWORD dwCertEncodingType, LPCSTR lpszStructType, const void * pvStructInfo, DWORD dwFlags, PCRYPT_ENCODE_PARA pEncodePara, void * pvEncoded, DWORD * pcbEncoded ),
+    ( dwCertEncodingType, lpszStructType, pvStructInfo, dwFlags, pEncodePara, pvEncoded, pcbEncoded ), FALSE )
+
 DECLARE_CAPI20X_FUNCTION( BOOL, CryptExportPublicKeyInfo,
     ( HCRYPTPROV hCryptProv, DWORD dwKeySpec, DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pInfo, DWORD * pcbInfo ),
     ( hCryptProv, dwKeySpec, dwCertEncodingType, pInfo, pcbInfo ), FALSE )
+
+DECLARE_CAPI20X_FUNCTION( BOOL, CryptHashPublicKeyInfo,
+    ( HCRYPTPROV hCryptProv, ALG_ID Algid, DWORD dwFlags, DWORD dwCertEncodingType, PCERT_PUBLIC_KEY_INFO pInfo, BYTE * pbComputedHash, DWORD * pcbComputedHash ),
+    ( hCryptProv, Algid, dwFlags, dwCertEncodingType, pInfo, pbComputedHash, pcbComputedHash ), FALSE )
 
 DECLARE_CAPI20X_FUNCTION( BOOL, CryptSignAndEncodeCertificate,
     ( HCRYPTPROV hCryptProv, DWORD dwKeySpec, DWORD dwCertEncodingType, LPCSTR lpszStructType, const void * pvStructInfo, PCRYPT_ALGORITHM_IDENTIFIER pSignatureAlgorithm, const void * pvHashAuxInfo, PBYTE pbEncoded, DWORD * pcbEncoded ),
@@ -373,6 +381,10 @@ DECLARE_CAPI20X_FUNCTION( PCCRL_CONTEXT, CertEnumCRLsInStore,
 DECLARE_CAPI20X_FUNCTION( HCERTSTORE, PFXImportCertStore,
     ( CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, DWORD dwFlags ),
     ( pPFX, szPassword, dwFlags ), NULL )
+
+DECLARE_CAPI20X_FUNCTION( BOOL, PFXExportCertStoreEx,
+    ( HCERTSTORE hStore, CRYPT_DATA_BLOB * pPFX, LPCWSTR szPassword, void * pvReserved, DWORD dwFlags ),
+    ( hStore, pPFX, szPassword, pvReserved, dwFlags ), FALSE )
 
 DECLARE_CAPI20X_FUNCTION( PCCRYPT_OID_INFO, CryptFindOIDInfo,
     ( DWORD dwKeyType, void * pvKey, DWORD dwGroupId ),

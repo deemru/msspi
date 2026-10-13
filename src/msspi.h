@@ -6,7 +6,7 @@
 
 #define MSSPI_VERSION_MAJOR 1
 #define MSSPI_VERSION_MINOR 0
-#define MSSPI_VERSION_PATCH 8
+#define MSSPI_VERSION_PATCH 9
 
 #define MSSPI_VERSION \
     ( ( MSSPI_VERSION_MAJOR << 16 ) | ( MSSPI_VERSION_MINOR << 8 ) | MSSPI_VERSION_PATCH )
@@ -76,6 +76,14 @@ int msspi_set_cachestring( MSSPI_HANDLE h, const uint8_t * cachestring, size_t c
 
 int msspi_set_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t cert_len );
 int msspi_add_mycert( MSSPI_HANDLE h, const uint8_t * cert, size_t cert_len );
+
+#define MSSPI_KEY_GOST2012_256 1
+#define MSSPI_KEY_GOST2012_512 2
+#define MSSPI_KEY_RSA2048 3
+#define MSSPI_KEY_RSA4096 4
+#define MSSPI_KEY_ECDSA_P256 5
+
+int msspi_gen_selfsigned( MSSPI_HANDLE h, int key_type, const uint8_t * common_name, size_t common_name_len, uint32_t valid_seconds, const uint8_t * password, size_t password_len, const uint8_t ** pfx, size_t * pfx_len, const uint8_t ** cert, size_t * cert_len );
 int msspi_set_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len );
 int msspi_add_mycert_pfx( MSSPI_HANDLE h, const uint8_t * pfx, size_t pfx_len, const uint8_t * password, size_t password_len );
 int msspi_set_mycert_options( MSSPI_HANDLE h, int silent, const uint8_t * pin, size_t pin_len, int selftest );
@@ -105,6 +113,7 @@ int msspi_random( void * buf, int len );
 
 int msspi_state( MSSPI_HANDLE h );
 int msspi_dtls_retransmit( MSSPI_HANDLE h );
+int msspi_dtls_get_timeout( MSSPI_HANDLE h, size_t * timeout_ms );
 uint32_t msspi_last_error( void );
 
 #ifndef SECPKGCONTEXT_CIPHERINFO_V1
