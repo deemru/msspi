@@ -88,7 +88,7 @@ The order of functions in the header file is **intentional and important**. Func
 3. **DTLS-specific** - [`msspi_set_dtls_peeraddr()`](#msspi_set_dtls_peeraddr), [`msspi_set_dtls_mtu()`](#msspi_set_dtls_mtu) if using DTLS
 4. **Credential-affecting parameters** - [`msspi_set_version()`](#msspi_set_version), [`msspi_set_cipherlist()`](#msspi_set_cipherlist), [`msspi_set_hostname()`](#msspi_set_hostname), [`msspi_set_peerauth()`](#msspi_set_peerauth), [`msspi_set_cachestring()`](#msspi_set_cachestring) **must be called before certificate functions** as they affect credential caching
 5. **Supporting configuration** - [`msspi_set_alpn()`](#msspi_set_alpn), [`msspi_set_srtp_profiles()`](#msspi_set_srtp_profiles), [`msspi_set_certstore()`](#msspi_set_certstore), [`msspi_set_credprovider()`](#msspi_set_credprovider), [`msspi_set_pin_cache()`](#msspi_set_pin_cache), [`msspi_set_cert_cb()`](#msspi_set_cert_cb)
-6. **Certificate loading** - [`msspi_set_mycert()`](#msspi_set_mycert), [`msspi_add_mycert()`](#msspi_add_mycert), [`msspi_set_mycert_pfx()`](#msspi_set_mycert_pfx), [`msspi_add_mycert_pfx()`](#msspi_add_mycert_pfx), [`msspi_set_mycert_options()`](#msspi_set_mycert_options) **call LAST** to avoid cache mismatches
+6. **Certificate loading** - [`msspi_set_mycert()`](#msspi_set_mycert), [`msspi_add_mycert()`](#msspi_add_mycert), [`msspi_gen_selfsigned()`](#msspi_gen_selfsigned), [`msspi_set_mycert_pfx()`](#msspi_set_mycert_pfx), [`msspi_add_mycert_pfx()`](#msspi_add_mycert_pfx), [`msspi_set_mycert_options()`](#msspi_set_mycert_options) **call LAST** to avoid cache mismatches
 
 **Connection Phase:**
 
@@ -531,6 +531,50 @@ Adds an additional working certificate. Behaves the same as [`msspi_set_mycert()
 - `cert_len`: Length of input data
 
 **Returns:** `1` on success, `0` on failure
+
+---
+
+### msspi_gen_selfsigned
+
+```c
+#define MSSPI_KEY_GOST2012_256 1
+#define MSSPI_KEY_GOST2012_512 2
+#define MSSPI_KEY_RSA2048 3
+#define MSSPI_KEY_RSA4096 4
+#define MSSPI_KEY_ECDSA_P256 5
+
+int msspi_gen_selfsigned(MSSPI_HANDLE h, int key_type,
+                         const uint8_t *common_name, size_t common_name_len,
+                         uint32_t valid_seconds,
+                         const uint8_t *password, size_t password_len,
+                         const uint8_t **pfx, size_t *pfx_len,
+                         const uint8_t **cert, size_t *cert_len);
+```
+
+Generates a key that is never stored in a container and a self-signed certificate for it, and returns them as PFX for [`msspi_set_mycert_pfx()`](#msspi_set_mycert_pfx). The certificate is valid for TLS and DTLS client and server authentication from a day before now until `valid_seconds` from now; the subject and issuer are `CN=common_name`.
+
+| `key_type` | Key | Signature | Key usage |
+|---|---|---|---|
+| `MSSPI_KEY_GOST2012_256` | GOST R 34.10-2012 256 | GOST R 34.10-2012 256 with GOST R 34.11-2012 256 | digitalSignature, keyEncipherment |
+| `MSSPI_KEY_GOST2012_512` | GOST R 34.10-2012 512 | GOST R 34.10-2012 512 with GOST R 34.11-2012 512 | digitalSignature, keyEncipherment |
+| `MSSPI_KEY_RSA2048` | RSA 2048, e = 65537 | sha256WithRSAEncryption | digitalSignature, keyEncipherment |
+| `MSSPI_KEY_RSA4096` | RSA 4096, e = 65537 | sha256WithRSAEncryption | digitalSignature, keyEncipherment |
+| `MSSPI_KEY_ECDSA_P256` | ECDSA P-256 | ecdsa-with-SHA256 | digitalSignature, keyAgreement |
+
+**Parameters:**
+- `h`: Handle
+- `key_type`: One of `MSSPI_KEY_*`
+- `common_name`: UTF-8 common name, required
+- `common_name_len`: Length of common name
+- `valid_seconds`: Validity from now, 1 to `INT32_MAX`
+- `password`: Password for the PFX, may be empty, no zero bytes
+- `password_len`: Length of password
+- `pfx`, `pfx_len`: Receive the PFX
+- `cert`, `cert_len`: Receive the DER certificate, may be `NULL`
+
+**Returns:** `1` on success, `0` on failure
+
+The returned buffers belong to `h` and stay valid until the next `msspi_gen_selfsigned()` call or [`msspi_close()`](#msspi_close).
 
 ---
 

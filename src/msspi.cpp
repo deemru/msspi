@@ -74,6 +74,7 @@ namespace _detail { template< typename T > struct _alignof_trick { char _; T _te
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <limits.h>
 #define SECURITY_WIN32
 #ifdef _WIN32
@@ -126,6 +127,7 @@ static DWORD GetTickCount()
 #endif // _WIN32
 
 #define _SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -502,9 +504,26 @@ struct MSSPI_VerifyProvider
 
     int Init()
     {
-        if( hProv || CryptAcquireContextW( &hProv, NULL, NULL, PROV_GOST_2001_DH, CRYPT_VERIFYCONTEXT ) )
+        if( hProv || CryptAcquireContextW( &hProv, NULL, NULL, PROV_GOST_2001_DH, CRYPT_VERIFYCONTEXT | CRYPT_SILENT ) )
             return 1;
         return 0; // last error included
+    }
+
+    int Seed( HCRYPTPROV hTarget )
+    {
+        DWORD len = 0;
+        if( !Init() || !CryptGetProvParam( hProv, PP_RANDOM, NULL, &len, 0 ) )
+            return 0;
+        std::vector<BYTE> seed( len );
+        int isOK = CryptGetProvParam( hProv, PP_RANDOM, seed.data(), &len, 0 );
+        if( isOK )
+        {
+            CRYPT_DATA_BLOB blob = { len, seed.data() };
+            isOK = CryptSetProvParam( hTarget, PP_RANDOM, (BYTE *)&blob, 0 );
+        }
+        for( volatile BYTE * v = seed.data(); v < seed.data() + seed.size(); v++ )
+            *v = 0;
+        return isOK;
     }
 };
 
@@ -625,6 +644,7 @@ struct MSSPI
     std::vector< std::vector<BYTE> > issuerlist;
     std::vector<BYTE> alpn_holder;
     std::vector<BYTE> srtp_holder;
+    std::vector<BYTE> selfsigned_holder;
     std::vector<BYTE> keying_material;
     std::vector<BYTE> peeraddr;
     DWORD dtls_timer_tick;
@@ -3107,6 +3127,453 @@ static PCCERT_CONTEXT findcert( const uint8_t * certData, size_t len, const char
         CertFreeCertificateContext( certprobe );
 
     return certfound;
+}
+
+static bool msspi_export_cert_pfx( PCCERT_CONTEXT cert, const uint8_t * password, size_t password_len, std::vector<BYTE> * pfx )
+{
+    if( !cert || !pfx )
+        return false;
+
+    HCERTSTORE store = CertOpenStore( CERT_STORE_PROV_MEMORY, X509_ASN_ENCODING, 0, 0, NULL );
+    if( !store )
+        return false;
+
+    std::wstring wpassword;
+    wpassword.resize( password_len );
+    for( size_t i = 0; i < wpassword.length(); ++i )
+        wpassword[i] = (WCHAR)password[i];
+
+    bool isOK = false;
+    CRYPT_DATA_BLOB blob = {};
+    LPCWSTR pfx_password = wpassword.c_str();
+    DWORD export_flags = EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY;
+    PCCERT_CONTEXT store_cert = NULL;
+    if( CertAddCertificateContextToStore( store, cert, CERT_STORE_ADD_USE_EXISTING, &store_cert ) )
+    {
+        HCRYPTPROV hProvFromCert = 0;
+        DWORD dwKeySpec = 0;
+        BOOL bRelease = FALSE;
+
+        for( ;; )
+        {
+            DWORD key_context_size = 0;
+            if( !CertGetCertificateContextProperty( cert, CERT_KEY_CONTEXT_PROP_ID, NULL, &key_context_size ) )
+                break;
+
+            std::vector<BYTE> key_context_buf( key_context_size );
+            if( !CertGetCertificateContextProperty( cert, CERT_KEY_CONTEXT_PROP_ID, key_context_buf.data(), &key_context_size ) ||
+                !CertSetCertificateContextProperty( store_cert, CERT_KEY_CONTEXT_PROP_ID, CERT_STORE_NO_CRYPT_RELEASE_FLAG, key_context_buf.data() ) )
+                break;
+
+            DWORD prov_info_size = 0;
+            if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, NULL, &prov_info_size ) )
+                break;
+
+            std::vector<BYTE> prov_info_buf( prov_info_size );
+            if( !CertGetCertificateContextProperty( cert, CERT_KEY_PROV_INFO_PROP_ID, prov_info_buf.data(), &prov_info_size ) ||
+                !CertSetCertificateContextProperty( store_cert, CERT_KEY_PROV_INFO_PROP_ID, 0, prov_info_buf.data() ) )
+                break;
+
+            if( !CryptAcquireCertificatePrivateKey( store_cert, CRYPT_ACQUIRE_USE_PROV_INFO_FLAG | CRYPT_ACQUIRE_COMPARE_KEY_FLAG | CRYPT_ACQUIRE_SILENT_FLAG, 0, &hProvFromCert, &dwKeySpec, &bRelease ) )
+                break;
+
+            if( PFXExportCertStoreEx( store, &blob, pfx_password, NULL, export_flags ) )
+            {
+                pfx->resize( blob.cbData );
+                blob.pbData = pfx->data();
+                isOK = PFXExportCertStoreEx( store, &blob, pfx_password, NULL, export_flags ) != FALSE;
+                if( isOK )
+                    pfx->resize( blob.cbData );
+                else
+                    pfx->clear();
+            }
+            break;
+        }
+
+        if( bRelease )
+            CryptReleaseContext( hProvFromCert, 0 );
+        CertFreeCertificateContext( store_cert );
+    }
+
+    CertCloseStore( store, 0 );
+    for( volatile WCHAR * v = &wpassword[0]; v < &wpassword[0] + wpassword.size(); v++ )
+        *v = 0;
+    return isOK;
+}
+
+static bool msspi_encode_object( LPCSTR type, const void * value, std::vector<BYTE> * out, DWORD flags = 0 )
+{
+    DWORD size = 0;
+    if( !CryptEncodeObjectEx( X509_ASN_ENCODING, type, value, flags, NULL, NULL, &size ) )
+        return false;
+    out->resize( size );
+    if( !CryptEncodeObjectEx( X509_ASN_ENCODING, type, value, flags, NULL, out->data(), &size ) )
+        return false;
+    out->resize( size );
+    return true;
+}
+
+static bool msspi_encode_selfsigned_subject( const uint8_t * common_name, size_t common_name_len, std::vector<BYTE> * encoded )
+{
+    if( common_name_len > INT32_MAX )
+        return false;
+
+    int wlen = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, (LPCSTR)common_name, (int)common_name_len, NULL, 0 );
+    if( wlen <= 0 )
+        return false;
+
+    std::vector<WCHAR> wname( (size_t)wlen );
+    if( MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, (LPCSTR)common_name, (int)common_name_len, wname.data(), wlen ) != wlen )
+        return false;
+
+    CERT_RDN_ATTR attr = {};
+    attr.pszObjId = (LPSTR)szOID_COMMON_NAME;
+    attr.dwValueType = CERT_RDN_UTF8_STRING;
+    attr.Value.cbData = (DWORD)( wname.size() * sizeof( WCHAR ) );
+    attr.Value.pbData = (BYTE *)wname.data();
+    CERT_RDN rdn = { 1, &attr };
+    CERT_NAME_INFO name = { 1, &rdn };
+    return msspi_encode_object( X509_UNICODE_NAME, &name, encoded );
+}
+
+#define MSSPI_SELFSIGNED_EXTENSIONS 4
+
+static bool msspi_encode_selfsigned_extensions( BYTE key_usage_bits, CERT_PUBLIC_KEY_INFO * public_key_info, CERT_EXTENSION * extension, std::vector<BYTE> * encoded_key_usage, std::vector<BYTE> * encoded_eku, std::vector<BYTE> * raw_key_id, std::vector<BYTE> * encoded_key_id, std::vector<BYTE> * encoded_aki )
+{
+    CRYPT_BIT_BLOB key_usage = {};
+    key_usage.cbData = 1;
+    key_usage.pbData = &key_usage_bits;
+
+    static LPSTR usages[] = {
+        (LPSTR)szOID_PKIX_KP_SERVER_AUTH,
+        (LPSTR)szOID_PKIX_KP_CLIENT_AUTH,
+    };
+
+    CERT_ENHKEY_USAGE eku = {};
+    eku.cUsageIdentifier = (DWORD)( sizeof( usages ) / sizeof( usages[0] ) );
+    eku.rgpszUsageIdentifier = usages;
+
+    DWORD key_id_size = 0;
+    if( !msspi_encode_object( X509_KEY_USAGE, &key_usage, encoded_key_usage ) ||
+        !msspi_encode_object( X509_ENHANCED_KEY_USAGE, &eku, encoded_eku ) ||
+        !CryptHashPublicKeyInfo( 0, CALG_SHA1, 0, X509_ASN_ENCODING, public_key_info, NULL, &key_id_size ) )
+        return false;
+
+    raw_key_id->resize( key_id_size );
+    if( !CryptHashPublicKeyInfo( 0, CALG_SHA1, 0, X509_ASN_ENCODING, public_key_info, raw_key_id->data(), &key_id_size ) )
+        return false;
+
+    CRYPT_DATA_BLOB key_id = { key_id_size, raw_key_id->data() };
+    CERT_AUTHORITY_KEY_ID2_INFO authority_key_id = {};
+    authority_key_id.KeyId = key_id;
+    if( !msspi_encode_object( X509_OCTET_STRING, &key_id, encoded_key_id ) ||
+        !msspi_encode_object( X509_AUTHORITY_KEY_ID2, &authority_key_id, encoded_aki ) )
+        return false;
+
+    const struct { LPCSTR oid; BOOL critical; std::vector<BYTE> * value; } items[MSSPI_SELFSIGNED_EXTENSIONS] = {
+        { szOID_KEY_USAGE, TRUE, encoded_key_usage },
+        { szOID_ENHANCED_KEY_USAGE, FALSE, encoded_eku },
+        { szOID_SUBJECT_KEY_IDENTIFIER, FALSE, encoded_key_id },
+        { szOID_AUTHORITY_KEY_IDENTIFIER2, FALSE, encoded_aki },
+    };
+    for( size_t i = 0; i < MSSPI_SELFSIGNED_EXTENSIONS; i++ )
+    {
+        extension[i].pszObjId = (LPSTR)items[i].oid;
+        extension[i].fCritical = items[i].critical;
+        extension[i].Value.cbData = (DWORD)items[i].value->size();
+        extension[i].Value.pbData = items[i].value->data();
+    }
+    return true;
+}
+
+#define MSSPI_FILETIME_UNIX_EPOCH_SECONDS 11644473600LL
+#define MSSPI_FILETIME_TICKS_PER_SECOND 10000000ULL
+
+static FILETIME msspi_filetime_from_offset( int32_t offset_sec )
+{
+    uint64_t t = (uint64_t)( (int64_t)time( NULL ) + offset_sec + MSSPI_FILETIME_UNIX_EPOCH_SECONDS ) * MSSPI_FILETIME_TICKS_PER_SECOND;
+    FILETIME ft;
+    ft.dwLowDateTime = (DWORD)t;
+    ft.dwHighDateTime = (DWORD)( t >> 32 );
+    return ft;
+}
+
+struct MSSPI_KeyType
+{
+    int key_type;
+    const wchar_t * prov_name;
+    DWORD prov_type;
+    ALG_ID alg;
+    DWORD bits;
+    const char * curve_oid;
+    ALG_ID hash_alg;
+    const char * signature_oid;
+    BYTE key_usage;
+};
+
+static const BYTE msspi_asn1_null[] = { 0x05, 0x00 };
+
+#define MSSPI_SELFSIGNED_SERIAL_SIZE 16
+// the serial is little-endian here: clearing the top bit of its last byte keeps the INTEGER positive
+#define MSSPI_SERIAL_POSITIVE_MASK 0x7F
+#define MSSPI_SELFSIGNED_BACKDATE_SECONDS ( 24 * 60 * 60 )
+
+#define MSSPI_KU_KEYX ( CERT_DIGITAL_SIGNATURE_KEY_USAGE | CERT_KEY_ENCIPHERMENT_KEY_USAGE )
+#define MSSPI_KU_AGREE ( CERT_DIGITAL_SIGNATURE_KEY_USAGE | CERT_KEY_AGREEMENT_KEY_USAGE )
+
+static const MSSPI_KeyType msspi_key_types[] = {
+    { MSSPI_KEY_GOST2012_256, L"Crypto-Pro GOST R 34.10-2012 Cryptographic Service Provider", PROV_GOST_2012_256, CALG_DH_GR3410_12_256_SF, 0, NULL, CALG_GR3411_2012_256, szOID_CP_GOST_R3411_12_256_R3410, MSSPI_KU_KEYX },
+    { MSSPI_KEY_GOST2012_512, L"Crypto-Pro GOST R 34.10-2012 Strong Cryptographic Service Provider", PROV_GOST_2012_512, CALG_DH_GR3410_12_512_SF, 0, NULL, CALG_GR3411_2012_512, szOID_CP_GOST_R3411_12_512_R3410, MSSPI_KU_KEYX },
+    { MSSPI_KEY_RSA2048, L"Crypto-Pro Enhanced RSA and AES CSP", PROV_RSA_AES, CALG_RSA_KEYX, 2048, NULL, CALG_SHA_256, szOID_RSA_SHA256RSA, MSSPI_KU_KEYX },
+    { MSSPI_KEY_RSA4096, L"Crypto-Pro Enhanced RSA and AES CSP", PROV_RSA_AES, CALG_RSA_KEYX, 4096, NULL, CALG_SHA_256, szOID_RSA_SHA256RSA, MSSPI_KU_KEYX },
+    { MSSPI_KEY_ECDSA_P256, L"Crypto-Pro ECDSA and AES CSP", PROV_EC_ECDSA_FULL, CALG_ECDH, 0, szOID_ECC_CURVE_P256, CALG_SHA_256, szOID_ECDSA_SHA256, MSSPI_KU_AGREE },
+};
+
+static const MSSPI_KeyType * msspi_find_key_type( int key_type )
+{
+    for( size_t i = 0; i < sizeof( msspi_key_types ) / sizeof( msspi_key_types[0] ); i++ )
+        if( msspi_key_types[i].key_type == key_type )
+            return &msspi_key_types[i];
+    return NULL;
+}
+
+static bool msspi_generate_transport_key( HCRYPTPROV hProv, DWORD prov_type, HCRYPTKEY * hKey )
+{
+    if( prov_type != PROV_GOST_2012_256 && prov_type != PROV_GOST_2012_512 )
+        return CryptGenKey( hProv, CALG_AES_256, CRYPT_EXPORTABLE, hKey ) != FALSE;
+
+    DWORD transport_alg_id = CALG_PRO12_EXPORT;
+    return CryptGenKey( hProv, CALG_G28147, CRYPT_EXPORTABLE, hKey ) &&
+           CryptSetKeyParam( *hKey, KP_ALGID, (BYTE *)&transport_alg_id, 0 );
+}
+
+// CryptSignAndEncodeCertificate may fail for a CRYPT_VERIFYCONTEXT key (NTE_BAD_UID), then the hash is signed directly;
+// the CAPI signature is little-endian: it is reversed here, and an encoder rejecting the no-reversal flag does not reverse
+static bool msspi_sign_certificate( HCRYPTPROV hProv, DWORD key_spec, ALG_ID hash_alg, CERT_INFO * cert_info, CRYPT_ALGORITHM_IDENTIFIER * signature_alg, std::vector<BYTE> * encoded )
+{
+    DWORD size = 0;
+    if( CryptSignAndEncodeCertificate( hProv, key_spec, X509_ASN_ENCODING, X509_CERT_TO_BE_SIGNED, cert_info, signature_alg, NULL, NULL, &size ) )
+    {
+        encoded->resize( size );
+        if( CryptSignAndEncodeCertificate( hProv, key_spec, X509_ASN_ENCODING, X509_CERT_TO_BE_SIGNED, cert_info, signature_alg, NULL, encoded->data(), &size ) )
+        {
+            encoded->resize( size );
+            return true;
+        }
+    }
+
+    std::vector<BYTE> tbs;
+    if( !msspi_encode_object( X509_CERT_TO_BE_SIGNED, cert_info, &tbs ) )
+        return false;
+
+    HCRYPTHASH hHash = 0;
+    DWORD signature_size = 0;
+    std::vector<BYTE> signature;
+    bool isOK = false;
+    for( ;; )
+    {
+        if( !CryptCreateHash( hProv, hash_alg, 0, 0, &hHash ) ||
+            !CryptHashData( hHash, tbs.data(), (DWORD)tbs.size(), 0 ) ||
+            !CryptSignHashW( hHash, key_spec, NULL, 0, NULL, &signature_size ) )
+            break;
+
+        signature.resize( signature_size );
+        if( !CryptSignHashW( hHash, key_spec, NULL, 0, signature.data(), &signature_size ) )
+            break;
+        signature.resize( signature_size );
+
+        isOK = true;
+        break;
+    }
+    if( hHash )
+        CryptDestroyHash( hHash );
+    if( !isOK )
+        return false;
+
+    CERT_SIGNED_CONTENT_INFO signed_info = {};
+    signed_info.ToBeSigned.cbData = (DWORD)tbs.size();
+    signed_info.ToBeSigned.pbData = tbs.data();
+    signed_info.SignatureAlgorithm = *signature_alg;
+    std::reverse( signature.begin(), signature.end() );
+    signed_info.Signature.cbData = signature_size;
+    signed_info.Signature.pbData = signature.data();
+    if( msspi_encode_object( X509_CERT, &signed_info, encoded, CRYPT_ENCODE_NO_SIGNATURE_BYTE_REVERSAL_FLAG ) )
+        return true;
+    return GetLastError() == ERROR_INVALID_PARAMETER && msspi_encode_object( X509_CERT, &signed_info, encoded );
+}
+
+int msspi_gen_selfsigned( MSSPI_HANDLE h, int key_type, const uint8_t * common_name, size_t common_name_len, uint32_t valid_seconds, const uint8_t * password, size_t password_len, const uint8_t ** pfx, size_t * pfx_len, const uint8_t ** cert, size_t * cert_len )
+{
+    MSSPIEHTRY_h;
+
+    const MSSPI_KeyType * kt = msspi_find_key_type( key_type );
+    if( !kt || ( !password && password_len ) || ( password && memchr( password, 0, password_len ) ) || !common_name || !common_name_len || !pfx || !pfx_len || !valid_seconds || valid_seconds > INT32_MAX )
+    {
+        SetLastError( ERROR_BAD_ARGUMENTS );
+        return 0;
+    }
+
+    *pfx = NULL;
+    *pfx_len = 0;
+    if( cert )
+        *cert = NULL;
+    if( cert_len )
+        *cert_len = 0;
+
+    HCRYPTPROV hProv = 0;
+    HCRYPTKEY hKey = 0;
+    HCRYPTKEY hTransportKey = 0;
+    HCRYPTKEY hImportedKey = 0;
+    PCCERT_CONTEXT selfsigned = NULL;
+    std::vector<BYTE> pfx_blob;
+    size_t pfx_size = 0;
+    const DWORD key_spec = AT_KEYEXCHANGE;
+    bool isOK = false;
+
+    for( ;; )
+    {
+        std::vector<BYTE> encoded_subject;
+        if( !msspi_encode_selfsigned_subject( common_name, common_name_len, &encoded_subject ) )
+            break;
+
+        if( !CryptAcquireContextW( &hProv, NULL, kt->prov_name, kt->prov_type, CRYPT_VERIFYCONTEXT | CRYPT_SILENT ) )
+            break;
+
+        if( kt->curve_oid && !CryptSetProvParam( hProv, PP_SIGNATUREOID, (const BYTE *)kt->curve_oid, 0 ) )
+            break;
+
+        DWORD gen_flags = ( kt->bits << 16 ) | CRYPT_EXPORTABLE;
+        if( !CryptGenKey( hProv, kt->alg, gen_flags, &hKey ) &&
+            ( !g_prov.Seed( hProv ) || !CryptGenKey( hProv, kt->alg, gen_flags, &hKey ) ) )
+            break;
+
+        if( !msspi_generate_transport_key( hProv, kt->prov_type, &hTransportKey ) )
+            break;
+
+        DWORD private_blob_size = 0;
+        if( !CryptExportKey( hKey, hTransportKey, PRIVATEKEYBLOB, 0, NULL, &private_blob_size ) )
+            break;
+
+        std::vector<BYTE> private_blob( private_blob_size );
+        if( !CryptExportKey( hKey, hTransportKey, PRIVATEKEYBLOB, 0, private_blob.data(), &private_blob_size ) )
+            break;
+
+        CryptDestroyKey( hKey );
+        hKey = 0;
+
+        if( !CryptImportKey( hProv, private_blob.data(), private_blob_size, hTransportKey, CRYPT_EXPORTABLE, &hImportedKey ) )
+            break;
+
+        CRYPT_ALGORITHM_IDENTIFIER signature_alg = {};
+        signature_alg.pszObjId = (LPSTR)kt->signature_oid;
+        if( kt->prov_type == PROV_RSA_AES )
+        {
+            signature_alg.Parameters.cbData = sizeof( msspi_asn1_null );
+            signature_alg.Parameters.pbData = (BYTE *)msspi_asn1_null;
+        }
+
+        DWORD public_key_info_size = 0;
+        if( !CryptExportPublicKeyInfo( hProv, key_spec, X509_ASN_ENCODING, NULL, &public_key_info_size ) )
+            break;
+
+        std::vector<BYTE> public_key_info_buf( public_key_info_size );
+        CERT_PUBLIC_KEY_INFO * public_key_info = (CERT_PUBLIC_KEY_INFO *)public_key_info_buf.data();
+        if( !CryptExportPublicKeyInfo( hProv, key_spec, X509_ASN_ENCODING, public_key_info, &public_key_info_size ) )
+            break;
+
+        if( kt->prov_type == PROV_RSA_AES && !public_key_info->Algorithm.Parameters.cbData )
+        {
+            public_key_info->Algorithm.Parameters.cbData = sizeof( msspi_asn1_null );
+            public_key_info->Algorithm.Parameters.pbData = (BYTE *)msspi_asn1_null;
+        }
+
+        CERT_EXTENSION selfsigned_extensions[MSSPI_SELFSIGNED_EXTENSIONS] = {};
+        std::vector<BYTE> encoded_key_usage;
+        std::vector<BYTE> encoded_eku;
+        std::vector<BYTE> raw_key_id;
+        std::vector<BYTE> encoded_key_id;
+        std::vector<BYTE> encoded_aki;
+        if( !msspi_encode_selfsigned_extensions( kt->key_usage, public_key_info, selfsigned_extensions, &encoded_key_usage, &encoded_eku, &raw_key_id, &encoded_key_id, &encoded_aki ) )
+            break;
+
+        CRYPT_KEY_PROV_INFO key_prov_info = {};
+        key_prov_info.pwszProvName = (LPWSTR)kt->prov_name;
+        key_prov_info.dwProvType = kt->prov_type;
+        key_prov_info.dwFlags = CRYPT_VERIFYCONTEXT | CERT_SET_KEY_CONTEXT_PROP_ID;
+        key_prov_info.dwKeySpec = key_spec;
+
+        BYTE serial[MSSPI_SELFSIGNED_SERIAL_SIZE];
+        if( !CryptGenRandom( hProv, sizeof( serial ), serial ) )
+            break;
+        serial[sizeof( serial ) - 1] &= MSSPI_SERIAL_POSITIVE_MASK;
+
+        CERT_NAME_BLOB subject = { (DWORD)encoded_subject.size(), encoded_subject.data() };
+        CERT_INFO cert_info = {};
+        cert_info.dwVersion = CERT_V3;
+        cert_info.SerialNumber.cbData = sizeof( serial );
+        cert_info.SerialNumber.pbData = serial;
+        cert_info.SignatureAlgorithm = signature_alg;
+        cert_info.Issuer = subject;
+        cert_info.NotBefore = msspi_filetime_from_offset( -MSSPI_SELFSIGNED_BACKDATE_SECONDS );
+        cert_info.NotAfter = msspi_filetime_from_offset( (int32_t)valid_seconds );
+        cert_info.Subject = subject;
+        cert_info.SubjectPublicKeyInfo = *public_key_info;
+        cert_info.cExtension = MSSPI_SELFSIGNED_EXTENSIONS;
+        cert_info.rgExtension = selfsigned_extensions;
+
+        std::vector<BYTE> encoded_cert;
+        if( !msspi_sign_certificate( hProv, key_spec, kt->hash_alg, &cert_info, &signature_alg, &encoded_cert ) )
+            break;
+
+        selfsigned = CertCreateCertificateContext( X509_ASN_ENCODING, encoded_cert.data(), (DWORD)encoded_cert.size() );
+        if( !selfsigned )
+            break;
+
+        CERT_KEY_CONTEXT key_context = {};
+        key_context.cbSize = sizeof( key_context );
+        key_context.hCryptProv = hProv;
+        key_context.dwKeySpec = key_spec;
+        if( !CertSetCertificateContextProperty( selfsigned, CERT_KEY_CONTEXT_PROP_ID, CERT_STORE_NO_CRYPT_RELEASE_FLAG, &key_context ) )
+            break;
+
+        if( !CertSetCertificateContextProperty( selfsigned, CERT_KEY_PROV_INFO_PROP_ID, 0, &key_prov_info ) )
+            break;
+
+        if( !msspi_export_cert_pfx( selfsigned, password, password_len, &pfx_blob ) || pfx_blob.empty() )
+            break;
+
+        pfx_size = pfx_blob.size();
+        pfx_blob.insert( pfx_blob.end(), selfsigned->pbCertEncoded, selfsigned->pbCertEncoded + selfsigned->cbCertEncoded );
+        isOK = true;
+        break;
+    }
+
+    if( hTransportKey )
+        CryptDestroyKey( hTransportKey );
+    if( hKey )
+        CryptDestroyKey( hKey );
+    if( hImportedKey )
+        CryptDestroyKey( hImportedKey );
+    if( selfsigned )
+        CertFreeCertificateContext( selfsigned );
+    if( hProv )
+        CryptReleaseContext( hProv, 0 );
+
+    if( isOK )
+    {
+        h->selfsigned_holder.swap( pfx_blob );
+        *pfx = h->selfsigned_holder.data();
+        *pfx_len = pfx_size;
+        if( cert )
+            *cert = h->selfsigned_holder.data() + pfx_size;
+        if( cert_len )
+            *cert_len = h->selfsigned_holder.size() - pfx_size;
+        return 1;
+    }
+
+    return 0;
+
+    MSSPIEHCATCH_HRET( 0 );
 }
 
 static int msspi_set_mycert_common( MSSPI_HANDLE h, const uint8_t * certData, size_t len, const uint8_t * password, size_t password_len, bool pfx, bool can_append )
