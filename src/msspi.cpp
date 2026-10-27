@@ -287,7 +287,7 @@ void msspi_logger_func( char level, const char * format, ... )
 #endif
 
 #ifndef SECBUFFER_SRTP_PROTECTION_PROFILES
-#define SECBUFFER_SRTP_PROTECTION_PROFILES 14  // SRTP protection profiles for DTLS-SRTP
+#define SECBUFFER_SRTP_PROTECTION_PROFILES 19
 
 typedef struct _SEC_SRTP_PROTECTION_PROFILES {
   unsigned short ProfilesSize;
@@ -2307,7 +2307,8 @@ int msspi_get_srtp_profile( MSSPI_HANDLE h, uint16_t * profile )
             return 0;
         }
 
-        h->srtp_profile = srtp_ctx.ProtectionProfile;
+        const BYTE * wire = (const BYTE *)&srtp_ctx.ProtectionProfile;
+        h->srtp_profile = (WORD)( ( wire[0] << 8 ) | wire[1] );
         h->is.srtp = 1;
     }
 

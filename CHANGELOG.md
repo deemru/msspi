@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.10
+
+- Fixed [`msspi_set_srtp_profiles()`](MSSPI.md#msspi_set_srtp_profiles) passed the profiles in a wrong buffer type
+- Fixed [`msspi_get_srtp_profile()`](MSSPI.md#msspi_get_srtp_profile) to return the profile ID in host byte order
+
+---
+
 ## 1.0.9
 
 - Added [`msspi_gen_selfsigned()`](MSSPI.md#msspi_gen_selfsigned) to generate a self-signed certificate with an in-memory key as PFX for [`msspi_set_mycert_pfx()`](MSSPI.md#msspi_set_mycert_pfx)

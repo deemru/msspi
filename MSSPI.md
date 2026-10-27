@@ -362,8 +362,8 @@ Sets SRTP (Secure Real-time Transport Protocol) protection profiles for DTLS-SRT
 
 **Parameters:**
 - `h`: Handle
-- `profiles`: SRTP profile list in RFC 5764 format (list of 2-byte profile IDs)
-- `profiles_len`: Length of profiles data
+- `profiles`: SRTP profile IDs in RFC 5764 wire format, 2 bytes each in network byte order (`00 01` is `SRTP_AES128_CM_HMAC_SHA1_80`)
+- `profiles_len`: Length of profiles data in bytes
 
 **Returns:** `1` on success, `0` on failure
 
@@ -1082,7 +1082,7 @@ Gets the negotiated SRTP protection profile after DTLS-SRTP handshake.
 
 **Parameters:**
 - `h`: Handle
-- `profile`: Pointer to receive the negotiated SRTP profile ID
+- `profile`: Pointer to receive the negotiated SRTP profile ID in host byte order (`0x0001` is `SRTP_AES128_CM_HMAC_SHA1_80`), `0` if none was negotiated
 
 **Returns:** `1` on success, `0` on failure
 
